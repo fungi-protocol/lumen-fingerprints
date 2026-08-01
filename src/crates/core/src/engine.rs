@@ -15,6 +15,11 @@ pub struct ScanConfig {
     /// When set, one numeric feature row per classified transaction is streamed here
     /// during the same pass. A `.zst` suffix selects zstd compression. See `features.rs`.
     pub features_out: Option<PathBuf>,
+    /// When set, one categorical (pre-collapse) fingerprint-vector row per classified
+    /// transaction is streamed here during the same pass, via
+    /// `FingerprintVector::to_vector_csv_line`. A `.zst` suffix selects zstd
+    /// compression, same as `features_out`. See `vector.rs`.
+    pub vectors_out: Option<PathBuf>,
 }
 
 #[derive(Debug, Default, PartialEq, Eq)]
@@ -39,9 +44,9 @@ pub enum ScanError {
     Io(std::io::Error),
     Source(String),
     Serialize(serde_json::Error),
-    /// Resuming (the epoch file already holds data) while a per-tx sink (`--features`) is
-    /// set. That CSV can only truncate, silently discarding everything collected before the
-    /// interruption — refuse rather than lose data.
+    /// Resuming (the epoch file already holds data) while a per-tx sink (`--features`/
+    /// `--vectors`) is set. That CSV can only truncate, silently discarding everything
+    /// collected before the interruption — refuse rather than lose data.
     ResumeWithPerTxSink,
 }
 
@@ -53,9 +58,9 @@ impl std::fmt::Display for ScanError {
             Self::Serialize(e) => write!(f, "serializing epoch row: {e}"),
             Self::ResumeWithPerTxSink => write!(
                 f,
-                "cannot resume a scan with --features: the per-tx CSV would be truncated, \
-                 discarding prior data. Scan a single pass to a fresh --out, or omit --features \
-                 when resuming"
+                "cannot resume a scan with --features/--vectors: the per-tx CSV would be \
+                 truncated, discarding prior data. Scan a single pass to a fresh --out, or omit \
+                 --features/--vectors when resuming"
             ),
         }
     }
@@ -132,13 +137,13 @@ pub fn resume_point(out_path: &Path) -> Result<Option<u32>, ScanError> {
 /// multi-hour, one-shot investment in the data itself; matching against a wallet list
 /// belongs at report time, where a `wallets.toml` correction takes effect in seconds.
 pub fn scan<S: BlockSource>(source: &mut S, config: ScanConfig) -> Result<ScanSummary, ScanError> {
-    // A resume appends to the epoch file, but the per-tx sink (`--features`) can only
-    // truncate — silently discarding everything collected before the interruption.
-    // Refuse rather than lose data: a faithful --features run is a single pass.
+    // A resume appends to the epoch file, but a per-tx sink (`--features`/`--vectors`) can
+    // only truncate — silently discarding everything collected before the interruption.
+    // Refuse rather than lose data: a faithful --features/--vectors run is a single pass.
     let resuming = std::fs::metadata(&config.out_path)
         .map(|m| m.len() > 0)
         .unwrap_or(false);
-    if resuming && config.features_out.is_some() {
+    if resuming && (config.features_out.is_some() || config.vectors_out.is_some()) {
         return Err(ScanError::ResumeWithPerTxSink);
     }
 
@@ -167,6 +172,17 @@ pub fn scan<S: BlockSource>(source: &mut S, config: ScanConfig) -> Result<ScanSu
         Some(path) => Some(open_sink(path, &COLUMN_NAMES.join(","))?),
     };
 
+    // Optional per-tx categorical fingerprint-vector CSV sink, same `FeatureSink`
+    // plain/zstd machinery as `features` above, but writing
+    // `FingerprintVector::to_vector_csv_line` rows instead of numeric feature rows.
+    let mut vectors: Option<FeatureSink> = match &config.vectors_out {
+        None => None,
+        Some(path) => Some(open_sink(
+            path,
+            &crate::FingerprintVector::vector_csv_header(),
+        )?),
+    };
+
     loop {
         let block = match source.next_block() {
             Ok(Some(block)) => block,
@@ -175,13 +191,15 @@ pub fn scan<S: BlockSource>(source: &mut S, config: ScanConfig) -> Result<ScanSu
         };
 
         let height = block.height;
-        if features.is_some() {
+        if features.is_some() || vectors.is_some() {
             let mut sink_err: Option<std::io::Error> = None;
             // `row` is the same `FeatureRow` `ingest_with` already built to fold into
             // `field_aggs` (per-field aggregation is core now, computed on every block
             // regardless of this optional sink) — reused here instead of recomputing
-            // `tx_shape`/`feature_row` a second time per transaction.
-            acc.ingest_with(&block, &mut |_tx, _height, _vector, _flags, row| {
+            // `tx_shape`/`feature_row` a second time per transaction. `vector` is the
+            // same classification `ingest_with` produced for this tx, reused by the
+            // `--vectors` sink instead of re-running `classify_tx`.
+            acc.ingest_with(&block, &mut |tx, _height, vector, _flags, row| {
                 if sink_err.is_some() {
                     return;
                 }
@@ -189,6 +207,13 @@ pub fn scan<S: BlockSource>(source: &mut S, config: ScanConfig) -> Result<ScanSu
                     && let Err(e) = write_feature_row(w, row)
                 {
                     sink_err = Some(e);
+                    return;
+                }
+                if let Some(w) = vectors.as_mut() {
+                    let txid = tx.compute_txid().to_string();
+                    if let Err(e) = writeln!(w, "{}", vector.to_vector_csv_line(&txid)) {
+                        sink_err = Some(e);
+                    }
                 }
             });
             if let Some(e) = sink_err {
@@ -221,10 +246,13 @@ pub fn scan<S: BlockSource>(source: &mut S, config: ScanConfig) -> Result<ScanSu
 
     out.flush().map_err(ScanError::Io)?;
 
-    // Finalize both optional sinks explicitly rather than relying on `Drop`: for the zstd
+    // Finalize every optional sink explicitly rather than relying on `Drop`: for the zstd
     // path this writes the frame footer, and a failure here (or a plain flush failure)
     // must surface as an error instead of silently producing a truncated/corrupt file.
     if let Some(sink) = features {
+        sink.finish().map_err(ScanError::Io)?;
+    }
+    if let Some(sink) = vectors {
         sink.finish().map_err(ScanError::Io)?;
     }
 
@@ -352,6 +380,7 @@ mod tests {
                 epoch_size: 5,
                 start_height: 1000,
                 features_out: None,
+                vectors_out: None,
             },
         )
         .unwrap();
@@ -381,6 +410,7 @@ mod tests {
                 epoch_size: 5,
                 start_height: 1000,
                 features_out: None,
+                vectors_out: None,
             },
         )
         .unwrap();
@@ -407,6 +437,7 @@ mod tests {
                 epoch_size: 5,
                 start_height: 1005,
                 features_out: Some(feat.clone()),
+                vectors_out: None,
             },
         )
         .unwrap_err();
@@ -415,6 +446,39 @@ mod tests {
         // the pre-existing feature file is untouched, not truncated
         assert_eq!(
             std::fs::read_to_string(&feat).unwrap(),
+            "header\nrow_from_before\n"
+        );
+    }
+
+    #[test]
+    fn resuming_with_a_vectors_sink_errors_instead_of_truncating() {
+        // A prior scan left epoch rows on disk — so this run is a resume.
+        let out = tmp_path("resume-vec-epochs");
+        std::fs::write(
+            &out,
+            "{\"start_height\":1000,\"end_height\":1004,\"txs\":5}\n",
+        )
+        .unwrap();
+        // ...and per-tx vector data that a resume must NOT silently discard.
+        let vec_path = tmp_path("resume-vec.csv");
+        std::fs::write(&vec_path, "header\nrow_from_before\n").unwrap();
+
+        let err = scan(
+            &mut blocks(1005, 5),
+            ScanConfig {
+                out_path: out.clone(),
+                epoch_size: 5,
+                start_height: 1005,
+                features_out: None,
+                vectors_out: Some(vec_path.clone()),
+            },
+        )
+        .unwrap_err();
+
+        assert!(matches!(err, ScanError::ResumeWithPerTxSink));
+        // the pre-existing vectors file is untouched, not truncated
+        assert_eq!(
+            std::fs::read_to_string(&vec_path).unwrap(),
             "header\nrow_from_before\n"
         );
     }
@@ -433,6 +497,7 @@ mod tests {
                 epoch_size: 5,
                 start_height: 1000,
                 features_out: None,
+                vectors_out: None,
             },
         )
         .unwrap();
@@ -468,6 +533,7 @@ mod tests {
                 epoch_size: 5,
                 start_height: 1000,
                 features_out: None,
+                vectors_out: None,
             },
         )
         .unwrap();
@@ -487,6 +553,7 @@ mod tests {
                 epoch_size: 5,
                 start_height: 1000,
                 features_out: None,
+                vectors_out: None,
             },
         )
         .unwrap();
@@ -513,6 +580,7 @@ mod tests {
                 epoch_size: 5,
                 start_height: 1000,
                 features_out: None,
+                vectors_out: None,
             },
         )
         .unwrap();
@@ -535,6 +603,7 @@ mod tests {
                 epoch_size: 5,
                 start_height: resume_at,
                 features_out: None,
+                vectors_out: None,
             },
         )
         .unwrap();
@@ -581,6 +650,7 @@ mod tests {
                 epoch_size: 5,
                 start_height: 1000,
                 features_out: None,
+                vectors_out: None,
             },
         )
         .unwrap();
@@ -591,6 +661,7 @@ mod tests {
                 epoch_size: 5,
                 start_height: 1005,
                 features_out: None,
+                vectors_out: None,
             },
         )
         .unwrap();
@@ -614,6 +685,7 @@ mod tests {
                 epoch_size: 5,
                 start_height: 1000,
                 features_out: Some(feat.clone()),
+                vectors_out: None,
             },
         )
         .unwrap();
@@ -655,6 +727,68 @@ mod tests {
     }
 
     #[test]
+    fn vectors_sink_writes_one_row_per_tx_with_header() {
+        let out = tmp_path("vec-epochs");
+        let vec_path = tmp_path("vec.csv");
+        let summary = scan(
+            &mut blocks(1000, 5),
+            ScanConfig {
+                out_path: out,
+                epoch_size: 5,
+                start_height: 1000,
+                features_out: None,
+                vectors_out: Some(vec_path.clone()),
+            },
+        )
+        .unwrap();
+
+        let text = std::fs::read_to_string(&vec_path).unwrap();
+        let mut lines = text.lines();
+        let header = lines.next().unwrap();
+        assert_eq!(header, crate::FingerprintVector::vector_csv_header());
+        let rows: Vec<&str> = lines.collect();
+        // one row per classified tx == the summary's tx count
+        assert_eq!(rows.len() as u64, summary.txs);
+        for row in &rows {
+            let fields: Vec<&str> = row.split(',').collect();
+            assert_eq!(
+                fields.len(),
+                1 + crate::vector::VECTOR_AXES.len(),
+                "row must carry txid + one value per VECTOR_AXES entry"
+            );
+            // txid is a 64-hex-char string, not empty/placeholder
+            assert_eq!(fields[0].len(), 64, "first field must be the txid");
+        }
+    }
+
+    #[test]
+    fn features_and_vectors_sinks_can_both_be_populated_in_one_pass() {
+        // Both `--features` and `--vectors` set together exercise the combined branch
+        // of the `ingest_with` closure (both sinks written from the same `tx`/`vector`
+        // per classified transaction), not just either one alone.
+        let out = tmp_path("both-epochs");
+        let feat = tmp_path("both-feat.csv");
+        let vec_path = tmp_path("both-vec.csv");
+        let summary = scan(
+            &mut blocks(1000, 5),
+            ScanConfig {
+                out_path: out,
+                epoch_size: 5,
+                start_height: 1000,
+                features_out: Some(feat.clone()),
+                vectors_out: Some(vec_path.clone()),
+            },
+        )
+        .unwrap();
+
+        let feat_rows = std::fs::read_to_string(&feat).unwrap().lines().count();
+        let vec_rows = std::fs::read_to_string(&vec_path).unwrap().lines().count();
+        // header + one row per classified tx, in both files
+        assert_eq!(feat_rows as u64, summary.txs + 1);
+        assert_eq!(vec_rows as u64, summary.txs + 1);
+    }
+
+    #[test]
     fn features_sink_populates_block_relative_feerate() {
         // Two blocks, each its own epoch: block 2's rows must reference block 1's minimum
         // feerate via `prev_block_min`, while block 1 (no preceding block) reads the
@@ -668,6 +802,7 @@ mod tests {
                 epoch_size: 1,
                 start_height: 1000,
                 features_out: Some(feat.clone()),
+                vectors_out: None,
             },
         )
         .unwrap();
@@ -719,6 +854,7 @@ mod tests {
                 epoch_size: 5,
                 start_height: 1000,
                 features_out: None,
+                vectors_out: None,
             },
         )
         .unwrap();
@@ -735,6 +871,7 @@ mod tests {
             epoch_size: 5,
             start_height: 1000,
             features_out: Some(p),
+            vectors_out: None,
         };
         scan(&mut blocks(1000, 5), cfg(plain.clone())).unwrap();
         let _ = std::fs::remove_file(&out);
@@ -799,6 +936,7 @@ mod tests {
                 epoch_size,
                 start_height: start,
                 features_out: None,
+                vectors_out: None,
             },
         )
         .unwrap();
