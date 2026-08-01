@@ -113,6 +113,7 @@ fn cmd_scan(args: &[String]) {
             epoch_size,
             start_height,
             features_out,
+            vectors_out: None,
         },
     )
     .expect("scan failed");
