@@ -332,11 +332,8 @@ impl FingerprintVector {
         let mut s = csv_escape(txid);
         for axis in VECTOR_AXES {
             s.push(',');
-            let value = self
-                .axis_value(axis)
-                .map(|v| v.into_owned())
-                .unwrap_or_default();
-            s.push_str(&csv_escape(&value));
+            let value = self.axis_value(axis);
+            s.push_str(&csv_escape(value.as_deref().unwrap_or("")));
         }
         s
     }
