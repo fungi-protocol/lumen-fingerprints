@@ -323,14 +323,20 @@ impl FingerprintVector {
         s
     }
 
-    /// One CSV line: `txid` then each `VECTOR_AXES` value in order. Axis values are
-    /// single tokens (`Yes`, `Bip69`, `Max`, an integer, …) with no comma/quote/newline,
-    /// so no RFC-4180 escaping is needed; an unknown axis renders empty.
+    /// One CSV line: `txid` then each `VECTOR_AXES` value in order. Fields are
+    /// RFC-4180-escaped: any field containing comma, quote, newline, or carriage return
+    /// is wrapped in double quotes with embedded quotes doubled. This ensures
+    /// Vec-valued axes like `output_types` (`[P2wpkh, P2tr]`) stay a single CSV column,
+    /// preserving the fixed arity. An unknown axis renders empty.
     pub fn to_vector_csv_line(&self, txid: &str) -> String {
-        let mut s = String::from(txid);
+        let mut s = csv_escape(txid);
         for axis in VECTOR_AXES {
             s.push(',');
-            s.push_str(&self.axis_value(axis).unwrap_or(Cow::Borrowed("")));
+            let value = self
+                .axis_value(axis)
+                .map(|v| v.into_owned())
+                .unwrap_or_default();
+            s.push_str(&csv_escape(&value));
         }
         s
     }
@@ -475,6 +481,31 @@ fn output_type_str(v: OutputType) -> &'static str {
         OutputType::OpReturn => "OpReturn",
         OutputType::NonStandard => "NonStandard",
         OutputType::P2pk => "P2pk",
+    }
+}
+
+/// RFC-4180 CSV field escaping: wraps the field in double quotes if it contains
+/// comma, double-quote, newline, or carriage return, and doubles any embedded quotes.
+fn csv_escape(field: &str) -> String {
+    if !field.contains(',')
+        && !field.contains('"')
+        && !field.contains('\n')
+        && !field.contains('\r')
+    {
+        // No special characters: return as-is
+        field.to_string()
+    } else {
+        // Needs escaping: wrap in quotes and double any embedded quotes
+        let mut escaped = String::from("\"");
+        for ch in field.chars() {
+            if ch == '"' {
+                escaped.push_str("\"\"");
+            } else {
+                escaped.push(ch);
+            }
+        }
+        escaped.push('"');
+        escaped
     }
 }
 
@@ -1734,5 +1765,69 @@ mod tests {
             let expected = v.axis_value(axis).unwrap();
             assert_eq!(fields[i + 1], expected.as_ref(), "axis {axis} mismatched");
         }
+    }
+
+    #[test]
+    fn vector_csv_line_rfc4180_escapes_fields_with_commas() {
+        // Construct a tx with multiple distinct output types (P2TR + P2WPKH) so
+        // output_types renders as `[P2tr, P2wpkh]` with an internal comma.
+        // RFC-4180 escaping must wrap that field in double quotes so it stays
+        // a single CSV column, preserving the fixed 1 + VECTOR_AXES.len() arity.
+        let mut tx = cake_like_tx();
+        tx.output = vec![
+            TxOut {
+                value: Amount::from_sat(50_000),
+                script_pubkey: p2tr_spk(),
+            },
+            TxOut {
+                value: Amount::from_sat(430_000),
+                script_pubkey: real_p2wpkh_spk(),
+            },
+        ];
+        let block = block_with_prevout_script(tx.clone(), EPOCH_TEST_HEIGHT, real_p2wpkh_spk());
+        let v = classify_tx(&tx, &block).expect("classifiable");
+
+        let line = v.to_vector_csv_line("txid");
+
+        // RFC-4180 parse: split on unquoted commas only
+        let mut fields = Vec::new();
+        let mut current = String::new();
+        let mut in_quotes = false;
+        for ch in line.chars() {
+            match ch {
+                '"' => {
+                    in_quotes = !in_quotes;
+                    current.push(ch);
+                }
+                ',' if !in_quotes => {
+                    fields.push(current.clone());
+                    current.clear();
+                }
+                _ => current.push(ch),
+            }
+        }
+        fields.push(current);
+
+        // Exact arity: txid + one field per axis
+        assert_eq!(
+            fields.len(),
+            1 + VECTOR_AXES.len(),
+            "CSV must have exactly 1 + VECTOR_AXES.len() fields after RFC-4180 parsing"
+        );
+
+        // The output_types field must be quoted and contain the comma
+        let output_types_index = VECTOR_AXES
+            .iter()
+            .position(|&a| a == "output_types")
+            .expect("output_types in VECTOR_AXES");
+        let output_types_field = &fields[1 + output_types_index];
+        assert!(
+            output_types_field.starts_with('"') && output_types_field.ends_with('"'),
+            "output_types field with comma must be quoted: {output_types_field}"
+        );
+        assert!(
+            output_types_field.contains(','),
+            "output_types field must contain a comma (the type separator): {output_types_field}"
+        );
     }
 }
