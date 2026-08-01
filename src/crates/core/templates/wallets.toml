@@ -1,0 +1,184 @@
+# Wallet fingerprint templates. An omitted axis matches anything.
+# confidence: "chain-proven" (decoded from a real txid) or "code-predicted" (read from source).
+# Wallet developers: correct your own entry by PR — that is the point of this file.
+#
+# Wallet names deliberately match the `name` strings used by
+# https://github.com/arminsabouri/walletfingerprints.info's fingerprints.json, so the two
+# datasets join by identity. Do not rename an entry here without renaming it there too.
+#
+# Sources: fingerprints.json (generated_at 2026-06-29) and the research thread it draws
+# from, payjoin/rust-payjoin#1597. Per-wallet comments cite the software version
+# fingerprints.json recorded for that entry. Where the two sources give irreconcilable
+# values for the same axis, the axis is left unset (never guessed) and the disagreement
+# is recorded in a CONFLICT comment on that entry.
+
+[[wallet]]
+name = "payjoin-cli"
+confidence = "code-predicted"
+# fingerprints.json: payjoin 1.0.0-rc.3
+version = "2"
+nsequence = "Rbf"               # 0xFFFFFFFD via Core's walletcreatefundedpsbt; #1597 group A
+# nlocktime intentionally unset: this reimplements Core's anti-fee-sniping, which is a
+# DISTRIBUTIONAL behaviour (locktime == tip height ~90% of the time, backdated up to
+# 100 blocks the other ~10%) that a single `AntiFeeSnipe` axis value cannot capture per
+# transaction — whether a given transaction used the exact tip or backdated is not
+# decidable from that transaction alone. Constraining nlocktime to one value would make
+# the template fail on a share of this wallet's own transactions; see `locktime_offset`
+# for where this behaviour actually shows up (as a distribution shape, not a label).
+input_order = "Other"            # Core builds the shuffled input vector (GetShuffledInputVector)
+sighash = "All"                  # P2WPKH/ECDSA only; sighash_nonall=0 means always SIGHASH_ALL
+low_r = "Yes"
+uncompressed_pubkey = "No"
+op_return = "false"
+
+[[wallet]]
+name = "ldk-node"
+confidence = "code-predicted"
+# fingerprints.json: 0.8.0 / bdk_wallet 2.3.0
+version = "2"
+nsequence = "Rbf"                # 0xFFFFFFFD; #1597 group A
+# nlocktime intentionally unset: bdk_wallet's no-locktime arm reimplements Core's
+# anti-fee-sniping, which is a DISTRIBUTIONAL behaviour (locktime == tip height ~90% of
+# the time, backdated up to 100 blocks the other ~10%) that a single `AntiFeeSnipe`
+# axis value cannot capture per transaction. Constraining nlocktime to one value would
+# make the template fail on a share of this wallet's own transactions; see
+# `locktime_offset` for where this behaviour actually shows up.
+input_order = "Other"            # bdk_wallet 2.3.0 TxOrdering::Shuffle default
+input_types = "Uniform(P2wpkh)"  # single Bip84 descriptor for both keychains; structurally never mixes
+sighash = "All"                  # sighash_nonall=0
+low_r = "Yes"
+uncompressed_pubkey = "No"
+op_return = "false"
+
+[[wallet]]
+name = "Liana"
+confidence = "code-predicted"
+# fingerprints.json: 14.0.0
+version = "2"
+nsequence = "Rbf"                # 0xFFFFFFFD; #1597 group A (spend.rs:773)
+# nlocktime intentionally unset: reimplements Core's anti-fee-sniping, which is a
+# DISTRIBUTIONAL behaviour (locktime == tip height ~90% of the time, backdated up to
+# 100 blocks the other ~10%) that a single `AntiFeeSnipe` axis value cannot capture per
+# transaction. Constraining nlocktime to one value would make the template fail on a
+# share of this wallet's own transactions; see `locktime_offset` for where this
+# behaviour actually shows up.
+input_order = "Other"            # coin-selection order: no sort, no shuffle
+# output_order intentionally unset: fingerprints.json's change_position is "last
+# (deterministic)", but that only pins one output's position — for the common 2-output
+# case (single recipient + change) our OrderClass classifies by raw value comparison,
+# which is ALWAYS Ascending or Descending for two distinct amounts, never Other. Mapping
+# "last" to output_order="Other" would silently fail to match Liana's own most common
+# tx shape (a false non-match, i.e. an artificially small Liana anonymity set) — exactly
+# the over-constraining the brief warns against. Only map change_position -> output_order
+# where it genuinely constrains the whole ordering (Electrum's BIP-69, below).
+low_r = "Yes"
+uncompressed_pubkey = "No"
+op_return = "false"
+
+[[wallet]]
+name = "Boltz"
+confidence = "code-predicted"
+# fingerprints.json: boltz-backend 3.13.0
+version = "2"
+# CONFLICT (nsequence): fingerprints.json gives "0xFFFFFFFF (MAX)", but #1597's opening
+# comment places Boltz in "group A - uniformly 0xFFFFFFFD", and its own follow-up EDIT
+# explains the old MAX reading was Boltz's *payjoin-contributed* input, which the lib
+# overwrites with the sender's sequence before it ever reaches chain
+# (receive/common/mod.rs:285-317) — Boltz's own (non-payjoin) txs use 0xFFFFFFFD. Two
+# irreconcilable values from the same research thread; left unset rather than guessed.
+input_order = "Bip69"            # explicit BIP-69 sort (Bip69.ts, Claim.ts:74-75)
+output_structure = "Single"      # claim/refund: Destination::Single, no change output
+low_r = "Yes"
+uncompressed_pubkey = "No"
+op_return = "false"
+
+[[wallet]]
+name = "Bull Bitcoin"
+confidence = "code-predicted"
+# fingerprints.json: 6.11.1+186
+version = "2"
+# CONFLICT (nsequence): fingerprints.json gives "0xFFFFFFFF (MAX)", but #1597 places Bull
+# Bitcoin Mobile in "group A - uniformly 0xFFFFFFFD" (bdk_dart default; the old MAX
+# reading was its payjoin-contributed input, overwritten before reaching chain — its own
+# txs use 0xFFFFFFFD). This is the conflict flagged in review; left unset rather than guessed.
+# nlocktime intentionally unset: bdk_wallet's no-locktime arm reimplements Core's
+# anti-fee-sniping, which is a DISTRIBUTIONAL behaviour (locktime == tip height ~90% of
+# the time, backdated up to 100 blocks the other ~10%) that a single `AntiFeeSnipe`
+# axis value cannot capture per transaction. Constraining nlocktime to one value would
+# make the template fail on a share of this wallet's own transactions; see
+# `locktime_offset` for where this behaviour actually shows up.
+input_order = "Other"            # bdk_wallet 2.3.0 TxOrdering::Shuffle default
+input_types = "Uniform(P2wpkh)"  # single ScriptType.bip84 per wallet; structurally never mixes
+sighash = "All"                  # sighash_nonall=0
+low_r = "Yes"
+uncompressed_pubkey = "No"
+op_return = "false"
+
+[[wallet]]
+name = "BTCPay Server"
+confidence = "code-predicted"
+# fingerprints.json: btcpayserver 8b71fb9 / NBXplorer f3da40c
+# Not one of the six integrations #1597 cross-examines directly, so only fingerprints.json
+# backs this entry. tx_version ("sampled (1 or 2)"), nlocktime ("sampled (anti-fee-sniping
+# or 0)"), and low_r ("sampled (on-chain rate)") are explicitly hedged there and omitted.
+nsequence = "Rbf"
+input_order = "Other"            # shuffle
+uncompressed_pubkey = "No"
+op_return = "false"
+
+[[wallet]]
+name = "Bitcoin Core"
+confidence = "code-predicted"
+# fingerprints.json: v31.0
+version = "2"
+nsequence = "Rbf"
+# nlocktime intentionally unset: Core's anti-fee-sniping is a DISTRIBUTIONAL behaviour
+# (locktime == tip height ~90% of the time, backdated up to 100 blocks the other ~10%)
+# that a single `AntiFeeSnipe` axis value cannot capture per transaction. Constraining
+# nlocktime to one value would make the template fail on a share of Core's own
+# transactions; see `locktime_offset` for where this behaviour actually shows up.
+input_order = "Other"            # GetShuffledInputVector
+sighash = "All"                  # holds for the default addresstype (bech32/P2WPKH); Core
+                                  # can also sign taproot or mix input types under non-default
+                                  # config (fingerprints.json hedges single_type as "prefers
+                                  # single, mixes"), so input_types is intentionally left unset
+low_r = "Yes"
+uncompressed_pubkey = "No"
+
+[[wallet]]
+name = "Electrum"
+confidence = "code-predicted"    # verified at 4.7.2 in payjoin#1597
+version = "2"
+nsequence = "Rbf"
+# nlocktime intentionally unset: reimplements Core's anti-fee-sniping, which is a
+# DISTRIBUTIONAL behaviour (locktime == tip height ~90% of the time, backdated up to
+# 100 blocks the other ~10%) that a single `AntiFeeSnipe` axis value cannot capture per
+# transaction. Constraining nlocktime to one value would make the template fail on a
+# share of Electrum's own transactions; see `locktime_offset` for where this behaviour
+# actually shows up.
+input_order = "Bip69"
+output_order = "Bip69"           # change_position is "BIP-69" here too: BIP-69 fully orders
+                                  # the output vector, so (unlike Liana's "last") it genuinely
+                                  # constrains output_order, not just change position
+low_r = "Yes"
+uncompressed_pubkey = "No"
+
+[[wallet]]
+name = "Cake Wallet"
+confidence = "chain-proven"      # nsequence/nlocktime decoded from a real prior, 9ecd77ab (#1597)
+# fingerprints.json: bitcoin_base 4.7.0
+version = "2"
+nsequence = "CakeGroupC"
+nlocktime = "Zero"
+low_r = "Yes"
+uncompressed_pubkey = "No"
+# CONFLICT (input_order): fingerprints.json's input_ordering is "BIP-69", matching the
+# chain-proven prior 9ecd77ab. But #1597's input-ordering comment later records Cake as
+# moved to Shuffle (cake-tech/cake_wallet#3379, merged) and strikes through the earlier
+# BIP-69 claim. The prior tx is real chain evidence but may predate that fix, so the
+# current default may no longer be BIP-69. Left unset rather than guessed.
+# CONFLICT (output_order): fingerprints.json's change_position is "last (deterministic)".
+# But #1597's output-ordering comment records Cake as now shuffling the output vector
+# (change no longer last), fixed via cake-tech/cake_wallet#3420 and #3432 (tracked in
+# #3376), and strikes through the "appends change last" claim. Left unset rather than
+# guessed.

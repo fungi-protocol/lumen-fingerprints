@@ -1,0 +1,13 @@
+[package]
+name = "lumen-fingerprints-lib"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+bitcoin = { workspace = true }
+lumen-primitives = { path = "../primitives" }
+serde = { version = "1", features = ["derive"] }
+
+[dev-dependencies]
+hex = "0.4"
+rand = "0.8"

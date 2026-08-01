@@ -1,0 +1,12 @@
+[package]
+name = "lumen-floresta-source"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+lumen-primitives = { path = "../primitives" }
+bitcoin = { workspace = true }
+floresta-chain = { git = "https://github.com/getfloresta/Floresta", rev = "be438a1e2ba221b69503e35452becf16a3a0f780", features = ["flat-chainstore"] }
+floresta-wire = { git = "https://github.com/getfloresta/Floresta", rev = "be438a1e2ba221b69503e35452becf16a3a0f780" }
+floresta-mempool = { git = "https://github.com/getfloresta/Floresta", rev = "be438a1e2ba221b69503e35452becf16a3a0f780" }
+tokio = { version = "1", features = ["rt-multi-thread", "sync", "time", "macros"] }

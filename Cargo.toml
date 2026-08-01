@@ -1,0 +1,31 @@
+[package]
+name = "lumen-fingerprints"
+version = "0.1.0"
+edition = "2024"
+
+[workspace]
+resolver = "3"
+members = [
+    "src/crates/primitives",
+    "src/crates/fingerprints",
+    "src/crates/floresta-source",
+    "src/crates/core",
+]
+
+[profile.release]
+debug = 1
+
+[workspace.dependencies]
+bitcoin = { version = "=0.32.8", features = ["rand"] }
+
+[[bin]]
+name = "lumen"
+path = "bin/lumen.rs"
+
+[dependencies]
+lumen-core = { path = "src/crates/core" }
+lumen-floresta-source = { path = "src/crates/floresta-source" }
+bitcoin = { workspace = true }
+hex = "0.4"
+serde_json = "1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }

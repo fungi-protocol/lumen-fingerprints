@@ -1,0 +1,19 @@
+/target
+**/target
+/out
+*.jsonl
+features*.csv
+features*.csv.zst
+series*.csv
+*.zst
+.DS_Store
+/docs/book
+/result
+/out
+/docs/superpowers/
+/.superpowers/
+__pycache__/
+*.pyc
+
+# internal publish-readiness notes — never publish
+/rust_notes.md
