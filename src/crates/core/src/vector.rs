@@ -213,6 +213,34 @@ pub const EXTENDED_AXES: &[&str] = &[
 /// `docs/superpowers/specs/2026-07-29-remove-heuristic-axes-from-sparsity-design.md`.
 pub const HEURISTIC_AXES: &[&str] = &["change_position", "change_type"];
 
+/// The axis set emitted, in order, by `lumen scan --vectors`. Every name is a valid
+/// argument to `FingerprintVector::axis_value`; the export is the categorical
+/// (pre-collapse) representation decluster's value-keyed scorer consumes. The order is
+/// stable — it defines the CSV column order.
+pub const VECTOR_AXES: &[&str] = &[
+    "version",
+    "nsequence",
+    "nlocktime",
+    "locktime_offset",
+    "input_order",
+    "output_order",
+    "output_structure",
+    "input_types",
+    "output_types",
+    "low_r",
+    "sighash",
+    "uncompressed_pubkey",
+    "op_return",
+    "input_subtype",
+    "low_s",
+    "ecdsa_sigs",
+    "input_age",
+    "feerate_bucket",
+    "round_feerate",
+    "change_position",
+    "change_type",
+];
+
 impl FingerprintVector {
     /// The single place that maps an axis name to its observed value. The joint key,
     /// template matching, and the epoch counters all go through here, so a new axis is
@@ -283,6 +311,28 @@ impl FingerprintVector {
     /// The default joint key: core axes only.
     pub fn key(&self) -> String {
         self.key_for(CORE_AXES)
+    }
+
+    /// CSV header for `--vectors`: `txid` then `VECTOR_AXES`.
+    pub fn vector_csv_header() -> String {
+        let mut s = String::from("txid");
+        for axis in VECTOR_AXES {
+            s.push(',');
+            s.push_str(axis);
+        }
+        s
+    }
+
+    /// One CSV line: `txid` then each `VECTOR_AXES` value in order. Axis values are
+    /// single tokens (`Yes`, `Bip69`, `Max`, an integer, …) with no comma/quote/newline,
+    /// so no RFC-4180 escaping is needed; an unknown axis renders empty.
+    pub fn to_vector_csv_line(&self, txid: &str) -> String {
+        let mut s = String::from(txid);
+        for axis in VECTOR_AXES {
+            s.push(',');
+            s.push_str(&self.axis_value(axis).unwrap_or(Cow::Borrowed("")));
+        }
+        s
     }
 }
 
@@ -1659,5 +1709,30 @@ mod tests {
         let mut empty_block = block_with(cb.clone(), 800_000);
         empty_block.prevouts.clear();
         assert_eq!(super::tx_fee_vsize_weight(&cb, &empty_block), None);
+    }
+
+    #[test]
+    fn vector_csv_line_is_txid_then_every_axis_value_in_order() {
+        // classify a known fixture tx (reuse existing tests_support helpers)
+        let mut pubkey = vec![0xab; 33];
+        pubkey[0] = 0x02;
+        let tx = legacy_p2pkh_tx(pubkey);
+        let block = block_with(tx.clone(), EPOCH_TEST_HEIGHT);
+        let v = classify_tx(&tx, &block).expect("classifiable");
+        let header = FingerprintVector::vector_csv_header();
+        let line = v.to_vector_csv_line("deadbeef");
+
+        // header: "txid" + VECTOR_AXES
+        assert!(header.starts_with("txid,"));
+        assert_eq!(header.split(',').count(), 1 + VECTOR_AXES.len());
+        // line: txid + one value per axis, same arity as header
+        assert!(line.starts_with("deadbeef,"));
+        assert_eq!(line.split(',').count(), 1 + VECTOR_AXES.len());
+        // each field equals axis_value for that axis
+        let fields: Vec<&str> = line.split(',').collect();
+        for (i, axis) in VECTOR_AXES.iter().enumerate() {
+            let expected = v.axis_value(axis).unwrap();
+            assert_eq!(fields[i + 1], expected.as_ref(), "axis {axis} mismatched");
+        }
     }
 }
