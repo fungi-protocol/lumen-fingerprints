@@ -24,6 +24,7 @@ fn usage() -> ! {
     eprintln!(
         "usage:
   lumen scan   --datadir <dir> --out <epochs.jsonl> [--features <path.csv[.zst]>]
+                [--vectors <path.csv[.zst]>]
                 [--start-height N] [--stop-height N] [--epoch-size N] [--peer host:port]
   lumen report --epochs <epochs.jsonl[.zst]> --out-dir <dir> [--templates <wallets.toml>]
   lumen series --epochs <epochs.jsonl[.zst]> --out <series.csv> [--min-share F]
@@ -83,6 +84,7 @@ fn cmd_scan(args: &[String]) {
     let stop_height: Option<u32> =
         arg(args, "--stop-height").map(|s| s.parse().expect("--stop-height must be a number"));
     let features_out = arg(args, "--features").map(PathBuf::from);
+    let vectors_out = arg(args, "--vectors").map(PathBuf::from);
 
     let resumed = resume_point(&out).expect("reading resume point");
     let start_height: u32 = arg(args, "--start-height")
@@ -113,7 +115,7 @@ fn cmd_scan(args: &[String]) {
             epoch_size,
             start_height,
             features_out,
-            vectors_out: None,
+            vectors_out,
         },
     )
     .expect("scan failed");
