@@ -1,0 +1,937 @@
+<title>Lumen Fingerprints — Raw Data Catalog</title>
+<style>
+  :root {
+    --ground: #0a0e0c;
+    --panel: #0f1512;
+    --ink: #c6e6d0;
+    --muted: #6f8a78;
+    --faint: #47584e;
+    --line: #1c2620;
+    --line-strong: #274034;
+    --accent: #3fb950;
+    --accent-soft: #12341f;
+    --good: #3fb950;
+    --rare: #d1795f;
+    --derived: #5a9bd4;
+    --chip-bg: #131c17;
+    --bar-track: #17231c;
+    --shadow: 0 1px 2px rgba(0,0,0,.4), 0 10px 30px rgba(0,0,0,.35);
+    --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+    --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+  body {
+    margin: 0; color: var(--ink);
+    background:
+      radial-gradient(ellipse 1100px 520px at 50% -8%, color-mix(in srgb, var(--accent) 7%, transparent), transparent 62%),
+      var(--ground);
+    font-family: var(--mono); line-height: 1.6;
+    font-feature-settings: "kern" 1; -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 1120px; margin: 0 auto; padding: 0 clamp(16px, 4vw, 40px); }
+
+  /* header */
+  header.top {
+    border-bottom: 1px solid var(--line);
+    background: color-mix(in srgb, var(--ground) 82%, transparent);
+    backdrop-filter: blur(8px); position: sticky; top: 0; z-index: 20;
+  }
+  .top .wrap { display: flex; align-items: baseline; gap: 18px; padding-top: 15px; padding-bottom: 15px; flex-wrap: wrap; }
+  .brand { font-family: var(--mono); font-size: 13px; letter-spacing: .04em; color: var(--accent); font-weight: 600; }
+  .brand::before { content: "> "; color: var(--accent); }
+  .top h1 { font-size: 15px; margin: 0; font-weight: 600; letter-spacing: -.01em; }
+  .top .sub { color: var(--muted); font-size: 13px; margin-left: auto; font-family: var(--mono); }
+
+  /* hero band */
+  .hero { padding: clamp(34px, 6vw, 60px) 0 26px; border-bottom: 1px solid var(--line); }
+  .hero h2 { font-size: clamp(26px, 4.4vw, 40px); line-height: 1.08; margin: 0 0 14px; letter-spacing: -.02em; text-wrap: balance; max-width: 20ch; }
+  .hero p { color: var(--muted); max-width: 66ch; margin: 0 0 26px; font-size: 15.5px; }
+  .counts { display: grid; grid-template-columns: repeat(auto-fit, minmax(148px, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+  .count { background: var(--panel); padding: 16px 18px; }
+  .count .n { font-family: var(--mono); font-size: 26px; font-weight: 600; font-variant-numeric: tabular-nums; letter-spacing: -.02em; }
+  .count .l { color: var(--muted); font-size: 12px; margin-top: 3px; letter-spacing: .02em; }
+
+  /* nav rail */
+  .layout { display: grid; grid-template-columns: 1fr; gap: 0; }
+  @media (min-width: 900px) { .layout { grid-template-columns: 210px 1fr; gap: 44px; align-items: start; } }
+  nav.rail { position: sticky; top: 62px; padding: 30px 0; display: none; }
+  @media (min-width: 900px) { nav.rail { display: block; } }
+  nav.rail a { display: block; color: var(--muted); text-decoration: none; font-size: 13px; padding: 5px 0 5px 12px; border-left: 2px solid var(--line); }
+  nav.rail a:hover, nav.rail a:focus-visible { color: var(--ink); border-left-color: var(--accent); }
+  nav.rail .grp { font-family: var(--mono); font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--faint); margin: 18px 0 6px 12px; }
+
+  main { padding: 30px 0 90px; min-width: 0; }
+  #tab-explorer > .wrap { padding: 30px 0 90px; max-width: 900px; }
+
+  section { padding: 22px 0 8px; scroll-margin-top: 70px; }
+  section > h3 { font-size: 12px; letter-spacing: .12em; text-transform: uppercase; color: var(--accent); font-family: var(--mono); margin: 0 0 4px; font-weight: 600; }
+  section > .title { font-size: clamp(19px, 2.6vw, 24px); margin: 0 0 6px; letter-spacing: -.015em; font-weight: 650; }
+  section > .lede { color: var(--muted); max-width: 70ch; margin: 0 0 20px; font-size: 14.5px; }
+
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow); overflow: hidden; margin-bottom: 16px; }
+  .card > .head { display: flex; align-items: center; gap: 10px; padding: 13px 18px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+  .card > .head .name { font-weight: 620; font-size: 14.5px; }
+  .card > .head .meta { color: var(--faint); font-size: 12px; font-family: var(--mono); margin-left: auto; }
+  .card > .head .note { color: var(--muted); font-size: 12.5px; flex-basis: 100%; }
+
+  .rows { display: grid; }
+  .row { display: grid; grid-template-columns: minmax(0, 1.05fr) auto minmax(0, 1.5fr); gap: 14px; align-items: baseline; padding: 9px 18px; border-top: 1px solid var(--line); }
+  .row:first-child { border-top: none; }
+  @media (max-width: 640px) { .row { grid-template-columns: 1fr; gap: 3px; padding: 11px 16px; } .row .tag { justify-self: start; } }
+  .field { font-family: var(--mono); font-size: 12.5px; color: var(--ink); word-break: break-word; }
+  .field b { color: var(--accent); font-weight: 600; }
+  .desc { color: var(--muted); font-size: 13px; }
+  .desc code { font-family: var(--mono); font-size: 11.5px; background: var(--chip-bg); padding: 1px 5px; border-radius: 4px; color: var(--ink); }
+
+  .tag { font-family: var(--mono); font-size: 10px; letter-spacing: .03em; text-transform: uppercase; padding: 2px 7px; border-radius: 999px; border: 1px solid var(--line-strong); color: var(--muted); white-space: nowrap; align-self: center; }
+  .tag.bool { color: var(--good); border-color: color-mix(in srgb, var(--good) 40%, var(--line-strong)); }
+  .tag.tri { color: color-mix(in srgb, var(--good) 50%, var(--derived) 50%); border-color: color-mix(in srgb, var(--good) 45%, var(--line-strong)); }
+  .tag.onehot { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 40%, var(--line-strong)); }
+  .tag.enum { color: #9a5fc0; border-color: color-mix(in srgb, #9a5fc0 45%, var(--line-strong)); }
+  .tag.ord { color: var(--derived); border-color: color-mix(in srgb, var(--derived) 40%, var(--line-strong)); }
+  .tag.joint { color: #c8803a; border-color: color-mix(in srgb, #c8803a 45%, var(--line-strong)); }
+  .tag.derived { color: #8a9a3f; border-color: color-mix(in srgb, #8a9a3f 45%, var(--line-strong)); }
+  .tag.marginal { color: #c05a8a; border-color: color-mix(in srgb, #c05a8a 45%, var(--line-strong)); }
+  .tag.num { color: var(--ink); }
+  .tag.numhex { color: #3f8aa8; border-color: color-mix(in srgb, #3f8aa8 45%, var(--line-strong)); }
+  .tag.hex { color: var(--rare); border-color: color-mix(in srgb, var(--rare) 40%, var(--line-strong)); }
+
+  .values { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 4px; }
+  .val { font-family: var(--mono); font-size: 11px; background: var(--chip-bg); border: 1px solid var(--line); padding: 1px 7px; border-radius: 5px; color: var(--muted); }
+  .val.hot { color: var(--ink); border-color: var(--line-strong); }
+
+  .legend { display: flex; flex-wrap: wrap; gap: 14px 20px; padding: 14px 18px; margin-bottom: 14px; border: 1px dashed var(--line-strong); border-radius: 12px; font-size: 12.5px; color: var(--muted); }
+  .legend b { color: var(--ink); font-weight: 600; }
+  .legend .k { display: inline-flex; align-items: center; gap: 6px; }
+  .legend .lbl { flex-basis: 100%; font-size: 10px; text-transform: uppercase; letter-spacing: .07em; color: var(--faint); font-weight: 700; margin-bottom: 2px; }
+  .legend .sep { flex-basis: 100%; height: 0; border-top: 1px solid var(--line); margin: 12px 0 4px; }
+  .dot { width: 9px; height: 9px; border-radius: 3px; display: inline-block; }
+  .prov { font-family: var(--mono); font-size: 9px; letter-spacing: .05em; text-transform: uppercase; padding: 1px 5px; border-radius: 999px; margin-left: 8px; border: 1px solid var(--line-strong); color: var(--muted); vertical-align: middle; white-space: nowrap; }
+
+  .gloss { padding: 4px 2px; margin-bottom: 22px; display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 4px 26px; font-size: 12.5px; }
+  .gloss .g { padding: 5px 0; border-top: 1px solid var(--line); color: var(--muted); }
+  .gloss .g:first-child, .gloss .g:nth-child(2) { border-top: none; }
+  .gloss .g b { color: var(--ink); font-weight: 600; }
+  .gloss .g code { font-family: var(--mono); font-size: 11px; background: var(--chip-bg); padding: 1px 5px; border-radius: 4px; color: var(--ink); }
+
+  .callout { border-left: 3px solid var(--accent); background: color-mix(in srgb, var(--accent-soft) 55%, var(--panel)); padding: 12px 16px; border-radius: 0 10px 10px 0; font-size: 13.5px; color: var(--ink); margin: 4px 0 22px; }
+  .callout b { color: var(--accent); }
+
+  footer { border-top: 1px solid var(--line); color: var(--muted); font-size: 12.5px; padding: 26px 0 60px; }
+  footer code { font-family: var(--mono); font-size: 11.5px; }
+  a { color: var(--accent); }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 3px; }
+
+  /* --- expand-on-click per-field analysis (live data wiring) --- */
+  .rowsum { font-family: var(--mono); font-size: 11.5px; color: var(--ink); margin-left: 8px; white-space: nowrap; }
+  .rowsum .n { font-weight: 600; }
+  .xpd {
+    font-family: var(--mono); font-size: 10.5px; letter-spacing: .03em; color: var(--accent);
+    background: transparent; border: 1px solid var(--line-strong); border-radius: 999px;
+    padding: 1px 8px; margin-left: 8px; cursor: pointer; white-space: nowrap;
+  }
+  .xpd:hover { border-color: var(--accent); }
+  .xpd[aria-expanded="true"] { background: var(--accent); color: var(--ground); border-color: var(--accent); }
+
+  .panel { grid-column: 1 / -1; padding: 10px 18px 16px; border-top: 1px dashed var(--line-strong); background: color-mix(in srgb, var(--chip-bg) 45%, transparent); }
+  .panel[hidden] { display: none; }
+  .pgroup + .pgroup { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--line); }
+  .psub { font-family: var(--mono); font-size: 10.5px; letter-spacing: .04em; text-transform: uppercase; color: var(--faint); margin-bottom: 4px; }
+  .pbar-row { display: grid; grid-template-columns: minmax(84px, 200px) 1fr 64px; gap: 10px; align-items: center; padding: 3px 0; }
+  .pbar-row .plab { font-family: var(--mono); font-size: 11.5px; color: var(--ink); word-break: break-word; }
+  .pbar-row .plab.rare { color: var(--rare); }
+  .pbar-track, .track { display: block; width: 100%; height: 12px; background: var(--bar-track); border-radius: 4px; overflow: hidden; }
+  .pbar-fill, .fill { display: block; height: 100%; border-radius: 4px; background: var(--accent); }
+  .pbar-fill.rare { background: var(--rare); }
+  .pbar-val { text-align: right; font-family: var(--mono); font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .pstats { font-family: var(--mono); font-size: 11px; color: var(--muted); margin-top: 8px; }
+  .pempty { color: var(--faint); font-size: 12px; font-style: italic; }
+
+  /* --- section 12 (sparseness axes) picker, ported --- */
+  .picker { display: flex; flex-wrap: wrap; gap: 7px; margin-bottom: 10px; }
+  .chip { font-family: var(--mono); font-size: 12px; padding: 5px 11px; border-radius: 999px; border: 1px solid var(--line-strong); background: var(--panel); color: var(--muted); cursor: pointer; transition: .12s; }
+  .chip:hover { color: var(--ink); border-color: var(--accent); }
+  .chip[aria-pressed="true"] { background: var(--accent); color: var(--ground); border-color: var(--accent); }
+  .grp2 { font-family: var(--mono); font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: var(--faint); margin: 6px 6px 2px; width: 100%; }
+  .vrow { display: grid; grid-template-columns: minmax(120px, 1.25fr) 1.1fr 1.3fr; gap: 16px; align-items: center; padding: 11px 18px; border-top: 1px solid var(--line); }
+  .vrow:first-child { border-top: none; }
+  @media (max-width: 680px) { .vrow { grid-template-columns: 1fr; gap: 6px; padding: 12px 16px; } }
+  .vname { font-family: var(--mono); font-size: 12.5px; color: var(--ink); word-break: break-word; }
+  .vname .rl { display: block; font-size: 10.5px; color: var(--faint); margin-top: 2px; font-variant-numeric: tabular-nums; }
+  .metric { display: flex; flex-direction: column; gap: 3px; }
+  .metric .top { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+  .metric .lab { font-size: 10px; letter-spacing: .05em; text-transform: uppercase; color: var(--faint); font-family: var(--mono); }
+  .metric .num { font-family: var(--mono); font-size: 12.5px; font-variant-numeric: tabular-nums; color: var(--ink); }
+  .colhead { display: grid; grid-template-columns: minmax(120px, 1.25fr) 1.1fr 1.3fr; gap: 16px; padding: 0 18px 9px; font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--faint); font-family: var(--mono); }
+  @media (max-width: 680px) { .colhead { display: none; } }
+
+  /* --- tabs --- */
+  .tabbar { border-bottom: 1px solid var(--line); background: var(--panel); }
+  .tabbar .wrap { display: flex; gap: 28px; }
+  .tab {
+    font-family: var(--mono); font-size: 13px; letter-spacing: .03em; background: none; border: none;
+    color: var(--muted); padding: 13px 2px 11px; cursor: pointer; border-bottom: 2px solid transparent;
+    -webkit-appearance: none; appearance: none;
+  }
+  .tab:hover { color: var(--ink); }
+  .tab[aria-selected="true"] { color: var(--accent); border-bottom-color: var(--accent); }
+  .tabpanel[hidden] { display: none; }
+</style>
+
+<header class="top">
+  <div class="wrap">
+    <h1>Raw Data Catalog</h1>
+    <span class="sub" id="win">everything the codebase measures, per transaction &amp; in aggregate</span>
+  </div>
+</header>
+
+<div class="tabbar" role="tablist" aria-label="View">
+  <div class="wrap">
+    <button type="button" class="tab" id="tabbtn-catalog" role="tab" aria-selected="true" aria-controls="tab-catalog">What we collect</button>
+    <button type="button" class="tab" id="tabbtn-explorer" role="tab" aria-selected="false" aria-controls="tab-explorer">Fingerprint Explorer</button>
+  </div>
+</div>
+
+<div id="tab-explorer" class="tabpanel" hidden role="tabpanel" aria-labelledby="tabbtn-explorer">
+  <div class="wrap">
+    <section id="axes">
+      <h3>12 · Sparseness axes</h3>
+      <div class="title">The curated joint vector</div>
+      <p class="lede">21 curated, non-redundant axes: their joint combination is the CORE/EXTENDED key <code>conditional_anonymity</code> groups transactions by, so each value's anonymity set can be read straight off the chain. The feature matrix on the &ldquo;What we collect&rdquo; tab is a wider, redundancy-tolerant projection of the same signals.</p>
+      <div class="card">
+        <div class="head"><span class="name">CORE</span><span class="meta">12 · wallet-policy</span><span class="note">The headline joint vector — construction choices a wallet makes the same way on every transaction, independent of the coins at hand.</span></div>
+        <div class="rows"><div class="row"><span class="field"><b>version, nsequence, nlocktime, input_order, output_order, output_structure, input_types, output_types, low_r, sighash, uncompressed_pubkey, op_return</b></span><span class="tag joint">joint</span><span class="desc">Each axis contributes its categorical value to the CORE key that anonymity sets are grouped by.</span></div></div>
+      </div>
+      <div class="card">
+        <div class="head"><span class="name">EXTENDED</span><span class="meta">7 · coin-dependent</span></div>
+        <div class="rows"><div class="row"><span class="field"><b>input_subtype, low_s, ecdsa_sigs, input_age, feerate_bucket, round_feerate, locktime_offset</b></span><span class="tag joint">joint</span><span class="desc">Vary with which coins a transaction happens to spend rather than with wallet policy; added to CORE for the wider EXTENDED joint key.</span></div></div>
+      </div>
+      <div class="card">
+        <div class="head"><span class="name">HEURISTIC</span><span class="meta">2 · marginals only</span></div>
+        <div class="rows"><div class="row"><span class="field"><b>change_position, change_type</b></span><span class="tag marginal">marginal</span><span class="desc">Derived from a fallible change-identification heuristic rather than read directly off the transaction; counted per-value but excluded from every joint key so the heuristic's own abstentions can't be counted as chain diversity.</span></div></div>
+      </div>
+
+      <p class="lede" style="margin-top:22px"><b>Chain share</b>: how common the value is. <b>Identifying</b>: the share of its transactions landing in an anonymity set under 100 — high means it pins you down. These set sizes are <b>upper bounds on distinguishability</b> (the templates use &ldquo;consistent-with&rdquo; semantics), so a better-informed adversary can only narrow them, never widen them.</p>
+      <div class="picker" id="picker"></div>
+      <div class="card">
+        <div class="colhead"><span>Value</span><span>Chain share (mean · range)</span><span>Identifying — share in a set &lt; 100</span></div>
+        <div id="values"></div>
+      </div>
+    </section>
+  </div>
+</div>
+
+<div id="tab-catalog" class="tabpanel" role="tabpanel" aria-labelledby="tabbtn-catalog">
+<div class="hero">
+  <div class="wrap">
+    <h2>What we collect, block by block</h2>
+    <p>The survey walks the chain with Floresta, and for <b>every transaction</b> emits a high-dimensional vector of construction fingerprints — raw and un-normalized. This is the exhaustive field list: the input to any dashboard, clustering run, or classification model. Normalization comes later. Rows below with a <b>+ details</b> button are wired to the live scan window; click one to expand its distribution.</p>
+    <div class="counts">
+      <div class="count"><div class="n">173</div><div class="l">per-tx feature columns <span style="color:var(--faint)">+ 2 identity</span></div></div>
+      <div class="count"><div class="n">21</div><div class="l">sparseness axes</div></div>
+      <div class="count"><div class="n">9</div><div class="l">aggregate views</div></div>
+      <div class="count"><div class="n">5</div><div class="l">per-signature record fields</div></div>
+    </div>
+  </div>
+</div>
+
+<div class="wrap">
+  <div class="layout">
+    <nav class="rail" aria-label="Sections">
+      <div class="grp">Per-transaction matrix</div>
+      <a href="#identity">Identity</a>
+      <a href="#booleans">Booleans &amp; tri-state</a>
+      <a href="#nominal">Nominal (one-hot)</a>
+      <a href="#ordinal">Ordinal indices</a>
+      <a href="#change">Change (heuristic)</a>
+      <a href="#nsequence">nSequence bits</a>
+      <a href="#counts">Type counts &amp; position</a>
+      <a href="#feerate">Feerate</a>
+      <a href="#amounts">Amounts</a>
+      <a href="#taproot">Taproot</a>
+      <a href="#standardness">Standardness</a>
+      <a href="#protocol">Protocol</a>
+      <div class="grp">Other outputs</div>
+      <a href="#aggregates">Aggregates</a>
+    </nav>
+
+    <main>
+      <div class="legend">
+        <span class="lbl">Column type</span>
+        <span class="k"><span class="dot" style="background:var(--good)"></span><b>bool</b> 0/1</span>
+        <span class="k"><span class="dot" style="background:color-mix(in srgb, var(--good) 50%, var(--derived) 50%)"></span><b>tri</b> tri-state (<code>_yes</code> + <code>_indeterminate</code> pair)</span>
+        <span class="k"><span class="dot" style="background:var(--accent)"></span><b>one-hot</b> 1 col per value</span>
+        <span class="k"><span class="dot" style="background:var(--derived)"></span><b>ordinal</b> single integer index</span>
+        <span class="k"><span class="dot" style="background:var(--ink)"></span><b>num</b> raw count / ratio (f64)</span>
+        <span class="k"><span class="dot" style="background:var(--rare)"></span><b>hex</b> identifier</span>
+      </div>
+
+      <div class="gloss">
+        <div class="g"><b>epoch</b> — the block-bucket the survey aggregates over; per-epoch counts are the granularity behind every rollup.</div>
+        <div class="g"><b>joint vector</b> — the tuple of axis values for one transaction; <code>conditional_anonymity</code> reports its per-value anonymity set.</div>
+        <div class="g"><b>marginal</b> (<code>axis_marginals</code>) — the per-value count distribution of a single axis: how many transactions took each value.</div>
+        <div class="g"><b>anonymity set</b> (<code>conditional_anonymity</code>) — how many transactions share an identical CORE joint vector; a set of size 1 is uniquely identifying. Reported per fingerprint value, not as a chain-wide distribution.</div>
+        <div class="g"><b>abstention</b> — when the change-identification heuristic declines to label any output as change (<code>Indeterminate</code>), rather than guessing.</div>
+        <div class="g"><b>+ details</b> — click a wired row to expand its live per-field distribution for the current scan window (see below).</div>
+      </div>
+
+      <section id="identity">
+        <h3>00 · Identity</h3>
+        <div class="title">Transaction identity</div>
+        <p class="lede">Two non-numeric columns lead every row so a downstream result joins back to the transaction.</p>
+        <div class="card"><div class="rows">
+          <div class="row"><span class="field"><b>txid</b></span><span class="tag hex">hex</span><span class="desc">Uniquely identifies the transaction, lowercase hex, so any row here joins back to a specific chain event.</span></div>
+          <div class="row"><span class="field"><b>block_height</b></span><span class="tag num">num</span><span class="desc">The block height the transaction confirmed in, for slicing results by time.</span></div>
+        </div></div>
+      </section>
+
+      <section id="booleans">
+        <h3>01 · Booleans &amp; tri-state</h3>
+        <div class="title">Direct signals &amp; heuristic aux flags</div>
+        <p class="lede">Plain 0/1 flags read straight off the transaction, plus the 7 auxiliary heuristics. Tri-state axes (a signal that can be absent) split into a <code>_yes</code> and an <code>_indeterminate</code> column; both zero means &ldquo;no&rdquo;.</p>
+        <div class="card">
+          <div class="head"><span class="name">Direct flags</span></div>
+          <div class="rows">
+            <div class="row" data-render="bool" data-field="op_return"><span class="field"><b>op_return</b></span><span class="tag bool">bool</span><span class="desc">The transaction carries a data output at all — the base signal that <code>has_inscription_envelope</code> and <code>has_runestone</code> below narrow down to specific protocols.</span></div>
+            <div class="row" data-render="bool" data-field="round_feerate"><span class="field"><b>round_feerate</b></span><span class="tag bool">bool</span><span class="desc">The feerate is within 0.01 sat/vB of a whole number (and at least 1 sat/vB) — the signature of a human typing a round feerate rather than a fee estimator's output.</span></div>
+            <div class="row" data-render="bool" data-field="low_s_yes"><span class="field"><b>low_s_yes</b></span><span class="tag bool">bool</span><span class="desc">Every ECDSA signature in the transaction satisfies BIP-146 low-S — a standardness rule, so true for nearly all on-chain traffic. Emitted as a single bool rather than tri-state: its indeterminate case (no ECDSA signature present) is bit-identical to <code>low_r_indeterminate</code>, so it is not duplicated here.</span></div>
+            <div class="row" data-render="boolN" data-field="low_r_yes low_r_indeterminate"><span class="field"><b>low_r_yes</b> · <b>low_r_indeterminate</b></span><span class="tag tri">tri</span><span class="desc">Whether the wallet grinds its ECDSA signatures for a low-R value — shaving a byte off the DER encoding — versus carrying no ECDSA signature to judge at all. Aggregating across every signature in the transaction is survey logic.</span></div>
+            <div class="row" data-render="boolN" data-field="uncompressed_pubkey_yes uncompressed_pubkey_indeterminate"><span class="field"><b>uncompressed_pubkey_yes</b> · <b>_indeterminate</b></span><span class="tag tri">tri</span><span class="desc">An uncompressed public key appears somewhere in the transaction — a legacy-era tell, since modern wallets use compressed keys exclusively — versus no pubkey being visible at all (e.g. a taproot key-path spend).</span></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="head"><span class="name">Auxiliary heuristics</span><span class="meta">aux.rs</span></div>
+          <div class="rows">
+            <div class="row" data-render="bool" data-field="round_fee"><span class="field"><b>round_fee</b></span><span class="tag bool">bool</span><span class="desc">The absolute fee is a non-zero multiple of 1000 sat — a sign the fee was typed by hand rather than computed by a fee estimator.</span></div>
+            <div class="row" data-render="bool" data-field="round_payment"><span class="field"><b>round_payment</b></span><span class="tag bool">bool</span><span class="desc">An output value is a non-zero multiple of 100,000 sat (0.001 BTC) — a coarser round-number signal than <code>round_fee</code>'s, aimed at human-entered payment amounts rather than fees.</span></div>
+            <div class="row" data-render="bool" data-field="uih1"><span class="field"><b>uih1</b></span><span class="tag bool">bool</span><span class="desc">A single input alone already covers the transaction's largest output. Combining more inputs than a payment strictly needs links every one of those coins together and reveals more of the wallet's holdings than a minimal selection would (Unnecessary Input Heuristic 1).</span></div>
+            <div class="row" data-render="bool" data-field="uih2"><span class="field"><b>uih2</b></span><span class="tag bool">bool</span><span class="desc">An input is smaller than the transaction's smallest output — the shape a payjoin receiver's contributed input leaves behind (Unnecessary Input Heuristic 2).</span></div>
+            <div class="row" data-render="bool" data-field="address_reuse"><span class="field"><b>address_reuse</b></span><span class="tag bool">bool</span><span class="desc">An output pays back to a script one of the inputs spent from — direct on-chain address reuse.</span></div>
+            <div class="row" data-render="bool" data-field="same_block_parent"><span class="field"><b>same_block_parent</b></span><span class="tag bool">bool</span><span class="desc">Spends an output created earlier in this very block — a same-block parent-child chain, often a change output being immediately re-spent.</span></div>
+            <div class="row" data-render="bool" data-field="changeless"><span class="field"><b>changeless</b></span><span class="tag bool">bool</span><span class="desc">Fewer than two outputs, so there is nowhere for change to go — a plausibly changeless spend.</span></div>
+          </div>
+        </div>
+      </section>
+
+      <section id="nominal">
+        <h3>02 · Nominal</h3>
+        <div class="title">One-hot categorical axes</div>
+        <p class="lede">Each categorical fingerprint is encoded as one column per possible value. The value domains below are the exhaustive set the classifier can emit.</p>
+        <div class="card">
+          <div class="head"><span class="name">version</span><span class="meta">tx.version</span></div>
+          <div class="rows"><div class="row" data-render="onehot" data-group="version_"><span class="field"><b>version_1/2/3/other</b></span><span class="tag onehot">one-hot</span><span class="desc">The transaction's declared nVersion; <code>_other</code> catches any value outside 1–3 (version 3 signals TRUC/ephemeral-anchor policy).</span></div></div>
+        </div>
+        <div class="card">
+          <div class="head"><span class="name">nsequence</span><span class="meta">value-pattern class</span></div>
+          <div class="rows"><div class="row" data-render="onehot" data-group="nsequence_"><span class="field"><b>nsequence_&hellip;</b></span><span class="tag onehot">one-hot</span><span class="desc">Classifies the transaction's nSequence values by the first priority-ordered pattern they match: <code>cake_group_c</code> (first input <code>0x01</code>, every other input final — a known wallet bug), a lone <code>0x01</code> elsewhere, uniform opt-in RBF (<code>0xfffffffd</code>), uniform non-RBF-final (<code>0xfffffffe</code>), uniform max (<code>0xffffffff</code>), or a mixed pattern matching none of those.<div class="values"><span class="val hot">rbf</span><span class="val hot">max</span><span class="val">final</span><span class="val">cake_group_c</span><span class="val">lone_0x01</span><span class="val">mixed_other</span></div></span></div></div>
+        </div>
+        <div class="card">
+          <div class="head"><span class="name">nlocktime</span><span class="meta">semantic class</span></div>
+          <div class="rows"><div class="row" data-render="onehot" data-group="nlocktime_"><span class="field"><b>nlocktime_&hellip;</b></span><span class="tag onehot">one-hot</span><span class="desc">Interprets nLockTime against the confirming block's height: <code>zero</code>, a unix timestamp (&ge; 500,000,000), a height above the tip (<code>future</code>, nonstandard), within 100 blocks behind the tip (<code>anti_fee_snipe</code>, Core's default), or further back (<code>backdated</code>).<div class="values"><span class="val hot">zero</span><span class="val">anti_fee_snipe</span><span class="val">backdated</span><span class="val">timestamp</span><span class="val">future</span></div></span></div></div>
+        </div>
+        <div class="card">
+          <div class="head"><span class="name">input_order · output_order</span><span class="meta">OrderClass ×2</span></div>
+          <div class="rows"><div class="row" data-render="onehotN" data-groups="input_order_ output_order_"><span class="field"><b>{input,output}_order_&hellip;</b></span><span class="tag onehot">one-hot</span><span class="desc">Whether inputs/outputs follow a recognizable ordering rule — an unordered set is itself a wallet fingerprint. <code>bip69</code> and value-ordering are checked against sorted order; <code>age_ascending</code> (oldest spent coin first) and the surrounding <code>OrderClass</code> wrapper are survey logic. <code>age_ascending</code> is measurable only on the input side (outputs carry no age), so the output column is structurally always 0, kept only for shape symmetry with the input side.<div class="values"><span class="val">bip69</span><span class="val">value_ascending</span><span class="val">value_descending</span><span class="val">age_ascending</span><span class="val">other</span><span class="val">indeterminate</span></div></span></div></div>
+        </div>
+        <div class="card">
+          <div class="head"><span class="name">input_subtype</span><span class="meta">whole-tx uniform-or-mixed</span><span class="note">This is where a P2WSH multisig, a P2SH multisig, and a taproot script-path spend read as distinct fingerprints.</span></div>
+          <div class="rows"><div class="row" data-render="onehot" data-group="input_subtype_"><span class="field"><b>input_subtype_&hellip;</b></span><span class="tag onehot">one-hot</span><span class="desc">What a wrapped input (P2SH/P2WSH/P2TR) actually resolves to underneath its outer script type, by inspecting the redeem script, witness script, or revealed tapscript.<div class="values"><span class="val">p2sh_p2wpkh</span><span class="val hot">p2sh_multisig</span><span class="val">p2sh_other</span><span class="val hot">p2wsh_multisig</span><span class="val">p2wsh_other</span><span class="val">taproot_key_path</span><span class="val hot">taproot_script_path</span><span class="val">bare</span><span class="val">mixed</span><span class="val">indeterminate</span></div></span></div></div>
+        </div>
+        <div class="card">
+          <div class="head"><span class="name">sighash</span><span class="meta">11-way</span></div>
+          <div class="rows"><div class="row" data-render="onehot" data-group="sighash_"><span class="field"><b>sighash_&hellip;</b></span><span class="tag onehot">one-hot</span><span class="desc">Which SIGHASH flag the transaction's signatures use. <code>taproot_default</code> (64B, the implicit <code>SIGHASH_ALL</code>) vs <code>taproot_explicit</code> (65B, an explicit sighash byte) is the P2TR default-vs-explicit split. Reads the first signature found per input — the first witness item, or the first scriptSig push for legacy inputs — not every signature the input carries.<div class="values"><span class="val hot">all</span><span class="val">taproot_default</span><span class="val">taproot_explicit</span><span class="val">none</span><span class="val">single</span><span class="val">acp_all</span><span class="val">acp_none</span><span class="val">acp_single</span><span class="val">other</span><span class="val">mixed</span><span class="val">na</span></div></span></div></div>
+        </div>
+        <div class="card">
+          <div class="head"><span class="name">input_types</span><span class="meta">uniform script type</span></div>
+          <div class="rows"><div class="row" data-render="onehot" data-group="input_types_"><span class="field"><b>input_types_&hellip;</b></span><span class="tag onehot">one-hot</span><span class="desc">Whether every input the transaction spends resolves to the same script type (<code>uniform_{type}</code>, one of 8), differs across inputs (<code>mixed</code>), or has a prevout the source couldn't resolve (<code>unknown</code>). The per-type count columns below carry the same information at finer, non-exclusive granularity.<div class="values"><span class="val">p2pkh</span><span class="val">p2sh</span><span class="val hot">p2wpkh</span><span class="val">p2wsh</span><span class="val">p2tr</span><span class="val">op_return</span><span class="val">nonstandard</span><span class="val">p2pk</span><span class="val">mixed</span><span class="val">unknown</span></div></span></div></div>
+        </div>
+      </section>
+
+      <section id="ordinal">
+        <h3>03 · Ordinal</h3>
+        <div class="title">Bucketed indices</div>
+        <p class="lede">Ordered categories collapse to a single integer index rather than one-hot, since the order carries meaning.</p>
+        <div class="card"><div class="rows">
+          <div class="row" data-render="ordinal" data-field="ecdsa_sigs_index"><span class="field"><b>ecdsa_sigs_index</b></span><span class="tag ord">ordinal</span><span class="desc">How many ECDSA signatures the transaction carries, bucketed: <code>None=0</code> (e.g. a pure taproot key-path spend), <code>One=1</code>, <code>Few=2</code> (2–4), <code>Many=3</code> (5+). Gives <code>low_r</code> its statistical context — a lone non-grinding signature is close to a coin flip on low-R, so agreement across many signatures is far stronger evidence of grinding. The broader, not-ECDSA-scoped signature measure is <code>sigop_count</code> below.</span></div>
+          <div class="row" data-render="num" data-field="sigop_count"><span class="field"><b>sigop_count</b></span><span class="tag num">num</span><span class="desc">Total sig-op cost (legacy ×4, P2SH and witness) from <code>total_sigop_cost</code> over the resolved prevouts. Not scoped to ECDSA, unlike <code>ecdsa_sigs_index</code>, so Schnorr (taproot) and multisig sig ops count.</span></div>
+          <div class="row" data-render="ordinal" data-field="input_age_index"><span class="field"><b>input_age_index</b></span><span class="tag ord">ordinal</span><span class="desc">Confirmations of the youngest coin the transaction spends, bucketed: <code>SameBlock=0</code> (spent in the block it was created — the strongest temporal tell, e.g. spending an unconfirmed parent), <code>1</code> for 1–5 confirmations, <code>2</code> for 6–143, <code>3</code> for 144+ (<code>Older</code>), <code>4</code> when no age can be resolved (<code>Indeterminate</code>).</span></div>
+          <div class="row" data-render="ordinal" data-field="output_structure_index"><span class="field"><b>output_structure_index</b></span><span class="tag ord">ordinal</span><span class="desc">How many outputs the transaction has, bucketed rather than counted raw so wallets that always produce exactly one or two outputs stand out as a class. <code>Single=0, Double=1, Multi=2</code> (3+), <code>Unknown=3</code>.</span></div>
+          <div class="row" data-render="ordinal" data-field="feerate_bucket_index"><span class="field"><b>feerate_bucket_index</b></span><span class="tag ord">ordinal</span><span class="desc">Rank of the transaction's sat/vB feerate bucket: integer buckets <code>0</code>..<code>9</code>, then ten-wide bands up to <code>100+</code>; <code>Unknown</code> (fee not computable) sorts last.</span></div>
+          <div class="row" data-render="ordinalbool" data-field="locktime_offset_index locktime_offset_not_applicable"><span class="field"><b>locktime_offset_index</b> · <b>locktime_offset_not_applicable</b></span><span class="tag ord">ordinal</span><span class="desc">How many blocks behind the tip an anti-fee-snipe locktime sits — the observable half of the exact-tip-vs-backdated question <code>nlocktime</code> alone can't answer per transaction. Buckets: <code>block_height − locktime</code> in <code>0, 1, 2, 3, 4–6, 7–12, 13–25, 26–50, 51–100</code>, with a not-applicable flag set for every other <code>nlocktime</code> class. Offsets <b>&ge; 100</b> fall outside the anti-fee-snipe window entirely and surface as <code>nlocktime_backdated</code> in the one-hot above instead.</span></div>
+        </div></div>
+      </section>
+
+      <section id="change">
+        <h3>04 · Heuristic</h3>
+        <div class="title">Change identification</div>
+        <p class="lede">Change identification the fingerprints library does not cover yet. Two independent change heuristics run: the <b>script-type</b> match (<code>change_index_by_script_type</code>) and a value-based <b>round-number</b> heuristic. Which one fires, and whether they agree, is itself a fingerprint. Present in the ML matrix, kept out of the joint vector (a heuristic's abstention is not chain diversity).</p>
+        <div class="card"><div class="rows">
+          <div class="row" data-render="onehot" data-group="change_position_"><span class="field"><b>change_position_first/last/middle/indeterminate</b></span><span class="tag onehot">one-hot</span><span class="desc">Which output the <b>script-type</b> heuristic labels as change.</span></div>
+          <div class="row" data-render="bool" data-field="change_type_present"><span class="field"><b>change_type_present</b></span><span class="tag bool">bool</span><span class="desc">The script-type heuristic identified a change output at all.</span></div>
+          <div class="row" data-render="bool" data-field="change_detected_by_round_number"><span class="field"><b>change_detected_by_round_number</b></span><span class="tag bool">bool</span><span class="desc">The independent round-number heuristic fired: exactly two outputs, one a non-zero round multiple of 1000 sat (the payment) and the other not (the change).</span></div>
+          <div class="row" data-render="bool" data-field="change_heuristics_agree"><span class="field"><b>change_heuristics_agree</b></span><span class="tag bool">bool</span><span class="desc">Both heuristics fired <em>and</em> picked the same output. With the two flags above, all combinations — neither, either alone, both-agree, both-disagree — are recoverable.</span></div>
+        </div></div>
+      </section>
+
+      <section id="nsequence">
+        <h3>05 · nSequence bits</h3>
+        <div class="title">BIP-125 / BIP-68 decomposition &amp; the dead locktime</div>
+        <p class="lede">The nSequence field decomposed into its actual bit meaning, separating opt-in RBF from relative timelocks — and the interaction that renders a locktime inert.</p>
+        <div class="card"><div class="rows">
+          <div class="row" data-render="bool" data-field="bip125_rbf"><span class="field"><b>bip125_rbf</b></span><span class="tag bool">bool</span><span class="desc">Any input signals opt-in RBF (<code>&lt; 0xFFFFFFFE</code>).</span></div>
+          <div class="row" data-render="bool" data-field="all_inputs_final"><span class="field"><b>all_inputs_final</b></span><span class="tag bool">bool</span><span class="desc">Every input is <code>0xFFFFFFFF</code> — the condition that disables nLockTime.</span></div>
+          <div class="row" data-render="bool" data-field="bip68_active"><span class="field"><b>bip68_active</b></span><span class="tag bool">bool</span><span class="desc">v≥2 and an input has bit 31 clear — a BIP-68 relative timelock is in force.</span></div>
+          <div class="row" data-render="bool" data-field="bip68_type_time"><span class="field"><b>bip68_type_time</b></span><span class="tag bool">bool</span><span class="desc">Among the BIP-68-active inputs, at least one measures its relative lock in 512-second units (bit 22) rather than blocks.</span></div>
+          <div class="row" data-render="bool" data-field="nsequence_reserved_bits_set"><span class="field"><b>nsequence_reserved_bits_set</b></span><span class="tag bool">bool</span><span class="desc">A should-be-zero reserved bit (mask <code>0x7FBF0000</code>) is set on a BIP-68-eligible (bit-31-clear) input — nonstandard construction that no known wallet sets deliberately.</span></div>
+          <div class="row" data-render="num" data-field="bip68_relative_value_max"><span class="field"><b>bip68_relative_value_max</b></span><span class="tag num">num</span><span class="desc">Largest relative-lock value (bits 0–15) among the transaction's BIP-68-active inputs.</span></div>
+          <div class="row" data-render="bool" data-field="nlocktime_dead"><span class="field"><b>nlocktime_dead</b></span><span class="tag bool">bool</span><span class="desc">Non-zero locktime that consensus <em>ignores</em> because all inputs are final — leaks a creation height, buys nothing.</span></div>
+          <div class="row" data-render="bool" data-field="nlocktime_optin_without_use"><span class="field"><b>nlocktime_optin_without_use</b></span><span class="tag bool">bool</span><span class="desc">The mirror case: locktime is <code>0</code> yet an input signals RBF (<code>&lt; 0xFFFFFFFE</code>) — opted into RBF but set no locktime.</span></div>
+        </div></div>
+      </section>
+
+      <section id="counts">
+        <h3>06 · Counts &amp; position</h3>
+        <div class="title">Per-type multiset and positional signal</div>
+        <p class="lede">Real per-type counts (a multiset, not a set), plus positional features — both the bounded first/last summary and a per-position type array capped at 10 — that capture the payment-vs-change ordering a count summary can't see, on <em>both</em> sides. The per-input/output <em>type</em> at each position comes from <code>classify_script_pubkey</code>; the counting, positioning, matching and grouping around it is survey — the raw <code>input_count</code>/<code>output_count</code> and the multisig card below are wholly survey.</p>
+        <div class="card">
+          <div class="head"><span class="name">Type counts</span></div>
+          <div class="rows">
+            <div class="row" data-render="numN" data-field="input_count output_count"><span class="field"><b>input_count</b> · <b>output_count</b></span><span class="tag num">num</span><span class="desc">Raw input and output counts — the transaction's size on each side, before any per-type breakdown.</span></div>
+            <div class="row" data-render="numN" data-field="input_count_p2pkh input_count_p2sh input_count_p2wpkh input_count_p2wsh input_count_p2tr input_count_op_return input_count_nonstandard input_count_p2pk"><span class="field"><b>input_count_{type}</b> ×8</span><span class="tag num">num</span><span class="desc">Inputs of each script type. (<code>input_count_op_return</code> is structurally always 0.)</span></div>
+            <div class="row" data-render="numN" data-field="output_count_p2pkh output_count_p2sh output_count_p2wpkh output_count_p2wsh output_count_p2tr output_count_op_return output_count_nonstandard output_count_p2pk"><span class="field"><b>output_count_{type}</b> ×8</span><span class="tag num">num</span><span class="desc">Outputs of each script type, in <code>p2pkh, p2sh, p2wpkh, p2wsh, p2tr, op_return, nonstandard, p2pk</code> order.</span></div>
+            <div class="row"><span class="field">legacy roll-up</span><span class="tag derived">derived</span><span class="desc">There is no dedicated <em>legacy</em> column — legacy input/output share is the sum of <code>*_count_p2pkh + *_count_p2sh + *_count_p2pk</code> (P2SH being wrapped-legacy).</span></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="head"><span class="name">Positional</span></div>
+          <div class="rows">
+            <div class="row" data-render="ordinalN" data-field="first_output_type_index last_output_type_index"><span class="field"><b>first_output_type_index</b> · <b>last_output_type_index</b></span><span class="tag ord">ordinal</span><span class="desc">Script type of the first / last output (<code>-1</code> if no outputs).</span></div>
+            <div class="row" data-render="ordinalN" data-field="first_input_type_index last_input_type_index"><span class="field"><b>first_input_type_index</b> · <b>last_input_type_index</b></span><span class="tag ord">ordinal</span><span class="desc">Input-side mirror: script type (of the spent prevout) of the first / last input (<code>-1</code> if no inputs).</span></div>
+            <div class="row" data-render="boolN" data-field="first_output_matches_input_type last_output_matches_input_type"><span class="field"><b>first_output_matches_input_type</b> · <b>last_output_matches_input_type</b></span><span class="tag bool">bool</span><span class="desc">Inputs are uniform and the first/last output is that same type. <code>last &amp; ¬first</code> = payment-then-change, unshuffled.</span></div>
+            <div class="row" data-render="boolN" data-field="outputs_type_grouped inputs_type_grouped"><span class="field"><b>outputs_type_grouped</b> · <b>inputs_type_grouped</b></span><span class="tag bool">bool</span><span class="desc">Same-typed outputs / inputs are contiguous — evidence they were not shuffled.</span></div>
+            <div class="row" data-render="ordinalN" data-field="input_type_at_pos_0 input_type_at_pos_1 input_type_at_pos_2 input_type_at_pos_3 input_type_at_pos_4 input_type_at_pos_5 input_type_at_pos_6 input_type_at_pos_7 input_type_at_pos_8 input_type_at_pos_9"><span class="field"><b>input_type_at_pos_0..9</b> ×10</span><span class="tag ord">ordinal</span><span class="desc">Type at each input position, <em>capped at 10</em> (<code>-1</code> when the position is absent). Positions ≥ 10 are discarded.</span></div>
+            <div class="row" data-render="ordinalN" data-field="output_type_at_pos_0 output_type_at_pos_1 output_type_at_pos_2 output_type_at_pos_3 output_type_at_pos_4 output_type_at_pos_5 output_type_at_pos_6 output_type_at_pos_7 output_type_at_pos_8 output_type_at_pos_9"><span class="field"><b>output_type_at_pos_0..9</b> ×10</span><span class="tag ord">ordinal</span><span class="desc">Type at each output position, same cap and <code>-1</code>-absent convention.</span></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="head"><span class="name">Multisig configuration</span></div>
+          <div class="rows">
+            <div class="row" data-render="numN" data-field="multisig_m multisig_n"><span class="field"><b>multisig_m</b> · <b>multisig_n</b></span><span class="tag num">num</span><span class="desc">The <code>m</code>-of-<code>n</code> of the spending inputs' multisig (the dominant input by largest <code>n</code>; <code>0</code>/<code>0</code> if none). Read from the bare prevout / P2SH redeem / P2WSH witness script (legacy <code>OP_CHECKMULTISIG</code>) and the taproot script-path tapscript (BIP-342 <code>OP_CHECKSIGADD</code> <code>multi_a</code>; thresholds &gt; 16 pushed as data are not decoded). Quantifies the config <code>input_subtype</code> only flags. 2-of-3, 2-of-2, 3-of-5 are characteristic wallet setups.</span></div>
+            <div class="row" data-render="bool" data-field="multisig_mixed"><span class="field"><b>multisig_mixed</b></span><span class="tag bool">bool</span><span class="desc">Inputs carry two or more distinct <code>(m, n)</code> configs.</span></div>
+          </div>
+        </div>
+      </section>
+
+      <section id="feerate">
+        <h3>07 · Feerate</h3>
+        <div class="title">Precision, rounding &amp; block-relative rate</div>
+        <p class="lede">Raw primitives so a consumer can infer the wallet's working unit and rounding, plus the rate relative to the fee market the wallet saw.</p>
+        <div class="card"><div class="rows">
+          <div class="row" data-render="numN" data-field="fee_sat vsize weight"><span class="field"><b>fee_sat</b> · <b>vsize</b> · <b>weight</b></span><span class="tag num">num</span><span class="desc">Raw fee (sat), virtual size (vB), weight (wu) — the three quantities every feerate and precision field below derives from.</span></div>
+          <div class="row" data-render="num" data-field="feerate_sat_per_vb"><span class="field"><b>feerate_sat_per_vb</b></span><span class="tag num">num</span><span class="desc"><code>fee / vsize</code> — the feerate unit most wallets target.</span></div>
+          <div class="row" data-render="num" data-field="feerate_sat_per_kwu"><span class="field"><b>feerate_sat_per_kwu</b></span><span class="tag num">num</span><span class="desc"><code>fee·1000 / weight</code> — the lightning / rust-bitcoin FeeRate convention.</span></div>
+          <div class="row" data-render="bool" data-field="fee_is_multiple_of_vsize"><span class="field"><b>fee_is_multiple_of_vsize</b></span><span class="tag bool">bool</span><span class="desc">Exact integer sat/vB — signature of sat/vB targeting.</span></div>
+          <div class="row" data-render="bool" data-field="fee_is_multiple_of_kwu"><span class="field"><b>fee_is_multiple_of_kwu</b></span><span class="tag bool">bool</span><span class="desc">Exact integer sat/kwu (fee·1000 divisible by weight).</span></div>
+          <div class="row" data-render="bool" data-field="fee_is_multiple_of_weight"><span class="field"><b>fee_is_multiple_of_weight</b></span><span class="tag bool">bool</span><span class="desc">Exact integer sat/wu (<code>fee % weight == 0</code>) — the third precision unit; stricter than the sat/kwu flag, which it implies.</span></div>
+          <div class="row" data-render="num" data-field="feerate_over_block_min"><span class="field"><b>feerate_over_block_min</b></span><span class="tag num">num</span><span class="desc">Rate ÷ the minimum feerate of its own block (<code>-1</code> if none).</span></div>
+          <div class="row" data-render="num" data-field="feerate_over_prev_block_min"><span class="field"><b>feerate_over_prev_block_min</b></span><span class="tag num">num</span><span class="desc">Rate ÷ the previous block's minimum — the market visible at build time (<code>-1</code> if none).</span></div>
+        </div></div>
+        <div class="callout"><b>Not observable per-tx:</b> the rounding <em>direction</em> (up/down) depends on the wallet's internal vsize/fee computation and leaves an ambiguous trace — the raw primitives are exposed; inference is the consumer's.</div>
+      </section>
+
+      <section id="amounts">
+        <h3>08 · Amounts</h3>
+        <div class="title">Hamming weight &amp; bounded precision</div>
+        <p class="lede">How &ldquo;round&rdquo; the values are, measured over the transaction's outputs — a signal of human-typed vs machine-derived amounts.</p>
+        <div class="card"><div class="rows">
+          <div class="row" data-render="num" data-field="max_output_value_sat"><span class="field"><b>max_output_value_sat</b></span><span class="tag num">num</span><span class="desc">Largest output value (sat) — the basis every Hamming/precision measure below is computed from.</span></div>
+          <div class="row" data-render="numN" data-field="hamming_decimal hamming_base2 hamming_base3"><span class="field"><b>hamming_decimal · hamming_base2 · hamming_base3</b></span><span class="tag num">num</span><span class="desc">Non-zero-digit count of the largest output in base 10 / 2 / 3 — fewer non-zero digits reads as a rounder amount to a human, regardless of which base they were reasoning in.</span></div>
+          <div class="row" data-render="num" data-field="decimal_sig_fig_span"><span class="field"><b>decimal_sig_fig_span</b></span><span class="tag num">num</span><span class="desc">Span from most- to least-significant non-zero digit — separates <code>1.1</code> (2) from <code>1.00000001</code> (9) though both weigh 2.</span></div>
+          <div class="row" data-render="num" data-field="hamming_decimal_min_over_outputs"><span class="field"><b>hamming_decimal_min_over_outputs</b></span><span class="tag num">num</span><span class="desc">Roundest non-zero output in the tx (<code>-1</code> if none).</span></div>
+          <div class="row" data-render="num" data-field="distinct_output_value_count"><span class="field"><b>distinct_output_value_count</b></span><span class="tag num">num</span><span class="desc">Number of distinct output values. Few distinct values over many outputs is the coinjoin / denomination signature.</span></div>
+          <div class="row" data-render="num" data-field="max_equal_value_output_count"><span class="field"><b>max_equal_value_output_count</b></span><span class="tag num">num</span><span class="desc">Size of the largest group of outputs sharing an identical value — a large equal-value cluster is the canonical mixing tell.</span></div>
+        </div></div>
+      </section>
+
+      <section id="taproot">
+        <h3>09 · Taproot</h3>
+        <div class="title">Script-tree depth</div>
+        <div class="card"><div class="rows">
+          <div class="row" data-render="num" data-field="taproot_max_merkle_depth"><span class="field"><b>taproot_max_merkle_depth</b></span><span class="tag num">num</span><span class="desc">Deepest merkle path over script-path inputs, <code>(control_len−33)/32</code> (annex-aware). 0 if none.</span></div>
+          <div class="row" data-render="num" data-field="taproot_script_path_input_count"><span class="field"><b>taproot_script_path_input_count</b></span><span class="tag num">num</span><span class="desc">Number of taproot script-path inputs — the population <code>taproot_max_merkle_depth</code> is computed over.</span></div>
+          <div class="row" data-render="bool" data-field="taproot_keyspend_non_default_sighash"><span class="field"><b>taproot_keyspend_non_default_sighash</b></span><span class="tag bool">bool</span><span class="desc">Any taproot <em>key-path</em> input whose signature is 65 bytes (an explicit sighash byte) — finer than the tx-level <code>sighash</code> axis, which does not constrain key-path vs script-path.</span></div>
+        </div></div>
+      </section>
+
+      <section id="standardness">
+        <h3>10 · Standardness</h3>
+        <div class="title">IsStandard() per Bitcoin Core</div>
+        <p class="lede">A mined transaction that is non-standard bypassed default relay — a fingerprint of direct-to-miner submission or a permissive node. The reasons decompose which policy it broke.</p>
+        <div class="card"><div class="rows">
+          <div class="row" data-render="bool" data-field="is_standard"><span class="field"><b>is_standard</b></span><span class="tag bool">bool</span><span class="desc">Passes the modelled Core policy subset (negation of the six reasons).</span></div>
+          <div class="row" data-render="bool" data-field="nonstd_version"><span class="field"><b>nonstd_version</b></span><span class="tag bool">bool</span><span class="desc">Version ∉ {1,2,3}.</span></div>
+          <div class="row" data-render="bool" data-field="nonstd_weight"><span class="field"><b>nonstd_weight</b></span><span class="tag bool">bool</span><span class="desc">Weight &gt; 400,000 wu.</span></div>
+          <div class="row" data-render="bool" data-field="nonstd_output_type"><span class="field"><b>nonstd_output_type</b></span><span class="tag bool">bool</span><span class="desc">A genuinely non-standard output script (excludes valid bare multisig &amp; OP_RETURN).</span></div>
+          <div class="row" data-render="bool" data-field="nonstd_dust"><span class="field"><b>nonstd_dust</b></span><span class="tag bool">bool</span><span class="desc">A non-OP_RETURN output below its dust threshold (<code>3·(9+spk+67|148)</code>).</span></div>
+          <div class="row" data-render="bool" data-field="nonstd_multi_op_return"><span class="field"><b>nonstd_multi_op_return</b></span><span class="tag bool">bool</span><span class="desc">More than one OP_RETURN output.</span></div>
+          <div class="row" data-render="bool" data-field="nonstd_bare_multisig"><span class="field"><b>nonstd_bare_multisig</b></span><span class="tag bool">bool</span><span class="desc">Bare multisig with n &gt; 3.</span></div>
+        </div></div>
+      </section>
+
+      <section id="protocol">
+        <h3>11 · Protocol</h3>
+        <div class="title">Ordinal / inscription markers</div>
+        <div class="card"><div class="rows">
+          <div class="row" data-render="bool" data-field="has_inscription_envelope"><span class="field"><b>has_inscription_envelope</b></span><span class="tag bool">bool</span><span class="desc">The Ordinals/BRC-20 envelope <code>OP_FALSE OP_IF "ord"</code> (bytes <code>00 63 03 6f 72 64</code>) appears in a taproot tapscript — high-certainty on a positive match, though a fragmented or non-canonical envelope can escape detection.</span></div>
+          <div class="row" data-render="bool" data-field="has_runestone"><span class="field"><b>has_runestone</b></span><span class="tag bool">bool</span><span class="desc">A Runestone: OP_RETURN whose second opcode is <code>OP_PUSHNUM_13</code> (<code>6a 5d</code>).</span></div>
+        </div></div>
+      </section>
+
+      <section id="aggregates">
+        <h3>13 · Aggregates</h3>
+        <div class="title">Report-time rollups (report.json)</div>
+        <p class="lede">Computed once per scan over all epochs (about 340 KB), derived from the joint-vector counts already gathered per epoch — no re-scan needed. These are what the dashboard reads per fingerprint; the per-tx matrix above is the primary output.</p>
+        <div class="card">
+          <div class="head"><span class="name">Per-value &amp; conditional</span><span class="prov nl" style="color:var(--good);border-color:color-mix(in srgb, var(--good) 55%, var(--line-strong))">dashboard</span><span class="note">The dev-facing data: &ldquo;how common is this fingerprint value, and how much does it isolate a wallet.&rdquo;</span></div>
+          <div class="rows">
+            <div class="row"><span class="field"><b>window · totals</b></span><span class="tag num">num</span><span class="desc">Block range, epochs; transaction &amp; defect counts — the run's metadata.</span></div>
+            <div class="row"><span class="field"><b>axis_marginals · axis_summaries</b></span><span class="tag num">num</span><span class="desc">Per-value counts, chain share, and min/max epoch share for every axis — the Explorer's per-fingerprint view.</span></div>
+            <div class="row"><span class="field"><b>conditional_anonymity</b></span><span class="tag num">num</span><span class="desc">Per CORE axis value, the distribution of CORE-joint anonymity-set sizes among the transactions that use it, and the share landing in a set &lt; 10 / &lt; 100 — the &ldquo;how identifying is this value&rdquo; number the dashboard leads with. Computed from the aggregated joint-vector map, no re-scan.</span></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="head"><span class="name">Derived views</span></div>
+          <div class="rows">
+            <div class="row"><span class="field"><b>template_series</b></span><span class="tag num">num</span><span class="desc">Per-epoch share of transactions consistent with a full named wallet template — a narrower, wallet-shaped question than the per-axis summaries above, useful for tracking one specific wallet's chain share over time.</span></div>
+            <div class="row"><span class="field"><b>encoding_families</b></span><span class="tag num">num</span><span class="desc">Output address-encoding family shares (base58 / bech32 / bech32m).</span></div>
+            <div class="row"><span class="field"><b>aux_flags · change_heuristic_abstention_rate</b></span><span class="tag num">num</span><span class="desc">Aux-flag shares; how often the change heuristic abstains.</span></div>
+          </div>
+        </div>
+      </section>
+
+      <footer>
+        Source of truth: <code>COLUMN_NAMES</code> in <code>src/crates/core/src/features.rs</code> (173 feature columns + 2 identity), the axis sets in <code>vector.rs</code>, and the <code>Report</code> struct in <code>report.rs</code>. Feature columns are raw and un-normalized — normalization is a downstream step.
+        <div id="livewin" class="muted" style="margin-top:12px;color:var(--muted)"></div>
+      </footer>
+    </main>
+  </div>
+</div>
+</div>
+
+<script>
+"use strict";
+
+/* ---------- one-hot group registry: prefix -> ordered member suffixes ---------- */
+const GROUPS = {
+  "version_": ["1", "2", "3", "other"],
+  "nsequence_": ["cake_group_c", "lone_0x01", "rbf", "final", "max", "mixed_other"],
+  "nlocktime_": ["zero", "anti_fee_snipe", "backdated", "future", "timestamp"],
+  "input_order_": ["bip69", "value_ascending", "value_descending", "age_ascending", "other", "indeterminate"],
+  "output_order_": ["bip69", "value_ascending", "value_descending", "age_ascending", "other", "indeterminate"],
+  "input_subtype_": ["p2sh_p2wpkh", "p2sh_multisig", "p2sh_other", "p2wsh_multisig", "p2wsh_other", "taproot_key_path", "taproot_script_path", "bare", "mixed", "indeterminate"],
+  "sighash_": ["taproot_default", "taproot_explicit", "all", "none", "single", "acp_all", "acp_none", "acp_single", "other", "mixed", "na"],
+  "input_types_": ["uniform_p2pkh", "uniform_p2sh", "uniform_p2wpkh", "uniform_p2wsh", "uniform_p2tr", "uniform_op_return", "uniform_nonstandard", "uniform_p2pk", "mixed", "unknown"],
+  "change_position_": ["first", "last", "middle", "indeterminate"],
+};
+
+/* ---------- ordinal label registry: column -> { rawValue: label } ---------- */
+const TYPE_INDEX_LABELS = {
+  "-1": "absent", "0": "p2pkh", "1": "p2sh", "2": "p2wpkh", "3": "p2wsh",
+  "4": "p2tr", "5": "op_return", "6": "nonstandard", "7": "p2pk",
+};
+const ORDINAL_LABELS = {
+  ecdsa_sigs_index: { "0": "none", "1": "one", "2": "few", "3": "many" },
+  input_age_index: { "0": "same_block", "1": "<=6", "2": "<=144", "3": "older", "4": "indeterminate" },
+  output_structure_index: { "0": "single", "1": "double", "2": "multi", "3": "unknown" },
+  feerate_bucket_index: {
+    "0": "r0", "1": "r1", "2": "r2", "3": "r3", "4": "r4", "5": "r5", "6": "r6",
+    "7": "r7", "8": "r8", "9": "r9", "10": "r10", "20": "r20", "30": "r30",
+    "40": "r40", "50": "r50", "60": "r60", "70": "r70", "80": "r80", "90": "r90",
+    "100": "r100", "65535": "unknown",
+  },
+  locktime_offset_index: {
+    "0": "0", "1": "1", "2": "2", "3": "3", "4": "4-6", "5": "7-12",
+    "6": "13-25", "7": "26-50", "8": "51-100",
+  },
+  first_output_type_index: TYPE_INDEX_LABELS,
+  last_output_type_index: TYPE_INDEX_LABELS,
+  first_input_type_index: TYPE_INDEX_LABELS,
+  last_input_type_index: TYPE_INDEX_LABELS,
+};
+for (let i = 0; i < 10; i++) {
+  ORDINAL_LABELS["input_type_at_pos_" + i] = TYPE_INDEX_LABELS;
+  ORDINAL_LABELS["output_type_at_pos_" + i] = TYPE_INDEX_LABELS;
+}
+
+/* ---------- numeric units (only where "obvious") ---------- */
+const UNITS = {
+  fee_sat: "sat", vsize: "vB", weight: "wu",
+  feerate_sat_per_vb: "sat/vB", feerate_sat_per_kwu: "sat/kwu",
+  max_output_value_sat: "sat", hamming_decimal_min_over_outputs: "sat",
+  sigop_count: "sigops", input_count: "inputs", output_count: "outputs",
+  taproot_max_merkle_depth: "depth", taproot_script_path_input_count: "inputs",
+};
+
+const RARE_SHARE = 0.005; // fold below this into "other"
+const HIGHLIGHT_RARE = 0.01; // color a bar as --rare below this
+
+const fmtInt = n => Number(n).toLocaleString("en-US");
+const pct = x => x == null ? "—" : x >= 0.1 ? (x * 100).toFixed(1) + "%" : x >= 0.001 ? (x * 100).toFixed(2) + "%" : x > 0 ? (x * 100).toFixed(3) + "%" : "0%";
+const esc = s => String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+let FIELDS = {};
+
+function valueMap(col) {
+  const f = FIELDS[col];
+  if (!f) return null;
+  const m = {};
+  for (const v of f.values || []) m[v.value] = v;
+  return m;
+}
+
+/* ---- generic bar list renderer: items = [{label, count, share, rare}] ---- */
+function barsHTML(items) {
+  if (!items.length) return '<div class="pempty">no data</div>';
+  const maxShare = Math.max(...items.map(i => i.share), 1e-9);
+  return items.map(i => {
+    const w = Math.max(1.2, (i.share / maxShare) * 100).toFixed(2);
+    const rareCls = i.rare ? " rare" : "";
+    return `<div class="pbar-row">
+      <span class="plab${rareCls}">${esc(i.label)}</span>
+      <span class="pbar-track"><span class="pbar-fill${rareCls}" style="width:${w}%"></span></span>
+      <span class="pbar-val">${pct(i.share)}</span>
+    </div>`;
+  }).join("");
+}
+
+/* fold a list of {label,count,share} sorted desc, folding <RARE_SHARE share into "other" */
+function foldOther(items) {
+  items = items.slice().sort((a, b) => b.share - a.share);
+  const kept = [];
+  let otherCount = 0, otherShare = 0;
+  for (const it of items) {
+    if (it.share < RARE_SHARE && it.label !== "other") { otherCount += it.count; otherShare += it.share; }
+    else kept.push({ ...it, rare: it.share < HIGHLIGHT_RARE });
+  }
+  if (otherCount > 0 || otherShare > 0) {
+    // A group can already carry its own real "other" catch-all value (e.g. version_other) —
+    // merge folded-rare mass into that bar rather than showing two confusingly identical labels.
+    const existing = kept.find(k => k.label === "other");
+    if (existing) { existing.count += otherCount; existing.share += otherShare; existing.rare = existing.share < HIGHLIGHT_RARE; }
+    else kept.push({ label: "other", count: otherCount, share: otherShare, rare: false });
+  }
+  return kept.sort((a, b) => b.share - a.share);
+}
+
+function boolShare(col) {
+  const vm = valueMap(col);
+  if (!vm) return null;
+  const yes = vm["1"] ? vm["1"].share : 0;
+  const no = vm["0"] ? vm["0"].share : (1 - yes);
+  return { yes, no };
+}
+
+function boolSummary(col) {
+  const s = boolShare(col);
+  if (!s) return null;
+  return `yes <span class="n">${pct(s.yes)}</span>`;
+}
+
+function boolPanelHTML(col) {
+  const s = boolShare(col);
+  if (!s) return '<div class="pempty">no data for this window</div>';
+  return barsHTML([
+    { label: "no", count: 0, share: s.no },
+    { label: "yes", count: 0, share: s.yes },
+  ]);
+}
+
+function ordinalItems(col) {
+  const f = FIELDS[col];
+  if (!f) return null;
+  const labels = ORDINAL_LABELS[col] || {};
+  const items = (f.values || []).map(v => ({
+    label: labels[v.value] != null ? labels[v.value] : v.value,
+    count: v.count, share: v.share,
+  }));
+  return foldOther(items);
+}
+
+function ordinalSummary(col) {
+  const items = ordinalItems(col);
+  if (!items || !items.length) return null;
+  const top = items.slice().sort((a, b) => b.share - a.share)[0];
+  return `<span class="n">${esc(top.label)}</span> ${pct(top.share)}`;
+}
+
+function ordinalPanelHTML(col) {
+  const items = ordinalItems(col);
+  if (!items || !items.length) return '<div class="pempty">no data for this window</div>';
+  return barsHTML(items);
+}
+
+function groupMembers(prefix) {
+  return (GROUPS[prefix] || []).map(suffix => ({ col: prefix + suffix, label: suffix }));
+}
+
+function groupItems(prefix) {
+  const members = groupMembers(prefix).filter(m => FIELDS[m.col]);
+  if (!members.length) return null;
+  const items = members.map(m => {
+    const vm = valueMap(m.col);
+    const one = vm && vm["1"] ? vm["1"] : { count: 0, share: 0 };
+    return { label: m.label, count: one.count, share: one.share };
+  });
+  return foldOther(items);
+}
+
+function groupSummary(prefix) {
+  const items = groupItems(prefix);
+  if (!items || !items.length) return null;
+  const top = items.slice().sort((a, b) => b.share - a.share)[0];
+  return `<span class="n">${esc(top.label)}</span> ${pct(top.share)}`;
+}
+
+function groupPanelHTML(prefix) {
+  const items = groupItems(prefix);
+  if (!items || !items.length) return '<div class="pempty">no data for this window</div>';
+  return barsHTML(items);
+}
+
+function bucketLabel(lo, hi) {
+  if (lo == null && hi != null) return "<" + fmtInt(hi);
+  if (hi == null && lo != null) return "≥" + fmtInt(lo);
+  if (lo == null && hi == null) return "all";
+  return fmtInt(lo) + "–" + fmtInt(hi);
+}
+
+function numericPanelHTML(col) {
+  const f = FIELDS[col];
+  if (!f || !f.hist || !f.stats) return '<div class="pempty">no data for this window</div>';
+  const items = f.hist.map(b => ({ label: bucketLabel(b.lo, b.hi), count: b.count, share: b.share }));
+  const bars = barsHTML(items.filter(i => i.share > 0 || items.length <= 12));
+  const s = f.stats;
+  const unit = UNITS[col] ? " " + UNITS[col] : "";
+  const stat = `<div class="pstats">min ${fmtInt(Math.round(s.min))}${unit} &middot; median ${fmtInt(Math.round(s.median))}${unit} &middot; mean ${(Math.round(s.mean * 100) / 100).toLocaleString("en-US")}${unit} &middot; p90 ${fmtInt(Math.round(s.p90))}${unit} &middot; max ${fmtInt(Math.round(s.max))}${unit} &middot; n=${fmtInt(s.count)}</div>`;
+  return bars + stat;
+}
+
+function numericSummary(col) {
+  const f = FIELDS[col];
+  if (!f || !f.stats) return null;
+  const unit = UNITS[col] ? " " + UNITS[col] : "";
+  return `median <span class="n">${fmtInt(Math.round(f.stats.median))}${unit}</span>`;
+}
+
+/* ---------- wire one catalog row ---------- */
+function wireRow(row) {
+  const render = row.dataset.render;
+  if (!render) return;
+  const fieldStr = row.dataset.field || "";
+  const cols = fieldStr.split(/\s+/).filter(Boolean);
+  const groups = (row.dataset.groups || row.dataset.group || "").split(/\s+/).filter(Boolean);
+
+  let summaryHTML = null;
+  let panelHTML = null;
+
+  if (render === "bool" && cols.length === 1 && FIELDS[cols[0]]) {
+    summaryHTML = boolSummary(cols[0]);
+    panelHTML = boolPanelHTML(cols[0]);
+  } else if (render === "ordinal" && cols.length === 1 && FIELDS[cols[0]]) {
+    summaryHTML = ordinalSummary(cols[0]);
+    panelHTML = ordinalPanelHTML(cols[0]);
+  } else if (render === "num" && cols.length === 1 && FIELDS[cols[0]]) {
+    summaryHTML = numericSummary(cols[0]);
+    panelHTML = numericPanelHTML(cols[0]);
+  } else if (render === "onehot" && groups.length === 1 && groupItems(groups[0])) {
+    summaryHTML = groupSummary(groups[0]);
+    panelHTML = groupPanelHTML(groups[0]);
+  } else if (render === "onehotN") {
+    const present = groups.filter(g => groupItems(g));
+    if (present.length) {
+      summaryHTML = present.map(g => `<span class="n">${esc(g.replace(/_$/, ""))}</span>`).join(" &middot; ");
+      panelHTML = present.map(g => `<div class="pgroup"><div class="psub">${esc(g.replace(/_$/, ""))}</div>${groupPanelHTML(g)}</div>`).join("");
+    }
+  } else if (render === "boolN") {
+    const present = cols.filter(c => FIELDS[c]);
+    if (present.length) {
+      summaryHTML = present.map(c => `${esc(c)} ${boolSummary(c) || "—"}`).join(" &middot; ");
+      panelHTML = present.map(c => `<div class="pgroup"><div class="psub">${esc(c)}</div>${boolPanelHTML(c)}</div>`).join("");
+    }
+  } else if (render === "ordinalN") {
+    const present = cols.filter(c => FIELDS[c]);
+    if (present.length) {
+      const many = present.length > 3;
+      summaryHTML = many
+        ? `${present.length} columns — expand for per-column breakdown`
+        : present.map(c => `${esc(c)} ${ordinalSummary(c) || "—"}`).join(" &middot; ");
+      panelHTML = present.map(c => `<div class="pgroup"><div class="psub">${esc(c)}</div>${ordinalPanelHTML(c)}</div>`).join("");
+    }
+  } else if (render === "numN") {
+    const present = cols.filter(c => FIELDS[c]);
+    if (present.length) {
+      summaryHTML = present.map(c => `${esc(c)} ${numericSummary(c) || "—"}`).join(" &middot; ");
+      panelHTML = present.map(c => `<div class="pgroup"><div class="psub">${esc(c)}</div>${numericPanelHTML(c)}</div>`).join("");
+    }
+  } else if (render === "ordinalbool") {
+    const [ordCol, boolCol] = cols;
+    const hasOrd = ordCol && FIELDS[ordCol];
+    const hasBool = boolCol && FIELDS[boolCol];
+    if (hasOrd || hasBool) {
+      const parts = [];
+      if (hasOrd) parts.push(`${ordCol} ${ordinalSummary(ordCol) || "—"}`);
+      if (hasBool) parts.push(`${boolCol} ${boolSummary(boolCol) || "—"}`);
+      summaryHTML = parts.join(" &middot; ");
+      const panelParts = [];
+      if (hasOrd) panelParts.push(`<div class="pgroup"><div class="psub">${esc(ordCol)}</div>${ordinalPanelHTML(ordCol)}</div>`);
+      if (hasBool) panelParts.push(`<div class="pgroup"><div class="psub">${esc(boolCol)}</div>${boolPanelHTML(boolCol)}</div>`);
+      panelHTML = panelParts.join("");
+    }
+  }
+
+  if (summaryHTML == null || panelHTML == null) return; // no live data for this row — leave it static
+
+  const desc = row.querySelector(".desc");
+  if (!desc) return;
+  const btn = document.createElement("button");
+  btn.className = "xpd";
+  btn.type = "button";
+  btn.setAttribute("aria-expanded", "false");
+  btn.textContent = "+ details";
+  const sum = document.createElement("span");
+  sum.className = "rowsum";
+  sum.innerHTML = summaryHTML;
+  desc.appendChild(sum);
+  desc.appendChild(btn);
+
+  const panel = document.createElement("div");
+  panel.className = "panel";
+  panel.hidden = true;
+  panel.innerHTML = panelHTML;
+  row.after(panel);
+
+  btn.addEventListener("click", () => {
+    const open = btn.getAttribute("aria-expanded") === "true";
+    btn.setAttribute("aria-expanded", String(!open));
+    btn.textContent = open ? "+ details" : "− details";
+    panel.hidden = open;
+  });
+}
+
+function wireAllRows() {
+  document.querySelectorAll(".row[data-render]").forEach(wireRow);
+}
+
+/* ---------- section 12: sparseness axes (ported from the prior Explorer) ---------- */
+let COND = {}, AX = {}, current = "sighash";
+
+function idColor(s) {
+  if (s >= 0.5) return "var(--rare)";
+  if (s >= 0.1) return "color-mix(in srgb,var(--rare) 70%,var(--accent))";
+  if (s >= 0.02) return "var(--accent)";
+  return "var(--good)";
+}
+
+function renderAxis() {
+  if (!AX[current]) return;
+  const vals = [...AX[current].values].sort((a, b) => b.share - a.share);
+  const maxShare = Math.max(...vals.map(v => v.share), 1e-9);
+  const cond = COND[current];
+  document.getElementById("values").innerHTML = vals.map(v => {
+    const lo = v.min_epoch_share ?? v.share, hi = v.max_epoch_share ?? v.share;
+    const rare = v.share < 0.01, vrare = v.share < 0.001;
+    const shareBar = `<div class="track"><div class="fill" style="width:${Math.max(1.2, v.share / maxShare * 100).toFixed(2)}%;background:var(--accent)"></div></div>`;
+    let idCell;
+    const c = cond && cond[v.value];
+    if (c) {
+      const s = c.share_lt100;
+      idCell = `<div class="metric"><div class="top"><span class="lab">in set &lt; 100</span><span class="num" style="color:${idColor(s)}">${pct(s)}</span></div>
+        <div class="track"><div class="fill" style="width:${Math.max(1, s * 100).toFixed(2)}%;background:${idColor(s)}"></div></div>
+        <div class="lab" style="text-transform:none;letter-spacing:0;color:var(--faint)">${pct(c.share_lt10)} in a set &lt; 10</div></div>`;
+    } else {
+      idCell = `<div class="metric"><span class="num" style="color:var(--faint)">—</span><div class="lab" style="text-transform:none;letter-spacing:0;color:var(--faint)">no CORE anonymity set</div></div>`;
+    }
+    return `<div class="vrow">
+      <div class="vname">${esc(v.value)}<span class="rl">mean ${pct(v.share)}${vrare ? " · very rare" : rare ? " · rare" : ""}</span></div>
+      <div class="metric"><div class="top"><span class="num">${pct(v.share)}</span><span class="lab">${pct(lo)}–${pct(hi)}</span></div>${shareBar}</div>
+      ${idCell}
+    </div>`;
+  }).join("");
+}
+
+function bootAxes() {
+  const CORE = ["version", "nsequence", "nlocktime", "input_order", "output_order", "output_structure", "input_types", "output_types", "low_r", "sighash", "uncompressed_pubkey", "op_return"];
+  const EXT = ["input_subtype", "low_s", "ecdsa_sigs", "input_age", "feerate_bucket", "round_feerate", "locktime_offset"];
+  const HEUR = ["change_position", "change_type"];
+  const picker = document.getElementById("picker");
+  if (!AX[current]) current = CORE.find(a => AX[a]) || EXT.find(a => AX[a]) || HEUR.find(a => AX[a]) || current;
+  const chip = a => `<button class="chip" data-a="${a}" aria-pressed="${a === current}">${a}</button>`;
+  picker.innerHTML = `<span class="grp2">Core (12 &middot; with anonymity set)</span>` + CORE.filter(a => AX[a]).map(chip).join("")
+    + `<span class="grp2">Extended (7)</span>` + EXT.filter(a => AX[a]).map(chip).join("")
+    + `<span class="grp2">Heuristic (2)</span>` + HEUR.filter(a => AX[a]).map(chip).join("");
+  picker.addEventListener("click", e => {
+    const b = e.target.closest(".chip");
+    if (!b) return;
+    current = b.dataset.a;
+    [...picker.querySelectorAll(".chip")].forEach(c => c.setAttribute("aria-pressed", c.dataset.a === current));
+    renderAxis();
+  });
+  renderAxis();
+}
+
+/* ---------- boot ---------- */
+async function boot() {
+  let D;
+  try {
+    const r = await fetch("explorer-data.json", { cache: "no-store" });
+    D = r.ok ? await r.json() : null;
+  } catch (e) { D = null; }
+  if (!D) {
+    document.getElementById("livewin").textContent = "No explorer-data.json found — showing the static catalog only.";
+    return;
+  }
+  FIELDS = D.fields || {};
+  COND = D.cond || {};
+  AX = D.axis_summaries || {};
+  const w = D.window || {};
+  const totals = D.totals || {};
+  if (w.start_height != null) {
+    document.getElementById("win").textContent = `h${fmtInt(w.start_height)}–${fmtInt(w.end_height)} · ${fmtInt(w.epochs)} epochs`;
+  }
+  document.getElementById("livewin").textContent =
+    `Live window: ${fmtInt(totals.txs || 0)} transactions, heights ${fmtInt(w.start_height || 0)}–${fmtInt(w.end_height || 0)}, ${fmtInt(w.epochs || 0)} epochs.`;
+
+  wireAllRows();
+  bootAxes();
+}
+
+boot();
+
+/* ---------- tabs ---------- */
+(function () {
+  const tabs = [
+    { btn: document.getElementById("tabbtn-catalog"), panel: document.getElementById("tab-catalog") },
+    { btn: document.getElementById("tabbtn-explorer"), panel: document.getElementById("tab-explorer") },
+  ];
+  function activate(target) {
+    tabs.forEach(({ btn, panel }) => {
+      const on = btn === target;
+      btn.setAttribute("aria-selected", String(on));
+      panel.hidden = !on;
+    });
+  }
+  tabs.forEach(({ btn }, i) => {
+    btn.addEventListener("click", () => activate(btn));
+    btn.addEventListener("keydown", e => {
+      if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
+      e.preventDefault();
+      const next = tabs[(i + (e.key === "ArrowRight" ? 1 : tabs.length - 1)) % tabs.length].btn;
+      next.focus();
+      activate(next);
+    });
+  });
+})();
+</script>

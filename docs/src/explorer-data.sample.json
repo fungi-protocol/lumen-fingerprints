@@ -1,0 +1,103 @@
+{
+  "window": { "start_height": 900000, "end_height": 900100, "epochs": 2 },
+  "totals": { "txs": 1000, "defects": 0 },
+  "axis_summaries": {
+    "sighash": {
+      "values": [
+        { "value": "All", "count": 800, "share": 0.8, "min_epoch_share": 0.7, "max_epoch_share": 0.9 },
+        { "value": "Mixed", "count": 200, "share": 0.2, "min_epoch_share": 0.1, "max_epoch_share": 0.3 }
+      ],
+      "distinct_values": 2,
+      "entropy_bits": 0.7219280948873623,
+      "largest_value": "All",
+      "largest_share": 0.8,
+      "smallest_value": "Mixed",
+      "smallest_share": 0.2,
+      "dominant_amplitude": 0.2
+    }
+  },
+  "cond": {
+    "sighash": {
+      "All": { "share_lt10": 0.01, "share_lt100": 0.05 },
+      "Mixed": { "share_lt10": 0.3, "share_lt100": 0.6 }
+    }
+  },
+  "fields": {
+    "op_return": {
+      "name": "op_return", "section": "01", "kind": "bool", "total": 1000,
+      "values": [
+        { "value": "0", "count": 877, "share": 0.877 },
+        { "value": "1", "count": 123, "share": 0.123 }
+      ],
+      "stats": null, "hist": null
+    },
+    "round_fee": {
+      "name": "round_fee", "section": "01", "kind": "bool", "total": 1000,
+      "values": [
+        { "value": "0", "count": 950, "share": 0.95 },
+        { "value": "1", "count": 50, "share": 0.05 }
+      ],
+      "stats": null, "hist": null
+    },
+    "version_1": {
+      "name": "version_1", "section": "02", "kind": "onehot", "total": 1000,
+      "values": [
+        { "value": "0", "count": 300, "share": 0.3 },
+        { "value": "1", "count": 700, "share": 0.7 }
+      ],
+      "stats": null, "hist": null
+    },
+    "version_2": {
+      "name": "version_2", "section": "02", "kind": "onehot", "total": 1000,
+      "values": [
+        { "value": "0", "count": 720, "share": 0.72 },
+        { "value": "1", "count": 280, "share": 0.28 }
+      ],
+      "stats": null, "hist": null
+    },
+    "version_3": {
+      "name": "version_3", "section": "02", "kind": "onehot", "total": 1000,
+      "values": [
+        { "value": "0", "count": 998, "share": 0.998 },
+        { "value": "1", "count": 2, "share": 0.002 }
+      ],
+      "stats": null, "hist": null
+    },
+    "version_other": {
+      "name": "version_other", "section": "02", "kind": "onehot", "total": 1000,
+      "values": [
+        { "value": "0", "count": 1000, "share": 1.0 },
+        { "value": "1", "count": 0, "share": 0.0 }
+      ],
+      "stats": null, "hist": null
+    },
+    "ecdsa_sigs_index": {
+      "name": "ecdsa_sigs_index", "section": "03", "kind": "ordinal", "total": 1000,
+      "values": [
+        { "value": "0", "count": 100, "share": 0.1 },
+        { "value": "1", "count": 600, "share": 0.6 },
+        { "value": "2", "count": 250, "share": 0.25 },
+        { "value": "3", "count": 50, "share": 0.05 }
+      ],
+      "stats": null, "hist": null
+    },
+    "input_count": {
+      "name": "input_count", "section": "06", "kind": "numeric", "total": 1000,
+      "values": [],
+      "stats": { "min": 1, "median": 2, "mean": 2.4, "p90": 5, "max": 20, "count": 1000 },
+      "hist": [
+        { "lo": null, "hi": 1.0, "count": 0, "share": 0.0 },
+        { "lo": 1.0, "hi": 2.0, "count": 400, "share": 0.4 },
+        { "lo": 2.0, "hi": 3.0, "count": 300, "share": 0.3 },
+        { "lo": 3.0, "hi": 4.0, "count": 150, "share": 0.15 },
+        { "lo": 4.0, "hi": 5.0, "count": 100, "share": 0.1 },
+        { "lo": 5.0, "hi": 6.0, "count": 30, "share": 0.03 },
+        { "lo": 6.0, "hi": 8.0, "count": 10, "share": 0.01 },
+        { "lo": 8.0, "hi": 10.0, "count": 5, "share": 0.005 },
+        { "lo": 10.0, "hi": 20.0, "count": 4, "share": 0.004 },
+        { "lo": 20.0, "hi": 50.0, "count": 1, "share": 0.001 },
+        { "lo": 50.0, "hi": null, "count": 0, "share": 0.0 }
+      ]
+    }
+  }
+}
