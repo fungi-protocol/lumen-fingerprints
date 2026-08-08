@@ -525,15 +525,21 @@ struct Aggregates {
 
 impl Aggregates {
     fn new(templates: &[WalletTemplate]) -> Self {
+        let template_series: BTreeMap<String, Vec<TemplatePoint>> = templates
+            .iter()
+            .map(|t| (t.era_label(), Vec::new()))
+            .collect();
+        debug_assert_eq!(
+            template_series.len(),
+            templates.len(),
+            "duplicate era labels would silently merge series"
+        );
         Self {
             totals: Totals { txs: 0, defects: 0 },
             axis_marginals: BTreeMap::new(),
             vectors: BTreeMap::new(),
             aux_counts: BTreeMap::new(),
-            template_series: templates
-                .iter()
-                .map(|t| (t.name.clone(), Vec::new()))
-                .collect(),
+            template_series,
             field_aggs: BTreeMap::new(),
             start_height: None,
             end_height: 0,
@@ -602,24 +608,22 @@ fn fold_row(acc: &mut Aggregates, row: &EpochRow, templates: &[WalletTemplate]) 
     }
 
     // Parse each distinct joint-vector key once per row and test it against every
-    // template, rather than re-parsing per template.
-    let mut matches_this_row: BTreeMap<&str, u64> =
-        templates.iter().map(|t| (t.name.as_str(), 0u64)).collect();
+    // template, rather than re-parsing per template. Indexed positionally: two eras
+    // of the same wallet share a `name`, so names cannot key this map.
+    let mut matches_this_row = vec![0u64; templates.len()];
     for (key, count) in &row.vectors_extended {
         let axes = parse_key(key);
-        for template in templates {
+        for (i, template) in templates.iter().enumerate() {
             if template.matches_axes(&axes) {
-                *matches_this_row
-                    .get_mut(template.name.as_str())
-                    .expect("matches_this_row pre-populated with every template name") += count;
+                matches_this_row[i] += count;
             }
         }
     }
-    for template in templates {
-        let matches = matches_this_row[template.name.as_str()];
+    for (i, template) in templates.iter().enumerate() {
+        let matches = matches_this_row[i];
         acc.template_series
-            .get_mut(&template.name)
-            .expect("template_series pre-populated with every template name")
+            .get_mut(&template.era_label())
+            .expect("template_series pre-populated with every era label")
             .push(TemplatePoint {
                 start_height: row.start_height,
                 matches,
@@ -2384,5 +2388,43 @@ mod tests {
                 report.kind
             );
         }
+    }
+
+    #[test]
+    fn two_eras_of_one_wallet_get_separate_series() {
+        let rows = vec![
+            row(1000, &[("Rbf", 90), ("CakeGroupC", 10)], ("cake", 10)),
+            row(1144, &[("Rbf", 80), ("CakeGroupC", 20)], ("cake", 20)),
+        ];
+        let old_era = WalletTemplate {
+            name: "Cake Wallet".to_string(),
+            confidence: Confidence::CodePredicted,
+            software: Some("cake_wallet".to_string()),
+            from_version: None,
+            until_version: Some("4.28.0".to_string()),
+            axes: [("nsequence".to_string(), "CakeGroupC".to_string())]
+                .into_iter()
+                .collect(),
+        };
+        let new_era = WalletTemplate {
+            name: "Cake Wallet".to_string(),
+            confidence: Confidence::CodePredicted,
+            software: Some("cake_wallet".to_string()),
+            from_version: Some("4.28.0".to_string()),
+            until_version: None,
+            axes: [("nsequence".to_string(), "Rbf".to_string())]
+                .into_iter()
+                .collect(),
+        };
+        let report = build_report(&rows, &[old_era, new_era]);
+
+        let old_series = &report.template_series["Cake Wallet (cake_wallet <4.28.0)"];
+        let new_series = &report.template_series["Cake Wallet (cake_wallet ≥4.28.0)"];
+        assert_eq!(old_series.len(), 2, "one point per epoch for the old era");
+        assert_eq!(new_series.len(), 2, "one point per epoch for the new era");
+        assert_eq!(old_series[0].matches, 10);
+        assert_eq!(new_series[0].matches, 90);
+        assert_eq!(old_series[1].matches, 20);
+        assert_eq!(new_series[1].matches, 80);
     }
 }
