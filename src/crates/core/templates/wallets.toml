@@ -11,6 +11,11 @@
 # fingerprints.json recorded for that entry. Where the two sources give irreconcilable
 # values for the same axis, the axis is left unset (never guessed) and the disagreement
 # is recorded in a CONFLICT comment on that entry.
+#
+# Era fields: `software` + `from_version`/`until_version` scope an entry to the
+# version interval [from, until) of that codebase; either bound may be omitted
+# (missing until = era still current). Version strings are opaque labels — code
+# never orders them. Multiple entries per wallet name = multiple eras.
 
 [[wallet]]
 name = "payjoin-cli"
@@ -165,20 +170,49 @@ uncompressed_pubkey = "No"
 
 [[wallet]]
 name = "Cake Wallet"
-confidence = "chain-proven"      # nsequence/nlocktime decoded from a real prior, 9ecd77ab (#1597)
+software = "cake_wallet"
+until_version = "v6.3.0"
+confidence = "chain-proven"      # nsequence/nlocktime decoded from prior 9ecd77ab (#1597),
+                                  # confirmed 2025-10-25 (block 920749) — predates PR #3379's
+                                  # 2026-07-14 merge, so chain-proven confidence anchors here
+                                  # (archaeology, Task 3)
 # fingerprints.json: bitcoin_base 4.7.0
 version = "2"
 nsequence = "CakeGroupC"
 nlocktime = "Zero"
 low_r = "Yes"
 uncompressed_pubkey = "No"
-# CONFLICT (input_order): fingerprints.json's input_ordering is "BIP-69", matching the
-# chain-proven prior 9ecd77ab. But #1597's input-ordering comment later records Cake as
-# moved to Shuffle (cake-tech/cake_wallet#3379, merged) and strikes through the earlier
-# BIP-69 claim. The prior tx is real chain evidence but may predate that fix, so the
-# current default may no longer be BIP-69. Left unset rather than guessed.
-# CONFLICT (output_order): fingerprints.json's change_position is "last (deterministic)".
-# But #1597's output-ordering comment records Cake as now shuffling the output vector
-# (change no longer last), fixed via cake-tech/cake_wallet#3420 and #3432 (tracked in
-# #3376), and strikes through the "appends change last" claim. Left unset rather than
-# guessed.
+input_order = "Bip69"            # was a CONFLICT block: true UNTIL cake-tech/cake_wallet#3379
+                                  # ("Shuffle input order on bitcoin sends", merged 2026-07-14,
+                                  # first shipped v6.3.0) switched to shuffle — now a fact of
+                                  # this closed era (archaeology, Task 3)
+# output_order intentionally unset: was a CONFLICT block ("appends change last" vs. #1597's
+# struck-through shuffle claim). Archaeology (Task 3) resolved it directly from source: this
+# era built with `BitcoinOrdering.none` (construction order, change appended last in code),
+# NOT `BitcoinOrdering.bip69` — no BIP-69 sort of the non-change outputs ever ran. Setting
+# output_order = "Bip69" would assert a stronger, false claim. And for the common 2-output
+# case, OrderClass reads raw value order regardless, so "last" alone cannot map to any
+# OrderClass value here either — same reasoning as Liana's entry, above.
+
+[[wallet]]
+name = "Cake Wallet"
+software = "cake_wallet"
+from_version = "v6.3.0"
+confidence = "code-predicted"    # post-shuffle era not yet decoded from a real prior
+version = "2"
+nsequence = "CakeGroupC"         # group-C bug persists across the cut: confirmed UNFIXED on
+                                  # both bitcoin_base `main` and the `cake-update-v11` branch
+                                  # cake_wallet's pubspec.yaml actually pins (archaeology,
+                                  # Task 3) — #3379/#3420/#3432 are ordering changes only, they
+                                  # never touch replaceByFeeSequence's inputs[0]-only logic
+nlocktime = "Zero"
+low_r = "Yes"
+uncompressed_pubkey = "No"
+input_order = "Other"            # shuffle since cake-tech/cake_wallet#3379 (v6.3.0)
+# output_order intentionally unset: output shuffling completes over two releases —
+# cake-tech/cake_wallet#3420 (content lands v6.3.0, via an orphaned merge commit resolved by
+# content search) covers the software+RBF send paths, #3432 (v6.4.0) finishes hardware
+# wallet/Bitcoin Cash sends (archaeology, Task 3). Even fully shuffled, OrderClass reads raw
+# value order for the common 2-output case, so this axis stays unset across the whole
+# era rather than modeling a third, identically-unconstrained sub-era for v6.3.0–v6.4.0 —
+# same over-constraint trap as Liana's entry, above.

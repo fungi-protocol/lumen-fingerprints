@@ -1619,18 +1619,24 @@ mod tests {
         // Cake-shaped transactions satisfy nsequence=CakeGroupC, nlocktime=Zero,
         // low_r=Yes, and uncompressed_pubkey=No all at once — the Max/Rbf-sequenced
         // legacy transactions already contradict it on `nsequence` alone.
+        //
+        // Cake Wallet ships as two eras (Task 4); this fixture's two inputs are in
+        // ascending-vout order on a shared txid with uniform prevout ages, which is
+        // BIP-69 order, so it matches the pre-shuffle era (`input_order = "Bip69"`,
+        // `until_version` set), not the current era (`input_order = "Other"`).
         let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("templates/wallets.toml");
         let shipped = crate::template::load_templates(&path).unwrap();
         let cake_wallet = shipped
             .iter()
-            .find(|t| t.name == "Cake Wallet")
+            .find(|t| t.name == "Cake Wallet" && t.until_version.is_some())
             .expect("cake template ships");
         let report_with_shipped = build_report(
             std::slice::from_ref(&row),
             std::slice::from_ref(cake_wallet),
         );
         assert_eq!(
-            report_with_shipped.template_series["Cake Wallet"][0].matches, 2,
+            report_with_shipped.template_series[&cake_wallet.era_label()][0].matches,
+            2,
             "the shipped Cake Wallet template must match exactly the two Cake-shaped \
              txs, not all 4 or none"
         );

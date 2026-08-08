@@ -209,8 +209,30 @@ mod tests {
         assert!(templates.iter().any(|t| t.name == "Cake Wallet"));
         assert!(templates.iter().any(|t| t.name == "Bitcoin Core"));
 
-        let cake = templates.iter().find(|t| t.name == "Cake Wallet").unwrap();
-        assert_eq!(cake.confidence, Confidence::ChainProven);
+        let cakes: Vec<_> = templates
+            .iter()
+            .filter(|t| t.name == "Cake Wallet")
+            .collect();
+        assert_eq!(cakes.len(), 2, "Cake Wallet ships as two eras");
+        let old_era = cakes
+            .iter()
+            .find(|t| t.until_version.is_some())
+            .expect("one Cake era must be closed (pre-shuffle)");
+        let new_era = cakes
+            .iter()
+            .find(|t| t.until_version.is_none())
+            .expect("one Cake era must be current");
+        assert_eq!(old_era.confidence, Confidence::ChainProven);
+        assert_eq!(
+            old_era.axes.get("input_order").map(String::as_str),
+            Some("Bip69"),
+            "the pre-shuffle era regains the input_order signal the CONFLICT block dropped"
+        );
+        assert_eq!(
+            new_era.axes.get("input_order").map(String::as_str),
+            Some("Other"),
+            "the current era records the post-#3379 shuffle"
+        );
     }
 
     #[test]
@@ -219,7 +241,10 @@ mod tests {
         let templates = load_templates(&path).unwrap();
         let v = cake_vector();
 
-        let cake = templates.iter().find(|t| t.name == "Cake Wallet").unwrap();
+        let cake = templates
+            .iter()
+            .find(|t| t.name == "Cake Wallet" && t.until_version.is_some())
+            .unwrap();
         let core = templates.iter().find(|t| t.name == "Bitcoin Core").unwrap();
 
         assert!(
