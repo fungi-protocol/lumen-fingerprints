@@ -418,20 +418,68 @@ uncompressed_pubkey = "No"
 
 [[wallet]]
 name = "Electrum"
+software = "electrum"
+from_version = "4.0.0b0"         # latest of the per-axis cuts below (low_r); archaeology (Task 12)
 confidence = "code-predicted"    # verified at 4.7.2 in payjoin#1597
+# fingerprints.json: electrum 4.7.2
 version = "2"
-nsequence = "Rbf"
+nsequence = "Rbf"                 # 0xFFFFFFFD; wallet.py's nSequence = 0xffffffff - (2 if rbf
+                                  # else 1) with rbf: bool = True default, unchanged 3.1.0 through
+                                  # 4.7.2 and HEAD. NOT true further back: 2.7.0-2.7.18 shipped
+                                  # RBF opt-in with use_rbf defaulting False; 2.8.0-3.0.6 replaced
+                                  # that with an `rbf_policy` config (default 1, "if the fee is
+                                  # low") that made RBF-signalling a per-tx CONDITIONAL/sampled
+                                  # outcome depending on the chosen fee-rate (b = c in [-1, 25]) —
+                                  # not a fixed default, same shape as this entry's own nlocktime
+                                  # caveat below. Commits 96c86dac2 + 87cbe443a (both 2017-12-21,
+                                  # first tag 3.1.0) hardcoded use_rbf unconditionally True and
+                                  # retired rbf_policy — both eras predate the 4.7.2 observation by
+                                  # 7+ years and aren't otherwise observed in fingerprints.json, so
+                                  # per the era-shape rule they don't need their own entry here;
+                                  # archaeology (Task 12)
 # nlocktime intentionally unset: reimplements Core's anti-fee-sniping, which is a
 # DISTRIBUTIONAL behaviour (locktime == tip height ~90% of the time, backdated up to
 # 100 blocks the other ~10%) that a single `AntiFeeSnipe` axis value cannot capture per
 # transaction. Constraining nlocktime to one value would make the template fail on a
 # share of Electrum's own transactions; see `locktime_offset` for where this behaviour
 # actually shows up.
-input_order = "Bip69"
+input_order = "Bip69"            # BIP69_sort default True at every layer (transaction.py,
+                                  # coinchooser.py, wallet.py's make_unsigned_transaction).
+                                  # Introduced (under its pre-numbering name, BIP-LI01) by commit
+                                  # 98bea614d "Implement BIP-LI01." (2015-06-06, first tag 2.3.2),
+                                  # which in the same commit also replaced the prior random
+                                  # change-output placement with this deterministic sort; renamed
+                                  # BIP_LI01_sort -> BIP69_sort by 53fd6a2df (2018, pure rename,
+                                  # already unconditional). BOTH ends checked: only one call site
+                                  # in the whole tree ever passes BIP69_sort=False
+                                  # (txbatcher.py:560, TxBatcher._create_batch_tx, an LN
+                                  # sweep-batching path — not a regular send, same carve-out shape
+                                  # as Liana's recovery sweep and Boltz's out-of-scope claim path,
+                                  # both elsewhere in this file); no general drop found, confirmed
+                                  # unchanged at the 4.7.2 pin and at HEAD; archaeology (Task 12)
 output_order = "Bip69"           # change_position is "BIP-69" here too: BIP-69 fully orders
                                   # the output vector, so (unlike Liana's "last") it genuinely
-                                  # constrains output_order, not just change position
-low_r = "Yes"
+                                  # constrains output_order, not just change position. Same
+                                  # BIP_LI01_sort commit (98bea614d, first tag 2.3.2) covers both
+                                  # inputs and outputs; same "never dropped" finding as input_order
+low_r = "Yes"                    # ECDSA grind-for-low-R, unconditional default. At HEAD, signing
+                                  # goes through the external electrum_ecc package
+                                  # (privkey.ecdsa_sign in transaction.py's txin-signing path;
+                                  # traced from keystore.py's sign_transaction), whose
+                                  # ENABLE_ECDSA_R_VALUE_GRINDING module constant defaults True.
+                                  # Grinding itself originates from commit d16fd2783 "Add
+                                  # signature Low R grinding to match with Bitcoin Core"
+                                  # (2019-12-05, first tag 4.0.0b0), added unconditionally against
+                                  # the then-current python-ecdsa backend; a later commit
+                                  # (a39bfba2d, 2021) added the ENABLE_ECDSA_R_VALUE_GRINDING flag
+                                  # purely as a test-only escape hatch, defaulting True from its
+                                  # own introduction. The signing backend itself moved python-ecdsa
+                                  # -> a direct libsecp256k1 binding (already the case by 2021) ->
+                                  # the standalone electrum_ecc package (2024, commit 3721f04ac,
+                                  # first tag 4.6.0) — pure backend swaps, grinding's default
+                                  # stayed unconditionally on throughout; no config/preference
+                                  # anywhere in the main repo exposes a way to disable it;
+                                  # confirmed unchanged at the 4.7.2 pin; archaeology (Task 12)
 uncompressed_pubkey = "No"
 
 [[wallet]]
