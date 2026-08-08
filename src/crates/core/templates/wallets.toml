@@ -128,17 +128,38 @@ op_return = "false"
 
 [[wallet]]
 name = "Liana"
+software = "liana"
+from_version = "0.3rc1"          # latest of the per-axis cuts below; archaeology (Task 8)
 confidence = "code-predicted"
 # fingerprints.json: 14.0.0
 version = "2"
-nsequence = "Rbf"                # 0xFFFFFFFD; #1597 group A (spend.rs:773)
+nsequence = "Rbf"                # 0xFFFFFFFD; #1597 group A (spend.rs:773). Present since
+                                  # commit dbf17681 ("commands: signal for opt-in RBF in Spend
+                                  # transactions", 2022-11-17), which predates and is included
+                                  # in the project's first tag, 0.0.1 (2022-12-18); still the
+                                  # default at v14.0 via cand.sequence.unwrap_or(...)
+                                  # (spend.rs:767-772). Traced all 5 call sites of the
+                                  # CandidateCoin constructor (coin_to_candidate,
+                                  # lianad/src/commands/mod.rs): regular spends and RBF-bump
+                                  # replacements (:697, :738, :1109, :1122) always pass
+                                  # sequence=None, so the RBF default applies; only the
+                                  # timelocked-recovery-path sweep (create_recovery, :1306)
+                                  # passes Some(Sequence::from_height(timelock)) instead, as
+                                  # required by the miniscript older() recovery fragment — this
+                                  # axis covers regular Liana spends, not recovery sweeps
+                                  # (archaeology, Task 8)
 # nlocktime intentionally unset: reimplements Core's anti-fee-sniping, which is a
 # DISTRIBUTIONAL behaviour (locktime == tip height ~90% of the time, backdated up to
 # 100 blocks the other ~10%) that a single `AntiFeeSnipe` axis value cannot capture per
 # transaction. Constraining nlocktime to one value would make the template fail on a
 # share of this wallet's own transactions; see `locktime_offset` for where this
 # behaviour actually shows up.
-input_order = "Other"            # coin-selection order: no sort, no shuffle
+input_order = "Other"            # coin-selection order: no sort, no shuffle. True since
+                                  # 0.0.1 (create_spend_tx pushed inputs in caller-supplied
+                                  # coins_outpoints order, no sort/shuffle) and still true at
+                                  # v14.0 (bdk_coin_select-driven `selected` order, again no
+                                  # post-hoc sort/shuffle); no BIP-69 or input-shuffle code
+                                  # ever found in the project's history (archaeology, Task 8)
 # output_order intentionally unset: fingerprints.json's change_position is "last
 # (deterministic)", but that only pins one output's position — for the common 2-output
 # case (single recipient + change) our OrderClass classifies by raw value comparison,
@@ -147,7 +168,18 @@ input_order = "Other"            # coin-selection order: no sort, no shuffle
 # tx shape (a false non-match, i.e. an artificially small Liana anonymity set) — exactly
 # the over-constraining the brief warns against. Only map change_position -> output_order
 # where it genuinely constrains the whole ordering (Electrum's BIP-69, below).
-low_r = "Yes"
+low_r = "Yes"                    # scoped to the hot signer: secp.sign_ecdsa_low_r in
+                                  # signer.rs's HotSigner::sign_p2wsh, added by commit
+                                  # f5e7632c ("signer: expose a method for signing a PSBT",
+                                  # 2023-01-26) — the hot signer module didn't exist at all
+                                  # before this (0.0.1-0.2rc1 shipped hardware-wallet signing
+                                  # only), first shipped 0.3rc1, still the call site at v14.0
+                                  # (signer.rs:273). CAVEAT: Liana also supports signing via
+                                  # hardware wallets (async-hwi crate, a GUI dependency since
+                                  # 0.0.1 and still present at v14.0) — for hardware-signed
+                                  # spends, low-R grinding is the external device's firmware
+                                  # behaviour, not Liana's own code, at every version
+                                  # (archaeology, Task 8)
 uncompressed_pubkey = "No"
 op_return = "false"
 
