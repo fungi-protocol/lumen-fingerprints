@@ -293,6 +293,10 @@ op_return = "false"
 
 [[wallet]]
 name = "Bull Bitcoin"
+software = "bullbitcoin-mobile"
+from_version = "v5.0.0"          # latest of the per-axis cuts below, all four landing in
+                                  # the same tag (same April-2025 wallet-datasource refactor
+                                  # wave); archaeology (Task 10)
 confidence = "code-predicted"
 # fingerprints.json: 6.11.1+186
 version = "2"
@@ -306,10 +310,28 @@ version = "2"
 # axis value cannot capture per transaction. Constraining nlocktime to one value would
 # make the template fail on a share of this wallet's own transactions; see
 # `locktime_offset` for where this behaviour actually shows up.
-input_order = "Other"            # bdk_wallet 2.3.0 TxOrdering::Shuffle default
-input_types = "Uniform(P2wpkh)"  # single ScriptType.bip84 per wallet; structurally never mixes
-sighash = "All"                  # sighash_nonall=0
-low_r = "Yes"
+input_order = "Other"            # bdk_wallet TxOrdering::Shuffle default (bdk commit
+                                  # 0665c9e8, 2020 — see ldk-node archaeology, Task 7);
+                                  # bull_sdk's TxBuilder never calls .ordering(...), confirmed
+                                  # at both the fingerprints.json pin (v6.11.1) and HEAD.
+                                  # Holds across a dependency-fork swap this task found
+                                  # in-range (direct i5hi/bdk-dart pin @ bdk_wallet 2.3.0
+                                  # through v6.11.1, switched to the official bitcoindevkit
+                                  # bdk-dart via bull_sdk @ bdk_wallet 3.0.0 from v6.12.0) —
+                                  # both bdk_wallet versions postdate the shuffle default by
+                                  # years, so no flip; archaeology (Task 10)
+input_types = "Uniform(P2wpkh)"  # single ScriptType.bip84 hardcoded in
+                                  # create_default_wallets_usecase.dart (commit e0ebd698e,
+                                  # first tag v5.0.0) for the app's own default wallet;
+                                  # bip49/bip44 exist only for imported watch-only xpubs and
+                                  # a mnemonic-recovery dry-scan helper, never this wallet's
+                                  # own txs; unchanged at HEAD; archaeology (Task 10)
+sighash = "All"                  # explicit SignOptions.allowAllSighashes: false at every
+                                  # signPsbt call site (commit e30632b14, first tag v5.0.0),
+                                  # not merely an inherited bdk default; unchanged at HEAD;
+                                  # archaeology (Task 10)
+low_r = "Yes"                    # explicit SignOptions.allowGrinding: true, same call site
+                                  # and commit as sighash above; archaeology (Task 10)
 uncompressed_pubkey = "No"
 op_return = "false"
 
