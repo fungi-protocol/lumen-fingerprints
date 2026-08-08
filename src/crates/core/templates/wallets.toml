@@ -337,13 +337,49 @@ op_return = "false"
 
 [[wallet]]
 name = "BTCPay Server"
+software = "btcpayserver"
+from_version = "v1.13.0"         # later of the two per-axis cuts below (nsequence); archaeology (Task 11)
 confidence = "code-predicted"
-# fingerprints.json: btcpayserver 8b71fb9 / NBXplorer f3da40c
+# fingerprints.json: btcpayserver v2.4.2 (8b71fb9) / NBXplorer v2.6.9 (f3da40c) — the
+# fingerprints.json pin was a commit, not a release; resolved via `git tag --contains`
+# against both repos (dgarage/NBXplorer 301-redirects to btcpayserver/NBXplorer).
 # Not one of the six integrations #1597 cross-examines directly, so only fingerprints.json
 # backs this entry. tx_version ("sampled (1 or 2)"), nlocktime ("sampled (anti-fee-sniping
 # or 0)"), and low_r ("sampled (on-chain rate)") are explicitly hedged there and omitted.
-nsequence = "Rbf"
-input_order = "Other"            # shuffle
+# Tx construction is a 3-layer chain: btcpayserver only sets a request-level RBF bool on
+# NBXplorer's CreatePSBTRequest (UIWalletsController.PSBT.cs); NBXplorer's
+# MainController.PSBT.cs owns coin selection/sequence/locktime via NBitcoin's
+# TransactionBuilder, which is what actually shuffles inputs (Step 2, archaeology Task 11).
+nsequence = "Rbf"                # NBXplorer: txBuilder.OptInRBF = !(request.RBF is false)
+                                  # (MainController.PSBT.cs); btcpayserver sends an explicit
+                                  # RBF=true for RBF-supporting networks via `RBF =
+                                  # network.SupportRBF ? true : null` (UIWalletsController
+                                  # .PSBT.cs) — but this line is NOT the wallet's original
+                                  # behavior: before commit a8fdc4798 ("Remove randomize RBF
+                                  # from wallet UI advanced settings", 2024-01-31), the send
+                                  # screen's AllowFeeBump selector defaulted to ThreeStateBool
+                                  # .Maybe ("Randomize for higher privacy", enum value 0, never
+                                  # explicitly set on page load), which left the RBF request
+                                  # field null and fell through to NBXplorer's fingerprint-
+                                  # randomization subsystem instead of a fixed value — RBF was
+                                  # NOT deterministic before this commit. First tag containing
+                                  # a8fdc4798 (excl. non-mainline -rockstar- build tags): rc1
+                                  # v1.13.0-rc1 (2024-03-21), final v1.13.0 (2024-03-28).
+                                  # Setting from_version any earlier would make this axis
+                                  # untrue for BTCPay's own 2019-2024 randomized-RBF history —
+                                  # era-shape rule, archaeology (Task 11)
+input_order = "Other"            # shuffle; NBitcoin TransactionBuilder.ShuffleInputs default
+                                  # true, present since TransactionBuilder's first commit
+                                  # (3e118efeb, 2014-10-27) and never overridden by NBXplorer —
+                                  # confirmed both by `git grep` at HEAD (empty) and by a
+                                  # full-history `git log -S 'ShuffleInputs'|'ShuffleOutputs'
+                                  # --all` pickaxe across every branch (also empty; neither
+                                  # property has ever been added or removed in NBXplorer's
+                                  # history) — predates btcpayserver's own PSBT-send
+                                  # integration (03713f9bd, first tag v1.0.3.96, 2019-05-08) by
+                                  # 5 years, which in turn predates this entry's
+                                  # nsequence-driven from_version by another 5; does not move
+                                  # from_version. archaeology (Task 11)
 uncompressed_pubkey = "No"
 op_return = "false"
 
