@@ -48,17 +48,78 @@ op_return = "false"
 
 [[wallet]]
 name = "ldk-node"
+software = "ldk-node"
+from_version = "v0.1-alpha"      # first tag; contains the onchain bdk wallet from the
+                                  # project's inception (b646a57/8bc5c40, 2022-2023); no
+                                  # GitHub Release object but shipped to crates.io the
+                                  # same day as 0.1.0-alpha; archaeology (Task 7)
+until_version = "v0.5.0-rc.1"
 confidence = "code-predicted"
-# fingerprints.json: 0.8.0 / bdk_wallet 2.3.0
+# fingerprints.json: 0.8.0 / bdk_wallet 2.3.0 (postdates this era; see the open era below)
 version = "2"
-nsequence = "Rbf"                # 0xFFFFFFFD; #1597 group A
+nsequence = "Final"              # 0xfffffffe (ENABLE_LOCKTIME_NO_RBF), NOT Sequence::MAX:
+                                  # pre-PR#1616 bdk_wallet took the `(None, None) if
+                                  # lock_time != ZERO` branch. params.rbf is structurally
+                                  # None (no build_tx() call site in src/wallet/mod.rs ever
+                                  # calls .enable_rbf()/.sequence(), verified exhaustively
+                                  # across all 6 build_tx() sites: :466, :607, :774, :802,
+                                  # :810, :954). requirements.csv is structurally None (the
+                                  # Bip84/wpkh() descriptor has no older()/RelativeTimelock
+                                  # miniscript fragment). lock_time != ZERO because either
+                                  # bdk_wallet's own anti-fee-sniping default (current tip;
+                                  # send_to_address/build_drain_psbt/select_confirmed_utxos
+                                  # never call .nlocktime()) or ldk-node's own explicit
+                                  # current-height nlocktime (create_funding_transaction,
+                                  # :466, fed from event.rs:701-703's channel-funding path)
+                                  # applies — both land in the same branch. Flips to "Rbf"
+                                  # once bdk_wallet 1.0.0-beta.5 ships PR #1616 (commit
+                                  # f15551b5), first bundled at ldk-node v0.5.0-rc.1
+                                  # (archaeology, Task 7; evidence detail in review fix notes)
 # nlocktime intentionally unset: bdk_wallet's no-locktime arm reimplements Core's
 # anti-fee-sniping, which is a DISTRIBUTIONAL behaviour (locktime == tip height ~90% of
 # the time, backdated up to 100 blocks the other ~10%) that a single `AntiFeeSnipe`
 # axis value cannot capture per transaction. Constraining nlocktime to one value would
 # make the template fail on a share of this wallet's own transactions; see
 # `locktime_offset` for where this behaviour actually shows up.
-input_order = "Other"            # bdk_wallet 2.3.0 TxOrdering::Shuffle default
+input_order = "Other"            # TxOrdering::Shuffle default since bdk commit 0665c9e8
+                                  # (2020-08-10) — predates ldk-node's existence entirely,
+                                  # never overridden (archaeology, Task 7)
+input_types = "Uniform(P2wpkh)"  # single Bip84 descriptor for both keychains since ldk-node's
+                                  # first commit (8bc5c40); structurally never mixes
+sighash = "All"                  # SIGHASH_ALL default since bdk commit 872d55cb (2020-10-16)
+                                  # — predates ldk-node's existence entirely (archaeology, Task 7)
+low_r = "Yes"                    # allow_grinding default true since bdk commit 68dd6d20
+                                  # (2022-10-17) — predates ldk-node's first real Cargo.toml
+                                  # pin, 0.27.1 (archaeology, Task 7)
+uncompressed_pubkey = "No"
+op_return = "false"
+
+[[wallet]]
+name = "ldk-node"
+software = "ldk-node"
+from_version = "v0.5.0-rc.1"     # first release whose Cargo.toml pin (bdk_wallet = "1.0.0",
+                                  # commit 8f48dc62 "Update BDK to 1.0.0...") crosses into
+                                  # bdk_wallet >= 1.0.0-beta.5, the release shipping PR #1616's
+                                  # RBF-by-default flip; archaeology (Task 7)
+confidence = "code-predicted"
+# fingerprints.json: 0.8.0 / bdk_wallet 2.3.0
+version = "2"
+nsequence = "Rbf"                # 0xFFFFFFFD, unconditional (no longer locktime-gated) since
+                                  # bdk_wallet 1.0.0-beta.5 (PR #1616, "feat(wallet)!: enable
+                                  # RBF by default on TxBuilder", commit f15551b5, merged
+                                  # 2024-09-30); applies as long as params.rbf stays None,
+                                  # true across every build_tx() call site in ldk-node's
+                                  # src/wallet/mod.rs (:466, :607, :774, :802, :810, :954 —
+                                  # none call .enable_rbf()/.sequence(), same exhaustive check
+                                  # as the OLD era above); #1597 group A (archaeology, Task 7)
+# nlocktime intentionally unset: bdk_wallet's no-locktime arm reimplements Core's
+# anti-fee-sniping, which is a DISTRIBUTIONAL behaviour (locktime == tip height ~90% of
+# the time, backdated up to 100 blocks the other ~10%) that a single `AntiFeeSnipe`
+# axis value cannot capture per transaction. Constraining nlocktime to one value would
+# make the template fail on a share of this wallet's own transactions; see
+# `locktime_offset` for where this behaviour actually shows up.
+input_order = "Other"            # bdk_wallet 2.3.0 TxOrdering::Shuffle default; unchanged
+                                  # since bdk commit 0665c9e8 (2020), see OLD era above
 input_types = "Uniform(P2wpkh)"  # single Bip84 descriptor for both keychains; structurally never mixes
 sighash = "All"                  # sighash_nonall=0
 low_r = "Yes"
