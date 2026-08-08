@@ -185,6 +185,11 @@ op_return = "false"
 
 [[wallet]]
 name = "Boltz"
+software = "boltz-backend"
+until_version = "9af5faa3"       # open era, no from_version: covers every tagged release
+                                  # up to and including v3.13.0 (fingerprints.json's own
+                                  # pin, still boltz-backend's newest tag) — see the sibling
+                                  # entry below for why the cut is a commit, not a tag
 confidence = "code-predicted"
 # fingerprints.json: boltz-backend 3.13.0
 version = "2"
@@ -194,9 +199,95 @@ version = "2"
 # overwrites with the sender's sequence before it ever reaches chain
 # (receive/common/mod.rs:285-317) — Boltz's own (non-payjoin) txs use 0xFFFFFFFD. Two
 # irreconcilable values from the same research thread; left unset rather than guessed.
-input_order = "Bip69"            # explicit BIP-69 sort (Bip69.ts, Claim.ts:74-75)
-output_structure = "Single"      # claim/refund: Destination::Single, no change output
-low_r = "Yes"
+# input_order intentionally unset: at the boltz-core 3.1.0 pin in place through v3.13.0,
+# constructClaimTransaction already takes `utxos: ClaimDetails[]` (plural — multi-input
+# claims pre-date the BIP-69 patch) and iterates with a plain `utxos.forEach(...)`, no
+# sort/shuffle call anywhere in Claim.ts (`git show v3.1.0:lib/swap/Claim.ts | grep -i
+# sort` — empty). But that only proves boltz-core's own code doesn't reorder; the actual
+# order is whatever boltz-backend's UTXO-selection code passes in, which was not traced
+# here (out of scope: lives in boltz-backend's own swap-claiming logic, not the boltz-core
+# dependency this task audited). Labelling it "Other" would assert a specific OrderClass
+# outcome for an upstream ordering this task didn't inspect — same over-constraint trap as
+# Liana's output_order (archaeology, Task 8) and Cake Wallet's output_order (Task 3), both
+# elsewhere in this file. archaeology (Task 9)
+output_structure = "Single"      # claim/refund: a single `tx.addOutput(destinationScript,
+                                  # ...)`, no change output — the only addOutput call in
+                                  # constructClaimTransaction, at this pin and at HEAD alike
+                                  # (true since boltz-core's first tag v0.0.1); spans both
+                                  # Boltz eras in this file. archaeology (Task 9)
+low_r = "No"                     # at the boltz-core 3.1.0 pin in place through v3.13.0,
+                                  # signing goes through bitcoinjs' `ecpair`
+                                  # (ECPairInterface.sign(sigHash), no second argument) —
+                                  # `ECPair.lowR` defaults false at construction
+                                  # (ts_src/ecpair.ts:195) and is never set true anywhere in
+                                  # boltz-core's or boltz-backend's history (`git log --all
+                                  # -S '.lowR'` and `-S 'lowR:'` both empty in both repos) —
+                                  # grinding was off. archaeology (Task 9)
+                                  # NOTE: low_r actually flipped to Yes at commit 1b93bc79
+                                  # (2026-05-19), three days before this era's cut at 9af5faa3
+                                  # (2026-05-22) — a master-tracking deployment in that untagged
+                                  # window is misdescribed on this axis; no tagged release lands there.
+uncompressed_pubkey = "No"
+op_return = "false"
+
+[[wallet]]
+name = "Boltz"
+software = "boltz-backend"
+from_version = "9af5faa3"        # boltz-backend commit "chore: bump boltz-core to v5"
+                                  # (2026-05-22), the later of the two per-axis cuts below;
+                                  # NOT in any tagged boltz-backend release — v3.13.0
+                                  # (2026-05-08) is still the newest tag as of HEAD
+                                  # (4d131ef8, 2026-07-27, 64 commits past this one; `git
+                                  # tag --contains 9af5faa3` is empty). Used as from_version
+                                  # anyway because boltz-backend's package.json "version"
+                                  # field does not advance between releases — it reads
+                                  # "3.13.0" unchanged from the v3.13.0 tag all the way
+                                  # through HEAD (`git show v3.13.0:package.json | grep
+                                  # version` vs `git show HEAD:package.json | grep
+                                  # version`, both "3.13.0") — so a live/hosted deployment
+                                  # self-reporting "3.13.0" (fingerprints.json's comment
+                                  # below) is not distinguishable from one already running
+                                  # this or later commits; archaeology (Task 9)
+confidence = "code-predicted"
+# fingerprints.json: boltz-backend 3.13.0
+version = "2"
+# CONFLICT (nsequence): fingerprints.json gives "0xFFFFFFFF (MAX)", but #1597's opening
+# comment places Boltz in "group A - uniformly 0xFFFFFFFD", and its own follow-up EDIT
+# explains the old MAX reading was Boltz's *payjoin-contributed* input, which the lib
+# overwrites with the sender's sequence before it ever reaches chain
+# (receive/common/mod.rs:285-317) — Boltz's own (non-payjoin) txs use 0xFFFFFFFD. Two
+# irreconcilable values from the same research thread; left unset rather than guessed.
+input_order = "Bip69"            # boltz-core's compareInputs (lib/swap/Bip69.ts), wired
+                                  # into the claim path at Claim.ts:74-75 (`sortedUtxos =
+                                  # [...utxos].sort(compareInputs)`). Introduced boltz-core
+                                  # commit d561c8f "feat: BIP-69 order inputs and ouputs"
+                                  # (2026-05-13, first tag v5.0.0), reached by boltz-backend
+                                  # at 9af5faa3 above. Does not hold at the boltz-core pin
+                                  # in place through v3.13.0 (exact "3.1.0", no caret): no
+                                  # Bip69.ts file and no sort/order call anywhere in
+                                  # Claim.ts at that pin (`git show v3.1.0:lib/swap/Claim.ts
+                                  # | grep -i sort` — empty); archaeology (Task 9)
+output_structure = "Single"      # claim/refund: a single `tx.addOutput(destinationScript,
+                                  # ...)`, no change output — the only addOutput call in
+                                  # constructClaimTransaction. True from boltz-core's first
+                                  # tag v0.0.1 through HEAD; does not move this entry's
+                                  # from_version; archaeology (Task 9)
+low_r = "Yes"                    # boltz-core's signLegacy() calls @scure/btc-signer's
+                                  # signECDSA(hash, privateKey, true) — third positional
+                                  # arg is an explicit `lowR` flag (scure-btc-signer
+                                  # src/utils.ts:228, `function signECDSA(..., lowR =
+                                  # false)`). Introduced boltz-core commit 8affb59
+                                  # "refactor: use @scure/btc-signer" (2025-12-27, first
+                                  # tag v4.0.0), reached by boltz-backend at 1b93bc79
+                                  # "refactor: bump boltz-core to v4" (2026-05-19; also
+                                  # uncontained by any tag). Does not hold at the boltz-core
+                                  # pin in place through v3.13.0: signing there went through
+                                  # bitcoinjs' `ecpair` (ECPairInterface.sign), whose lowR
+                                  # defaults false at construction (ts_src/ecpair.ts:195)
+                                  # and is never set true anywhere in boltz-core's or
+                                  # boltz-backend's history (`git log --all -S '.lowR'` and
+                                  # `-S 'lowR:'` both empty in both repos) — grinding was
+                                  # off; archaeology (Task 9)
 uncompressed_pubkey = "No"
 op_return = "false"
 
