@@ -133,21 +133,35 @@ op_return = "false"
 
 [[wallet]]
 name = "Bitcoin Core"
+software = "bitcoin-core"
+from_version = "v24.0"           # latest of the per-axis cuts below; archaeology (Task 5)
 confidence = "code-predicted"
 # fingerprints.json: v31.0
 version = "2"
-nsequence = "Rbf"
+nsequence = "Rbf"                 # DEFAULT_WALLET_RBF flipped false->true in PR #25610
+                                  # ("wallet, rpc: Opt in to RBF by default"), merged
+                                  # 2022-08-01, first shipped v24.0 (commit c5ba1d92b6);
+                                  # still false through v23.0 — corrects the brief's
+                                  # v0.16.0 hypothesis (archaeology, Task 5)
 # nlocktime intentionally unset: Core's anti-fee-sniping is a DISTRIBUTIONAL behaviour
 # (locktime == tip height ~90% of the time, backdated up to 100 blocks the other ~10%)
 # that a single `AntiFeeSnipe` axis value cannot capture per transaction. Constraining
 # nlocktime to one value would make the template fail on a share of Core's own
 # transactions; see `locktime_offset` for where this behaviour actually shows up.
-input_order = "Other"            # GetShuffledInputVector
+input_order = "Other"            # GetShuffledInputVector; shuffle-before-signing landed
+                                  # PR #12699 ("Shuffle transaction inputs before signing"),
+                                  # merged 2018-03-26, first shipped v0.17.0 (commit
+                                  # 2fb9c1e668) — GetShuffledInputVector is a later (PR
+                                  # #22019) refactor of the same behaviour, not its origin
+                                  # (archaeology, Task 5)
 sighash = "All"                  # holds for the default addresstype (bech32/P2WPKH); Core
                                   # can also sign taproot or mix input types under non-default
                                   # config (fingerprints.json hedges single_type as "prefers
                                   # single, mixes"), so input_types is intentionally left unset
-low_r = "Yes"
+low_r = "Yes"                    # PR #13666 ("Always create signatures with Low R values"),
+                                  # merged 2018-08-13, first shipped v0.17.0 (commit
+                                  # 18dfea0dd0) — confirms the brief's hypothesis
+                                  # (archaeology, Task 5)
 uncompressed_pubkey = "No"
 
 [[wallet]]
