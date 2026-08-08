@@ -46,11 +46,21 @@ impl std::fmt::Display for TemplateError {
 
 impl std::error::Error for TemplateError {}
 
-/// A wallet's expected fingerprint values. Axes absent from `axes` are wildcards.
+/// A wallet's expected fingerprint values over one version interval (an "era").
+/// Axes absent from `axes` are wildcards. Multiple entries may share a `name`;
+/// each is an independent template. Version strings are opaque labels — nothing
+/// in code orders or compares them; interval semantics are `[from, until)`.
 #[derive(Debug, Clone)]
 pub struct WalletTemplate {
     pub name: String,
     pub confidence: Confidence,
+    /// Which codebase the version bounds refer to (e.g. "cake_wallet",
+    /// "bitcoin_base"). Required whenever either bound is present.
+    pub software: Option<String>,
+    /// First version (inclusive) producing this era's fingerprint.
+    pub from_version: Option<String>,
+    /// First version (exclusive) that no longer produces it.
+    pub until_version: Option<String>,
     pub axes: BTreeMap<String, String>,
 }
 
@@ -67,7 +77,8 @@ pub fn load_templates(path: &Path) -> Result<Vec<WalletTemplate>, TemplateError>
 pub fn parse_templates(text: &str) -> Result<Vec<WalletTemplate>, TemplateError> {
     let raw: RawFile = toml::from_str(text).map_err(|e| TemplateError::Parse(e.to_string()))?;
 
-    raw.wallet
+    let templates: Vec<WalletTemplate> = raw
+        .wallet
         .into_iter()
         .map(|mut entry| {
             let name = entry
@@ -80,6 +91,14 @@ pub fn parse_templates(text: &str) -> Result<Vec<WalletTemplate>, TemplateError>
                     return Err(TemplateError::Parse(format!("unknown confidence: {other}")));
                 }
             };
+            let software = entry.remove("software");
+            let from_version = entry.remove("from_version");
+            let until_version = entry.remove("until_version");
+            if software.is_none() && (from_version.is_some() || until_version.is_some()) {
+                return Err(TemplateError::Parse(format!(
+                    "wallet {name}: from_version/until_version require software"
+                )));
+            }
             for axis in entry.keys() {
                 if !is_known_axis(axis) {
                     return Err(TemplateError::UnknownAxis(axis.clone()));
@@ -88,13 +107,42 @@ pub fn parse_templates(text: &str) -> Result<Vec<WalletTemplate>, TemplateError>
             Ok(WalletTemplate {
                 name,
                 confidence,
+                software,
+                from_version,
+                until_version,
                 axes: entry,
             })
         })
-        .collect()
+        .collect::<Result<_, _>>()?;
+
+    let mut seen = std::collections::BTreeSet::new();
+    for t in &templates {
+        if !seen.insert(t.era_label()) {
+            return Err(TemplateError::Parse(format!(
+                "duplicate era: {}",
+                t.era_label()
+            )));
+        }
+    }
+    Ok(templates)
 }
 
 impl WalletTemplate {
+    /// Display / series key for this era. Unversioned templates keep their bare
+    /// `name`, so every existing `template_series` consumer is unaffected until a
+    /// wallet actually grows a second era.
+    pub fn era_label(&self) -> String {
+        let Some(software) = &self.software else {
+            return self.name.clone();
+        };
+        match (&self.from_version, &self.until_version) {
+            (Some(from), Some(until)) => format!("{} ({software} {from}–{until})", self.name),
+            (Some(from), None) => format!("{} ({software} ≥{from})", self.name),
+            (None, Some(until)) => format!("{} ({software} <{until})", self.name),
+            (None, None) => format!("{} ({software})", self.name),
+        }
+    }
+
     /// The one place the no-signal / consistent-with semantics live. Both public entry
     /// points (`matches` and `matches_axes`) delegate here rather than each
     /// re-implementing the rule, so the two can never quietly diverge — this codebase
@@ -189,6 +237,9 @@ mod tests {
         let template = WalletTemplate {
             name: "anything".into(),
             confidence: Confidence::CodePredicted,
+            software: None,
+            from_version: None,
+            until_version: None,
             axes: BTreeMap::new(),
         };
         assert!(template.matches(&cake_vector()));
@@ -203,6 +254,9 @@ mod tests {
         let template = WalletTemplate {
             name: "t".into(),
             confidence: Confidence::CodePredicted,
+            software: None,
+            from_version: None,
+            until_version: None,
             axes,
         };
 
@@ -243,6 +297,9 @@ mod tests {
         let template = WalletTemplate {
             name: "test-feerate".into(),
             confidence: Confidence::CodePredicted,
+            software: None,
+            from_version: None,
+            until_version: None,
             axes,
         };
 
@@ -313,6 +370,9 @@ mod tests {
         let template = WalletTemplate {
             name: "t".into(),
             confidence: Confidence::CodePredicted,
+            software: None,
+            from_version: None,
+            until_version: None,
             axes,
         };
 
@@ -331,6 +391,9 @@ mod tests {
         let template = WalletTemplate {
             name: "t".into(),
             confidence: Confidence::CodePredicted,
+            software: None,
+            from_version: None,
+            until_version: None,
             axes,
         };
 
@@ -345,11 +408,109 @@ mod tests {
         let template = WalletTemplate {
             name: "t".into(),
             confidence: Confidence::CodePredicted,
+            software: None,
+            from_version: None,
+            until_version: None,
             axes,
         };
 
         let mut observed = BTreeMap::new();
         observed.insert("nsequence".to_string(), "Rbf".to_string());
         assert!(!template.matches_axes(&observed));
+    }
+
+    #[test]
+    fn parses_a_versioned_entry() {
+        let toml = r#"
+            [[wallet]]
+            name = "Cake Wallet"
+            software = "cake_wallet"
+            from_version = "4.28.0"
+            confidence = "code-predicted"
+            nsequence = "CakeGroupC"
+        "#;
+        let templates = parse_templates(toml).unwrap();
+        assert_eq!(templates.len(), 1);
+        let t = &templates[0];
+        assert_eq!(t.software.as_deref(), Some("cake_wallet"));
+        assert_eq!(t.from_version.as_deref(), Some("4.28.0"));
+        assert_eq!(t.until_version, None);
+        assert_eq!(
+            t.axes.get("nsequence").map(String::as_str),
+            Some("CakeGroupC")
+        );
+    }
+
+    #[test]
+    fn version_bound_without_software_is_an_error() {
+        let toml = r#"
+            [[wallet]]
+            name = "bogus"
+            from_version = "1.0.0"
+        "#;
+        let err = parse_templates(toml).unwrap_err();
+        assert!(
+            format!("{err}").contains("require software"),
+            "error must say version bounds require software"
+        );
+    }
+
+    #[test]
+    fn era_label_covers_all_range_shapes() {
+        let mut t = WalletTemplate {
+            name: "W".into(),
+            confidence: Confidence::CodePredicted,
+            software: None,
+            from_version: None,
+            until_version: None,
+            axes: BTreeMap::new(),
+        };
+        assert_eq!(t.era_label(), "W");
+        t.software = Some("lib".into());
+        assert_eq!(t.era_label(), "W (lib)");
+        t.from_version = Some("2.0".into());
+        assert_eq!(t.era_label(), "W (lib ≥2.0)");
+        t.until_version = Some("3.0".into());
+        assert_eq!(t.era_label(), "W (lib 2.0–3.0)");
+        t.from_version = None;
+        assert_eq!(t.era_label(), "W (lib <3.0)");
+    }
+
+    #[test]
+    fn two_eras_of_one_wallet_both_parse_with_distinct_labels() {
+        let toml = r#"
+            [[wallet]]
+            name = "Cake Wallet"
+            software = "cake_wallet"
+            until_version = "4.28.0"
+            input_order = "Bip69"
+
+            [[wallet]]
+            name = "Cake Wallet"
+            software = "cake_wallet"
+            from_version = "4.28.0"
+            input_order = "Other"
+        "#;
+        let templates = parse_templates(toml).unwrap();
+        assert_eq!(templates.len(), 2);
+        assert_ne!(templates[0].era_label(), templates[1].era_label());
+    }
+
+    #[test]
+    fn duplicate_era_labels_are_an_error() {
+        let toml = r#"
+            [[wallet]]
+            name = "W"
+            nsequence = "Rbf"
+
+            [[wallet]]
+            name = "W"
+            nsequence = "Max"
+        "#;
+        let err = parse_templates(toml).unwrap_err();
+        assert!(
+            format!("{err}").contains("duplicate era"),
+            "two entries with identical era labels would collide as template_series keys"
+        );
     }
 }

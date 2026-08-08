@@ -1381,6 +1381,9 @@ mod tests {
         WalletTemplate {
             name: name.to_string(),
             confidence: Confidence::CodePredicted,
+            software: None,
+            from_version: None,
+            until_version: None,
             axes: [("nsequence".to_string(), expected.to_string())]
                 .into_iter()
                 .collect(),
@@ -1568,6 +1571,9 @@ mod tests {
         let by_nsequence = |name: &str, expected: &str| WalletTemplate {
             name: name.to_string(),
             confidence: Confidence::CodePredicted,
+            software: None,
+            from_version: None,
+            until_version: None,
             axes: [("nsequence".to_string(), expected.to_string())]
                 .into_iter()
                 .collect(),
