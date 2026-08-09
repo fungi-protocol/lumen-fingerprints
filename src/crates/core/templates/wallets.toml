@@ -21,6 +21,7 @@
 name = "payjoin-cli"
 software = "payjoin-cli"
 from_version = "payjoin-cli-0.0.1-alpha"  # first tagged release; archaeology (Task 6)
+until_version = "payjoin-cli-1.0.0-rc.0"  # era cut: a0dd291a starts overriding locktime (below)
 # axes inherited from Bitcoin Core's walletcreatefundedpsbt — Core-side version
 # cuts live on the "Bitcoin Core" entry; this entry's interval only says which
 # payjoin-cli releases exist at all
@@ -31,15 +32,36 @@ nsequence = "Rbf"               # 0xFFFFFFFD via Core's walletcreatefundedpsbt (
                                   # None passed explicitly, never set by payjoin-cli itself);
                                   # RBF default flip is Core's, see Core v24.0 (archaeology,
                                   # Task 5); #1597 group A
-# nlocktime intentionally unset: this reimplements Core's anti-fee-sniping, which is a
-# DISTRIBUTIONAL behaviour (locktime == tip height ~90% of the time, backdated up to
-# 100 blocks the other ~10%) that a single `AntiFeeSnipe` axis value cannot capture per
-# transaction — whether a given transaction used the exact tip or backdated is not
-# decidable from that transaction alone. Constraining nlocktime to one value would make
-# the template fail on a share of this wallet's own transactions; see `locktime_offset`
-# for where this behaviour actually shows up (as a distribution shape, not a label).
-# STALE as of payjoin-cli-1.0.0-rc.0 (a0dd291a): payjoin-cli now sets locktime = current tip
-# itself (deterministic, no longer Core's distributional anti-fee-sniping) — axis needs re-scoping.
+# nlocktime intentionally unset IN THIS ERA: pre-rc.0 payjoin-cli passed locktime: None, so
+# Core's own anti-fee-sniping ran — a DISTRIBUTIONAL behaviour (locktime == tip height ~90%
+# of the time, backdated up to 100 blocks the other ~10%) whose backdating tail crosses the
+# AntiFeeSnipe/Backdated class boundary by policy; a single axis value would fail on a share
+# of this wallet's own transactions. See `locktime_offset` for where the shape shows up.
+input_order = "Other"            # Core builds the shuffled input vector (GetShuffledInputVector)
+sighash = "All"                  # P2WPKH/ECDSA only; sighash_nonall=0 means always SIGHASH_ALL
+low_r = "Yes"
+uncompressed_pubkey = "No"
+op_return = "false"
+
+[[wallet]]
+name = "payjoin-cli"
+software = "payjoin-cli"
+from_version = "payjoin-cli-1.0.0-rc.0"
+# Era cut: commit a0dd291a ("Add default current block height locktime for wallet
+# fingerprinting", merged 2026-03-26, first shipped payjoin-cli-1.0.0-rc.0, verbatim on
+# HEAD) replaces the `None // locktime` argument to walletcreatefundedpsbt with
+# Some(current block height) — payjoin-cli sets its own locktime, so Core's distributional
+# backdating never runs for this wallet from rc.0 on. Archaeology (Task 6, Step 2).
+confidence = "code-predicted"
+version = "2"
+nsequence = "Rbf"               # unchanged: still Core's default via walletcreatefundedpsbt
+nlocktime = "AntiFeeSnipe"      # NOW CONSTRAINABLE: exact tip at creation is policy-deterministic,
+                                  # and an exact-tip locktime confirms at offset = confirmation
+                                  # delay, inside the (height-100, height] AntiFeeSnipe window.
+                                  # Caveat: a tx that waits >100 blocks to confirm classifies as
+                                  # Backdated and would not match — a delay property, not policy,
+                                  # unlike Core's own randomized backdating which crosses the
+                                  # boundary by design (why the pre-rc.0 era leaves this unset).
 input_order = "Other"            # Core builds the shuffled input vector (GetShuffledInputVector)
 sighash = "All"                  # P2WPKH/ECDSA only; sighash_nonall=0 means always SIGHASH_ALL
 low_r = "Yes"
