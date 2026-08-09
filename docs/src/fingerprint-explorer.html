@@ -1005,6 +1005,8 @@ function renderWalletEras(TS) {
       svg.appendChild(t);
     }
     // series lines: earlier era first (under), current on top
+    // first pass: draw all lines, collect series info
+    const seriesInfo = [];
     for (const s of [...f.series].sort((a, b) => (b.old ? 1 : 0) - (a.old ? 1 : 0))) {
       const d = s.pts.map((pt, i) => (i ? "L" : "M") + X(pt.start_height).toFixed(1) + " " + Y(pt.share).toFixed(1)).join("");
       const path = document.createElementNS(NS, "path");
@@ -1012,12 +1014,42 @@ function renderWalletEras(TS) {
       path.setAttribute("fill", "none");
       path.setAttribute("class", s.old ? "era-line-old" : "era-line-current");
       svg.appendChild(path);
-      // selective direct label: the endpoint value of each series
+      // collect series endpoint info for collision resolution
       const last = s.pts[s.pts.length - 1];
+      const naturalY = Math.max(MT + 8, Y(last.share) - 3);
+      seriesInfo.push({s, last, naturalY});
+    }
+    // second pass: resolve collisions by nudging lower-share label downward
+    const labelYs = []; // [{y, share}]
+    for (const info of seriesInfo) {
+      let ly = info.naturalY;
+      let collidedIdx = -1;
+      for (let j = 0; j < labelYs.length; j++) {
+        if (Math.abs(labelYs[j].y - ly) < 10) {
+          collidedIdx = j;
+          break;
+        }
+      }
+      if (collidedIdx >= 0) {
+        if (info.last.share < labelYs[collidedIdx].share) {
+          // this series has lower share, nudge it down
+          ly = Y(info.last.share) + 11;
+          while (labelYs.some(prev => Math.abs(prev.y - ly) < 10)) ly += 11;
+        } else {
+          // previous series has lower share, nudge it instead
+          let nudgeY = Y(labelYs[collidedIdx].share) + 11;
+          while (labelYs.some((prev, idx) => idx !== collidedIdx && Math.abs(prev.y - nudgeY) < 10)) nudgeY += 11;
+          labelYs[collidedIdx].y = nudgeY;
+        }
+      }
+      labelYs.push({y: ly, share: info.last.share});
+    }
+    // third pass: create text elements with resolved ys
+    for (let i = 0; i < seriesInfo.length; i++) {
       const t = document.createElementNS(NS, "text");
-      t.setAttribute("x", W - MR); t.setAttribute("y", Math.max(MT + 8, Y(last.share) - 3));
+      t.setAttribute("x", W - MR); t.setAttribute("y", labelYs[i].y);
       t.setAttribute("text-anchor", "end");
-      t.textContent = fmtShare(last.share);
+      t.textContent = fmtShare(seriesInfo[i].last.share);
       svg.appendChild(t);
     }
     // hover: full-plot hit rect + vertical cursor + shared readout (enhances, never gates)
