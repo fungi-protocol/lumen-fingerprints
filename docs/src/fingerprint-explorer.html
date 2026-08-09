@@ -179,6 +179,29 @@
   .tab:hover { color: var(--ink); }
   .tab[aria-selected="true"] { color: var(--accent); border-bottom-color: var(--accent); }
   .tabpanel[hidden] { display: none; }
+
+  /* --- wallet eras (small multiples) --- */
+  /* page is fixed dark theme (no prefers-color-scheme handling anywhere), so only the dark-mode
+     era pair is wired: current solid, earlier dashed lighter */
+  #wallets-eras { --era-current: #3987e5; --era-old: #6da7ec; }
+  .era-legend { display: flex; gap: 18px; margin: 0 0 12px; font-size: 12.5px; color: var(--muted); }
+  .era-key { display: inline-flex; align-items: center; gap: 6px; }
+  .era-line-current { stroke: var(--era-current); stroke-width: 2; }
+  .era-line-old { stroke: var(--era-old); stroke-width: 2; stroke-dasharray: 5 4; }
+  .era-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 14px; }
+  .era-facet { border: 1px solid var(--line); border-radius: 8px; padding: 10px 10px 6px; }
+  .era-facet h4 { margin: 0 0 2px; font-size: 12.5px; font-weight: 600; }
+  .era-facet .era-sub { font-size: 11px; color: var(--muted); font-family: var(--mono); margin: 0 0 6px; }
+  .era-facet svg { display: block; width: 100%; height: auto; }
+  .era-facet svg text { font: 9px var(--mono); fill: var(--muted); font-variant-numeric: tabular-nums; }
+  .era-facet .era-grid-line { stroke: var(--line); stroke-width: 1; }
+  .era-facet .era-hit { fill: transparent; cursor: crosshair; }
+  .era-facet .era-cursor { stroke: var(--muted); stroke-width: 1; opacity: 0; }
+  .era-readout { min-height: 1.4em; font: 12px var(--mono); color: var(--muted); margin-top: 8px; }
+  .era-table { margin-top: 10px; font-size: 12.5px; }
+  .era-table table { border-collapse: collapse; margin-top: 8px; }
+  .era-table td, .era-table th { padding: 3px 10px; text-align: right; font-variant-numeric: tabular-nums; }
+  .era-table th:first-child, .era-table td:first-child { text-align: left; }
 </style>
 
 <header class="top">
@@ -220,6 +243,25 @@
         <div class="colhead"><span>Value</span><span>Chain share (mean · range)</span><span>Identifying — share in a set &lt; 100</span></div>
         <div id="values"></div>
       </div>
+    </section>
+
+    <section id="wallets-eras" hidden>
+      <h3>Wallet eras</h3>
+      <div class="title">Template consistency over time, by wallet era</div>
+      <p class="lede">Per epoch, the share of all transactions <em>consistent with</em> each wallet
+      template — an upper bound on that template's anonymity set, not attribution. Wallets with a
+      versioned behavior change carry two eras (earlier era dashed); same-wallet eras overlap by
+      design, so they are drawn, never summed.</p>
+      <div class="era-legend" aria-hidden="false">
+        <span class="era-key"><svg width="26" height="10"><line x1="1" y1="5" x2="25" y2="5" class="era-line-current"/></svg> current / open era</span>
+        <span class="era-key"><svg width="26" height="10"><line x1="1" y1="5" x2="25" y2="5" class="era-line-old"/></svg> earlier era</span>
+      </div>
+      <div class="era-grid" id="era-grid"></div>
+      <div class="era-readout" id="era-readout" aria-live="polite">&nbsp;</div>
+      <details class="era-table">
+        <summary>Table view</summary>
+        <table id="era-table-body"></table>
+      </details>
     </section>
   </div>
 </div>
@@ -882,6 +924,144 @@ function bootAxes() {
   renderAxis();
 }
 
+/* ---------- wallet eras (small multiples) ---------- */
+function parseEraLabel(label) {
+  const m = label.match(/^(.*) \(([^()]*)\)$/);
+  if (!m) return { wallet: label, range: "", old: false };       // bare name: single open era
+  const range = m[2];
+  const old = range.includes("<") || range.includes("–");        // closed interval = earlier era
+  return { wallet: m[1], range, old };
+}
+function fmtShare(s) {
+  if (s === 0) return "0";
+  if (s >= 0.01) return (s * 100).toFixed(1) + "%";
+  return (s * 100).toPrecision(2) + "%";
+}
+function renderWalletEras(TS) {
+  const labels = Object.keys(TS);
+  if (!labels.length) return;
+  const sec = document.getElementById("wallets-eras");
+  sec.hidden = false;
+
+  // group era series by wallet
+  const wallets = new Map();
+  for (const label of labels) {
+    const p = parseEraLabel(label);
+    if (!wallets.has(p.wallet)) wallets.set(p.wallet, []);
+    wallets.get(p.wallet).push({ label, ...p, pts: TS[label] });
+  }
+  // facet order: by max observed share, descending — fixed, not filter-dependent
+  const facets = [...wallets.entries()].map(([wallet, series]) => ({
+    wallet, series,
+    peak: Math.max(...series.flatMap(s => s.pts.map(pt => pt.share))),
+  })).sort((a, b) => b.peak - a.peak);
+
+  const W = 240, H = 130, ML = 34, MR = 6, MT = 6, MB = 18;   // includes the x-axis band
+  const grid = document.getElementById("era-grid");
+  const readout = document.getElementById("era-readout");
+  grid.textContent = "";
+
+  for (const f of facets) {
+    const xs = f.series[0].pts.map(pt => pt.start_height);
+    const x0 = xs[0], x1 = xs[xs.length - 1];
+    const yMax = f.peak || 1e-9;
+    const X = h => ML + (h - x0) / (x1 - x0 || 1) * (W - ML - MR);
+    const Y = s => MT + (1 - s / yMax) * (H - MT - MB);
+
+    const div = document.createElement("div");
+    div.className = "era-facet";
+    const sub = f.series.map(s => s.range || "all versions").join("  ·  ");
+    div.innerHTML = `<h4></h4><div class="era-sub"></div>`;
+    div.querySelector("h4").textContent = f.wallet;
+    div.querySelector(".era-sub").textContent = sub;
+
+    const NS = "http://www.w3.org/2000/svg";
+    const svg = document.createElementNS(NS, "svg");
+    svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+    svg.setAttribute("role", "img");
+    svg.setAttribute("aria-label",
+      `${f.wallet}: share of consistent transactions per epoch, heights ${x0} to ${x1}`);
+
+    // solid hairline gridlines at 0 and yMax, y tick labels
+    for (const [s, anchor] of [[0, "baseline"], [yMax, "hanging"]]) {
+      const ln = document.createElementNS(NS, "line");
+      ln.setAttribute("x1", ML); ln.setAttribute("x2", W - MR);
+      ln.setAttribute("y1", Y(s)); ln.setAttribute("y2", Y(s));
+      ln.setAttribute("class", "era-grid-line");
+      svg.appendChild(ln);
+      const t = document.createElementNS(NS, "text");
+      t.setAttribute("x", ML - 3); t.setAttribute("y", Y(s));
+      t.setAttribute("text-anchor", "end");
+      t.setAttribute("dominant-baseline", anchor === "baseline" ? "auto" : "hanging");
+      t.textContent = fmtShare(s);
+      svg.appendChild(t);
+    }
+    // x tick labels: first and last height, in the axis band
+    for (const [h, anchor] of [[x0, "start"], [x1, "end"]]) {
+      const t = document.createElementNS(NS, "text");
+      t.setAttribute("x", X(h)); t.setAttribute("y", H - 4);
+      t.setAttribute("text-anchor", anchor);
+      t.textContent = "h" + Math.round(h / 1000) + "k";
+      svg.appendChild(t);
+    }
+    // series lines: earlier era first (under), current on top
+    for (const s of [...f.series].sort((a, b) => (b.old ? 1 : 0) - (a.old ? 1 : 0))) {
+      const d = s.pts.map((pt, i) => (i ? "L" : "M") + X(pt.start_height).toFixed(1) + " " + Y(pt.share).toFixed(1)).join("");
+      const path = document.createElementNS(NS, "path");
+      path.setAttribute("d", d);
+      path.setAttribute("fill", "none");
+      path.setAttribute("class", s.old ? "era-line-old" : "era-line-current");
+      svg.appendChild(path);
+      // selective direct label: the endpoint value of each series
+      const last = s.pts[s.pts.length - 1];
+      const t = document.createElementNS(NS, "text");
+      t.setAttribute("x", W - MR); t.setAttribute("y", Math.max(MT + 8, Y(last.share) - 3));
+      t.setAttribute("text-anchor", "end");
+      t.textContent = fmtShare(last.share);
+      svg.appendChild(t);
+    }
+    // hover: full-plot hit rect + vertical cursor + shared readout (enhances, never gates)
+    const cursor = document.createElementNS(NS, "line");
+    cursor.setAttribute("class", "era-cursor");
+    cursor.setAttribute("y1", MT); cursor.setAttribute("y2", H - MB);
+    svg.appendChild(cursor);
+    const hit = document.createElementNS(NS, "rect");
+    hit.setAttribute("class", "era-hit");
+    hit.setAttribute("x", ML); hit.setAttribute("y", MT);
+    hit.setAttribute("width", W - ML - MR); hit.setAttribute("height", H - MT - MB);
+    hit.setAttribute("tabindex", "0");
+    const show = ev => {
+      const r = svg.getBoundingClientRect();
+      const px = ev.touches ? ev.touches[0].clientX : ev.clientX;
+      const fx = (px - r.left) / r.width * W;
+      let idx = Math.round((fx - ML) / (W - ML - MR) * (xs.length - 1));
+      idx = Math.max(0, Math.min(xs.length - 1, idx));
+      cursor.setAttribute("x1", X(xs[idx])); cursor.setAttribute("x2", X(xs[idx]));
+      cursor.style.opacity = 1;
+      readout.textContent = `${f.wallet} @ h${xs[idx]}: ` + f.series
+        .map(s => `${s.range || "all"} ${fmtShare(s.pts[idx].share)} (${s.pts[idx].matches.toLocaleString()} tx)`)
+        .join("  ·  ");
+    };
+    hit.addEventListener("mousemove", show);
+    hit.addEventListener("focus", () => show({ clientX: svg.getBoundingClientRect().left + svg.getBoundingClientRect().width / 2 }));
+    hit.addEventListener("mouseleave", () => { cursor.style.opacity = 0; readout.innerHTML = "&nbsp;"; });
+    svg.appendChild(hit);
+    div.appendChild(svg);
+    grid.appendChild(div);
+  }
+
+  // table view twin: one row per era series
+  const table = document.getElementById("era-table-body");
+  const rows = facets.flatMap(f => f.series.map(s => {
+    const total = s.pts.reduce((a, p) => a + p.matches, 0);
+    const last = s.pts[s.pts.length - 1];
+    return `<tr><td>${f.wallet}</td><td>${s.range || "all versions"}</td>` +
+           `<td>${total.toLocaleString()}</td><td>${fmtShare(last.share)}</td></tr>`;
+  }));
+  table.innerHTML =
+    `<tr><th>wallet</th><th>era</th><th>total consistent tx</th><th>share (last epoch)</th></tr>` + rows.join("");
+}
+
 /* ---------- boot ---------- */
 async function boot() {
   let D;
@@ -906,6 +1086,7 @@ async function boot() {
 
   wireAllRows();
   bootAxes();
+  renderWalletEras(D.template_series || {});
 }
 
 boot();
