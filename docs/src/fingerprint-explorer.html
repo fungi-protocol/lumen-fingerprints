@@ -180,6 +180,11 @@
   .tab[aria-selected="true"] { color: var(--accent); border-bottom-color: var(--accent); }
   .tabpanel[hidden] { display: none; }
 
+  /* --- source link (the public site has no mdbook chrome, so the repo link lives here);
+     a plain flex item after .sub so it never overlaps the live window text --- */
+  .src-link { font: 12px var(--mono); color: var(--muted); text-decoration: none; border: 1px solid var(--line); border-radius: 6px; padding: 4px 9px; white-space: nowrap; }
+  .src-link:hover { color: var(--accent); border-color: var(--accent); }
+
   /* --- wallet eras (small multiples) --- */
   /* page is fixed dark theme (no prefers-color-scheme handling anywhere), so only the dark-mode
      era pair is wired: current solid, earlier dashed lighter */
@@ -208,6 +213,7 @@
   <div class="wrap">
     <h1>Raw Data Catalog</h1>
     <span class="sub" id="win">everything the codebase measures, per transaction &amp; in aggregate</span>
+    <a class="src-link" href="https://github.com/fungi-protocol/lumen-fingerprints" target="_blank" rel="noopener">source on GitHub ↗</a>
   </div>
 </header>
 
