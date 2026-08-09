@@ -28,6 +28,7 @@ jobs:
         run: |
           mkdir -p site
           cp docs/src/fingerprint-explorer.html site/index.html
+          cp docs/src/fingerprint-explorer.html site/fingerprint-explorer.html
           cp docs/src/explorer-data.json site/explorer-data.json
           touch site/.nojekyll
       - uses: actions/upload-pages-artifact@v3
