@@ -9,7 +9,8 @@ out = {
     "axis_summaries": d["axis_summaries"],
     "encoding_families": d["encoding_families"],
     "cond": d["conditional_anonymity"],
+    "template_series": d.get("template_series", {}),
     "fields": { f["name"]: f for f in d.get("fields", []) },
 }
 json.dump(out, open(sys.argv[2], "w"), separators=(",", ":"))
-print(f"wrote {sys.argv[2]} ({len(json.dumps(out))} bytes, {len(out['axis_summaries'])} axes, cond {len(out['cond'])} axes)")
+print(f"wrote {sys.argv[2]} ({len(json.dumps(out))} bytes, {len(out['axis_summaries'])} axes, cond {len(out['cond'])} axes, {len(out['template_series'])} template series)")
