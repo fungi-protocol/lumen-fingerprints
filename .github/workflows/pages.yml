@@ -22,16 +22,16 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
-      - name: Install mdBook
+      # The public site is ONLY the Fingerprint Explorer (self-contained HTML +
+      # its data file). The mdbook study stays local-only (`nix run .#serve`).
+      - name: Assemble site (explorer only)
         run: |
-          mkdir -p "$HOME/.local/bin"
-          curl -sSL https://github.com/rust-lang/mdBook/releases/download/v0.4.40/mdbook-v0.4.40-x86_64-unknown-linux-gnu.tar.gz \
-            | tar -xz -C "$HOME/.local/bin"
-          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
-      - name: Build site
-        run: mdbook build docs --dest-dir book && touch docs/book/.nojekyll
+          mkdir -p site
+          cp docs/src/fingerprint-explorer.html site/index.html
+          cp docs/src/explorer-data.json site/explorer-data.json
+          touch site/.nojekyll
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: docs/book
+          path: site
       - id: deployment
         uses: actions/deploy-pages@v4
