@@ -1050,16 +1050,25 @@ function renderWalletEras(TS) {
     grid.appendChild(div);
   }
 
-  // table view twin: one row per era series
+  // table view twin: one row per era series (cells set via textContent — labels are
+  // build-time data from wallets.toml, but never trust it as markup)
   const table = document.getElementById("era-table-body");
-  const rows = facets.flatMap(f => f.series.map(s => {
-    const total = s.pts.reduce((a, p) => a + p.matches, 0);
-    const last = s.pts[s.pts.length - 1];
-    return `<tr><td>${f.wallet}</td><td>${s.range || "all versions"}</td>` +
-           `<td>${total.toLocaleString()}</td><td>${fmtShare(last.share)}</td></tr>`;
-  }));
-  table.innerHTML =
-    `<tr><th>wallet</th><th>era</th><th>total consistent tx</th><th>share (last epoch)</th></tr>` + rows.join("");
+  table.textContent = "";
+  const headRow = table.insertRow();
+  for (const h of ["wallet", "era", "total consistent tx", "share (last epoch)"]) {
+    const th = document.createElement("th");
+    th.textContent = h;
+    headRow.appendChild(th);
+  }
+  for (const f of facets) {
+    for (const s of f.series) {
+      const total = s.pts.reduce((a, p) => a + p.matches, 0);
+      const last = s.pts[s.pts.length - 1];
+      const row = table.insertRow();
+      const cells = [f.wallet, s.range || "all versions", total.toLocaleString(), fmtShare(last.share)];
+      for (const c of cells) row.insertCell().textContent = c;
+    }
+  }
 }
 
 /* ---------- boot ---------- */
