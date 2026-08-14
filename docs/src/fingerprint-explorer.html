@@ -1207,7 +1207,7 @@ function drawEraFacets() {
     grid.after(omitNote);
   }
   omitNote.textContent = omitted.length
-    ? `Not fingerprinted on ${eraAxis} (axis left as a wildcard): ${omitted.join(", ")}.`
+    ? `Not shown on ${eraAxis} — these wallets don't fix a value on this axis (the catalogue leaves it unset), so there's no line to draw: ${omitted.join(", ")}.`
     : "";
 
   // table view twin: one row per era series (cells set via textContent — labels are
@@ -1218,8 +1218,8 @@ function drawEraFacets() {
   table.textContent = "";
   const headRow = table.insertRow();
   const head = perAxis
-    ? ["wallet", "era", eraAxis, "share (last epoch)", "in set <10", "in set <100"]
-    : ["wallet", "era", "total consistent tx", "share (last epoch)"];
+    ? ["wallet", "era", eraAxis, "share (last day)", "in set <10", "in set <100"]
+    : ["wallet", "era", "total consistent tx", "share (last day)"];
   for (const h of head) {
     const th = document.createElement("th");
     th.textContent = h;
@@ -1239,7 +1239,7 @@ function drawEraFacets() {
           ? [wallet, e.range || "all versions", valueLabel(eraAxis, v), fmtShare(series[series.length - 1].share),
              (id => id ? pct(id.lt10) : "—")(axisValueId(eraAxis, v)),
              (id => id ? pct(id.lt100) : "—")(axisValueId(eraAxis, v))]
-          : [wallet, e.range || "all versions", "— (wildcard)", "—", "—", "—"];
+          : [wallet, e.range || "all versions", "— (doesn't fix this axis)", "—", "—", "—"];
         const row = table.insertRow();
         for (const c of cells) row.insertCell().textContent = c;
       }
