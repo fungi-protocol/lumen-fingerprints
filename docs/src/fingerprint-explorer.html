@@ -231,22 +231,22 @@
     <section id="axes">
       <h3>12 · Sparseness axes</h3>
       <div class="title">The curated joint vector</div>
-      <p class="lede">21 curated axes: their joint combination is the CORE/EXTENDED key <code>conditional_anonymity</code> groups transactions by, so each value's anonymity set can be read straight off the chain. The feature matrix on the &ldquo;What we collect&rdquo; tab is a wider view of the same signals, meant for ML/clustering.</p>
+      <p class="lede">21 axes whose joint value is the key transactions are grouped by — so each value's anonymity set reads off the chain.</p>
       <div class="card">
-        <div class="head"><span class="name">CORE</span><span class="meta">12 · wallet-policy</span><span class="note">The headline joint vector — construction choices a wallet makes the same way on every transaction, independent of the coins at hand.</span></div>
-        <div class="rows"><div class="row"><span class="field"><b>version, nsequence, nlocktime, input_order, output_order, output_structure, input_types, output_types, low_r, sighash, uncompressed_pubkey, op_return</b></span><span class="tag joint">joint</span><span class="desc">Each axis contributes its categorical value to the CORE key that anonymity sets are grouped by.</span></div></div>
+        <div class="head"><span class="name">CORE</span><span class="meta">12 · wallet-policy</span><span class="note">Choices a wallet makes the same way every time, regardless of coins.</span></div>
+        <div class="rows"><div class="row"><span class="field"><b>version, nsequence, nlocktime, input_order, output_order, output_structure, input_types, output_types, low_r, sighash, uncompressed_pubkey, op_return</b></span><span class="tag joint">joint</span><span class="desc">Each feeds the CORE key.</span></div></div>
       </div>
       <div class="card">
         <div class="head"><span class="name">EXTENDED</span><span class="meta">7 · coin-dependent</span></div>
-        <div class="rows"><div class="row"><span class="field"><b>input_subtype, low_s, ecdsa_sigs, input_age, feerate_bucket, round_feerate, locktime_offset</b></span><span class="tag joint">joint</span><span class="desc">Vary with which coins a transaction happens to spend rather than with wallet policy; added to CORE for the wider EXTENDED joint key.</span></div></div>
+        <div class="rows"><div class="row"><span class="field"><b>input_subtype, low_s, ecdsa_sigs, input_age, feerate_bucket, round_feerate, locktime_offset</b></span><span class="tag joint">joint</span><span class="desc">Vary with the coins spent, not wallet policy; widen the key.</span></div></div>
       </div>
       <div class="card">
         <div class="head"><span class="name">HEURISTIC</span><span class="meta">2 · marginals only</span></div>
-        <div class="rows"><div class="row"><span class="field"><b>change_position, change_type</b></span><span class="tag marginal">marginal</span><span class="desc">Derived from a fallible change-identification heuristic rather than read directly off the transaction; counted per-value but excluded from every joint key so the heuristic's own abstentions can't be counted as chain diversity.</span></div></div>
+        <div class="rows"><div class="row"><span class="field"><b>change_position, change_type</b></span><span class="tag marginal">marginal</span><span class="desc">From a fallible change heuristic; counted per-value, kept out of the joint key.</span></div></div>
       </div>
 
-      <p class="lede" style="margin-top:22px"><b>Chain share</b>: how common the value is. <b>Identifying</b>: the share of its transactions landing in an anonymity set under 100 — high means it pins you down. These set sizes are <b>upper bounds on distinguishability</b> (the templates use &ldquo;consistent-with&rdquo; semantics), so a better-informed adversary can only narrow them, never widen them.</p>
-      <p class="picker-hint">Pick an axis to read <b>its on-chain values</b> — every value it takes and how identifying each is, independent of any wallet.</p>
+      <p class="lede" style="margin-top:22px"><b>Chain share</b>: how common the value is. <b>Identifying</b>: share landing in an anonymity set under 100 (higher = more pinned down). Set sizes here are upper bounds (so identifiability is a lower bound) — a sharper adversary only narrows the set, never widens it.</p>
+      <p class="picker-hint">An axis's <b>on-chain values</b> — wallet-agnostic.</p>
       <div class="picker" id="picker"></div>
       <div class="card">
         <div class="colhead"><span>Value</span><span>Chain share (mean · range)</span><span>Identifying — share in a set &lt; 100</span></div>
@@ -257,15 +257,12 @@
     <section id="wallets-eras" hidden>
       <h3>Wallet eras</h3>
       <div class="title">Template consistency over time, by wallet era</div>
-      <p class="lede">Per epoch, the share of all transactions <em>consistent with</em> each wallet
-      template — an upper bound on that template's anonymity set, not attribution. Wallets with a
-      versioned behavior change carry two eras (earlier era dashed); same-wallet eras overlap by
-      design, so they are drawn, never summed.</p>
+      <p class="lede">Share of transactions <em>consistent with</em> each wallet template, over the whole scan — an upper bound on the anonymity set (a sharper adversary only narrows it), not attribution. Versioned wallets show two eras (earlier dashed).</p>
       <div class="era-legend" aria-hidden="false">
         <span class="era-key"><svg width="26" height="10"><line x1="1" y1="5" x2="25" y2="5" class="era-line-current"/></svg> current / open era</span>
         <span class="era-key"><svg width="26" height="10"><line x1="1" y1="5" x2="25" y2="5" class="era-line-old"/></svg> earlier era</span>
       </div>
-      <p class="picker-hint">Pick an axis to see <b>what each wallet does on it</b> — the value every catalogued wallet fixes there. Only axes some wallet fingerprints appear; <b>All axes</b> shows the full-template view instead.</p>
+      <p class="picker-hint"><b>What each wallet fixes</b> on this axis. <b>All axes</b> = full-template view.</p>
       <div class="picker" id="era-picker"></div>
       <p class="lede" id="era-mode-note" style="margin:0 0 14px;font-size:13px"></p>
       <div class="era-grid" id="era-grid"></div>
@@ -324,7 +321,7 @@
       </div>
 
       <div class="gloss">
-        <div class="g"><b>epoch</b> — the block-bucket the survey aggregates over; per-epoch counts are the granularity behind every rollup.</div>
+        <div class="g"><b>epoch</b> — the block-bucket (≈ one day) the survey aggregates over.</div>
         <div class="g"><b>joint vector</b> — the tuple of axis values for one transaction; <code>conditional_anonymity</code> reports its per-value anonymity set.</div>
         <div class="g"><b>marginal</b> (<code>axis_marginals</code>) — the per-value count distribution of a single axis: how many transactions took each value.</div>
         <div class="g"><b>anonymity set</b> (<code>conditional_anonymity</code>) — how many transactions share an identical CORE joint vector; a set of size 1 is uniquely identifying. Reported per fingerprint value, not as a chain-wide distribution.</div>
@@ -547,7 +544,7 @@
       <section id="aggregates">
         <h3>13 · Aggregates</h3>
         <div class="title">Report-time rollups (report.json)</div>
-        <p class="lede">Computed once per scan over all epochs (about 340 KB), derived from the joint-vector counts already gathered per epoch — no re-scan needed. These are what the dashboard reads per fingerprint; the per-tx matrix above is the primary output.</p>
+        <p class="lede">Computed once per scan from the joint-vector counts already gathered (about 340 KB) — no re-scan needed. These are what the dashboard reads per fingerprint; the per-tx matrix above is the primary output.</p>
         <div class="card">
           <div class="head"><span class="name">Per-value &amp; conditional</span><span class="prov nl" style="color:var(--good);border-color:color-mix(in srgb, var(--good) 55%, var(--line-strong))">dashboard</span><span class="note">The dev-facing data: &ldquo;how common is this fingerprint value, and how much does it isolate a wallet.&rdquo;</span></div>
           <div class="rows">
@@ -559,7 +556,7 @@
         <div class="card">
           <div class="head"><span class="name">Derived views</span></div>
           <div class="rows">
-            <div class="row"><span class="field"><b>template_series</b></span><span class="tag num">num</span><span class="desc">Per-epoch share of transactions consistent with a wallet template, keyed by era label (e.g. <code>Name (software RANGE)</code> for versioned entries, bare name for unversioned) — a narrower, wallet-shaped question than the per-axis summaries above, useful for tracking one specific wallet's chain share over time.</span></div>
+            <div class="row"><span class="field"><b>template_series</b></span><span class="tag num">num</span><span class="desc">Share of transactions consistent with a wallet template, keyed by era label (e.g. <code>Name (software RANGE)</code> for versioned entries, bare name for unversioned) — a narrower, wallet-shaped question than the per-axis summaries above, for one wallet's chain share over the scan.</span></div>
             <div class="row"><span class="field"><b>encoding_families</b></span><span class="tag num">num</span><span class="desc">Output address-encoding family shares (base58 / bech32 / bech32m).</span></div>
             <div class="row"><span class="field"><b>aux_flags · change_heuristic_abstention_rate</b></span><span class="tag num">num</span><span class="desc">Aux-flag shares; how often the change heuristic abstains.</span></div>
           </div>
@@ -960,8 +957,8 @@ function fmtShare(s) {
 /* Wallet-eras state. The section is driven by its own axis selector (`eraAxis`),
    independent of the sparseness-axes picker above: "__all__" is the full-template
    consistency view (the section's original behaviour); any other value narrows every
-   facet to a single fingerprint axis, plotting the per-epoch marginal of the value each
-   wallet pins on it. ERA holds the three data blocks the two views read from. */
+   facet to a single fingerprint axis, plotting the marginal of the value each wallet
+   pins on it over the scan window. ERA holds the three data blocks the two views read. */
 const ERA_ALL = "__all__";
 let eraAxis = ERA_ALL;
 let ERA = { TS: {}, AVS: {}, TA: {} };
@@ -1067,10 +1064,10 @@ function drawEraFacets() {
   let facets, omitted = [];
   if (eraAxis === ERA_ALL) {
     facets = eraFacetsAll();
-    note.textContent = "Full-template consistency: each line is the share of transactions consistent with a wallet's entire fingerprint vector. Pick an axis to see one axis in isolation.";
+    note.textContent = "Each line: share consistent with a wallet's whole fingerprint. Pick an axis to isolate one.";
   } else {
     ({ facets, omitted } = eraFacetsAxis(eraAxis));
-    note.textContent = `One axis in isolation (${eraAxis}): each line is the per-epoch share of the value a wallet pins on ${eraAxis}. Wallets pinning the same value share a line — the label says which value.`;
+    note.textContent = `Share of the value each wallet fixes on ${eraAxis}. Same value → same line.`;
   }
   // facet order: by max observed share, descending — fixed, not filter-dependent
   for (const f of facets) f.peak = Math.max(...f.series.flatMap(s => s.pts.map(pt => pt.share)));
@@ -1099,7 +1096,7 @@ function drawEraFacets() {
     svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
     svg.setAttribute("role", "img");
     svg.setAttribute("aria-label",
-      `${f.wallet}: share of consistent transactions per epoch, heights ${x0} to ${x1}`);
+      `${f.wallet}: consistent-transaction share, heights ${x0} to ${x1}`);
 
     // solid hairline gridlines at 0 and yMax, y tick labels
     for (const [s, anchor] of [[0, "baseline"], [yMax, "hanging"]]) {
@@ -1216,7 +1213,7 @@ function drawEraFacets() {
     grid.after(omitNote);
   }
   omitNote.textContent = omitted.length
-    ? `On ${eraAxis}, these wallets don't fix a value (shown as — in the table, no line in the chart): ${omitted.join(", ")}.`
+    ? `No value fixed on ${eraAxis} (— in table): ${omitted.join(", ")}.`
     : "";
 
   // table view twin: one row per era series (cells set via textContent — labels are
