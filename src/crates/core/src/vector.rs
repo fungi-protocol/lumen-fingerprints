@@ -409,7 +409,7 @@ fn change_position_str(v: ChangePosition) -> &'static str {
 
 fn nsequence_str(v: NSequenceType) -> &'static str {
     match v {
-        NSequenceType::CakeGroupC => "CakeGroupC",
+        NSequenceType::CakeGroupC => "first 0x01 rest 0xffffffff",
         NSequenceType::Lone0x01 => "Lone0x01",
         NSequenceType::Rbf => "Rbf",
         NSequenceType::Final => "Final",

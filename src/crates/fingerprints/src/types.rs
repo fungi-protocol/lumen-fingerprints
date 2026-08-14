@@ -37,6 +37,8 @@ impl OutputStructureType {
 /// x_nsequence so its measured bits (e.g. the Cake `cake_group_c` bug) transfer.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum NSequenceType {
+    // Emitted as the descriptive pattern string (see nsequence_str), not "CakeGroupC":
+    // the survey shows the collected value, not a research-group codename.
     CakeGroupC = 0, // [0x01, MAX, ...]: first input 0x01, rest 0xffffffff
     Lone0x01 = 1,   // any input 0x01 (not the Cake pattern)
     Rbf = 2,        // all 0xfffffffd

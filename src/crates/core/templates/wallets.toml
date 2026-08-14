@@ -487,7 +487,7 @@ confidence = "chain-proven"      # nsequence/nlocktime decoded from prior 9ecd77
                                   # (archaeology, Task 3)
 # fingerprints.json: bitcoin_base 4.7.0
 version = "2"
-nsequence = "CakeGroupC"
+nsequence = "first 0x01 rest 0xffffffff"
 nlocktime = "Zero"
 low_r = "Yes"
 uncompressed_pubkey = "No"
@@ -509,7 +509,7 @@ software = "cake_wallet"
 from_version = "v6.3.0"
 confidence = "code-predicted"    # post-shuffle era not yet decoded from a real prior
 version = "2"
-nsequence = "CakeGroupC"         # group-C bug persists across the cut: confirmed UNFIXED on
+nsequence = "first 0x01 rest 0xffffffff"         # group-C bug persists across the cut: confirmed UNFIXED on
                                   # both bitcoin_base `main` and the `cake-update-v11` branch
                                   # cake_wallet's pubspec.yaml actually pins (archaeology,
                                   # Task 3) — #3379/#3420/#3432 are ordering changes only, they

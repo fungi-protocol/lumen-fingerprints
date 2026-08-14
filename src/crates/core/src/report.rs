@@ -1806,7 +1806,7 @@ mod tests {
                 .collect(),
         };
         let templates = vec![
-            by_nsequence("cake-class", "CakeGroupC"),
+            by_nsequence("cake-class", "first 0x01 rest 0xffffffff"),
             by_nsequence("max-class", "Max"),
             by_nsequence("rbf-class", "Rbf"),
         ];

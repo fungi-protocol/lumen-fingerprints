@@ -370,7 +370,10 @@ mod tests {
         assert_eq!(row.start_height, EPOCH_TEST_HEIGHT);
         assert_eq!(row.txs, 1, "coinbase is excluded");
         assert_eq!(row.defects, 0);
-        assert_eq!(row.axis_counts["nsequence"]["CakeGroupC"], 1);
+        assert_eq!(
+            row.axis_counts["nsequence"]["first 0x01 rest 0xffffffff"],
+            1
+        );
         assert_eq!(row.axis_counts["nlocktime"]["Zero"], 1);
         assert_eq!(row.vectors.values().sum::<u64>(), 1);
     }

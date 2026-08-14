@@ -1004,7 +1004,7 @@ mod tests {
             nsequence
                 .values
                 .iter()
-                .find(|v| v.value == "CakeGroupC")
+                .find(|v| v.value == "first 0x01 rest 0xffffffff")
                 .map(|v| v.count),
             Some(9),
             "9 of the 11 fixture txs are Cake-shaped"
