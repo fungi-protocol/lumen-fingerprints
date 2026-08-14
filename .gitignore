@@ -15,8 +15,5 @@ series*.csv
 __pycache__/
 *.pyc
 
-# internal publish-readiness notes — never publish
-/rust_notes.md
-
 # ML training corpus: per-tx feature vectors, one row per transaction (large, out-of-git)
 data/vectors/
