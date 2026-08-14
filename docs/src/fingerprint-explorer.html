@@ -1213,16 +1213,34 @@ function drawEraFacets() {
     th.textContent = h;
     headRow.appendChild(th);
   }
-  for (const f of facets) {
-    for (const s of f.series) {
-      const last = s.pts[s.pts.length - 1];
-      const cells = perAxis
-        ? [f.wallet, s.range || "all versions", s.value, fmtShare(last.share),
-           s.id ? pct(s.id.lt10) : "—", s.id ? pct(s.id.lt100) : "—"]
-        : [f.wallet, s.range || "all versions",
+  if (perAxis) {
+    // Complete roster: EVERY catalogued era appears on every axis. An era that pins the
+    // axis carries its value + share + identifiability; one that leaves it a wildcard is
+    // shown explicitly as "—", so the table is a full wallet×axis comparison rather than
+    // only the wallets that happen to fingerprint on the selected axis (those are the ones
+    // the chart above can plot — a wildcard has no value to draw a line for).
+    for (const [wallet, eras] of walletsFromLabels(Object.keys(ERA.TS))) {
+      for (const e of eras) {
+        const v = ERA.TA[e.label] ? ERA.TA[e.label][eraAxis] : undefined;
+        const series = v != null && ERA.AVS[eraAxis] ? ERA.AVS[eraAxis][v] : undefined;
+        const cells = series
+          ? [wallet, e.range || "all versions", v, fmtShare(series[series.length - 1].share),
+             (id => id ? pct(id.lt10) : "—")(axisValueId(eraAxis, v)),
+             (id => id ? pct(id.lt100) : "—")(axisValueId(eraAxis, v))]
+          : [wallet, e.range || "all versions", "— (wildcard)", "—", "—", "—"];
+        const row = table.insertRow();
+        for (const c of cells) row.insertCell().textContent = c;
+      }
+    }
+  } else {
+    for (const f of facets) {
+      for (const s of f.series) {
+        const last = s.pts[s.pts.length - 1];
+        const cells = [f.wallet, s.range || "all versions",
            s.pts.reduce((a, p) => a + (p.matches || 0), 0).toLocaleString(), fmtShare(last.share)];
-      const row = table.insertRow();
-      for (const c of cells) row.insertCell().textContent = c;
+        const row = table.insertRow();
+        for (const c of cells) row.insertCell().textContent = c;
+      }
     }
   }
 }
