@@ -888,7 +888,7 @@ function wireAllRows() {
 }
 
 /* ---------- section 12: sparseness axes (ported from the prior Explorer) ---------- */
-let COND = {}, AX = {}, current = "sighash";
+let COND = {}, AX = {}, TOTALS = {}, current = "sighash";
 
 function idColor(s) {
   if (s >= 0.5) return "var(--rare)";
@@ -997,6 +997,15 @@ function eraFacetsAll() {
 function axisValueId(axis, value) {
   const c = COND[axis] && COND[axis][value];
   return c ? { lt10: c.share_lt10, lt100: c.share_lt100 } : null;
+}
+
+// Whole-scan aggregate share of a value on an axis — total txs carrying it over the entire
+// window / total txs, read straight from axis_summaries (the same number the value table
+// shows as "mean"), NOT a single day. Falls back to 0 for a constrained value never seen.
+function axisWholeShare(axis, value) {
+  const vs = AX[axis] && AX[axis].values;
+  const hit = vs && vs.find(x => x.value === value);
+  return hit ? hit.share : 0;
 }
 
 function eraFacetsAxis(axis) {
@@ -1207,7 +1216,7 @@ function drawEraFacets() {
     grid.after(omitNote);
   }
   omitNote.textContent = omitted.length
-    ? `Not shown on ${eraAxis} — these wallets don't fix a value on this axis (the catalogue leaves it unset), so there's no line to draw: ${omitted.join(", ")}.`
+    ? `On ${eraAxis}, these wallets don't fix a value (shown as — in the table, no line in the chart): ${omitted.join(", ")}.`
     : "";
 
   // table view twin: one row per era series (cells set via textContent — labels are
@@ -1218,8 +1227,8 @@ function drawEraFacets() {
   table.textContent = "";
   const headRow = table.insertRow();
   const head = perAxis
-    ? ["wallet", "era", eraAxis, "share (last day)", "in set <10", "in set <100"]
-    : ["wallet", "era", "total consistent tx", "share (last day)"];
+    ? ["wallet", "era", eraAxis, "share (whole scan)", "in set <10", "in set <100"]
+    : ["wallet", "era", "total consistent tx", "share (whole scan)"];
   for (const h of head) {
     const th = document.createElement("th");
     th.textContent = h;
@@ -1236,10 +1245,10 @@ function drawEraFacets() {
         const v = ERA.TA[e.label] ? ERA.TA[e.label][eraAxis] : undefined;
         const series = v != null && ERA.AVS[eraAxis] ? ERA.AVS[eraAxis][v] : undefined;
         const cells = series
-          ? [wallet, e.range || "all versions", valueLabel(eraAxis, v), fmtShare(series[series.length - 1].share),
+          ? [wallet, e.range || "all versions", valueLabel(eraAxis, v), fmtShare(axisWholeShare(eraAxis, v)),
              (id => id ? pct(id.lt10) : "—")(axisValueId(eraAxis, v)),
              (id => id ? pct(id.lt100) : "—")(axisValueId(eraAxis, v))]
-          : [wallet, e.range || "all versions", "— (doesn't fix this axis)", "—", "—", "—"];
+          : [wallet, e.range || "all versions", "—", "—", "—", "—"];
         const row = table.insertRow();
         for (const c of cells) row.insertCell().textContent = c;
       }
@@ -1247,9 +1256,9 @@ function drawEraFacets() {
   } else {
     for (const f of facets) {
       for (const s of f.series) {
-        const last = s.pts[s.pts.length - 1];
+        const total = s.pts.reduce((a, p) => a + (p.matches || 0), 0);
         const cells = [f.wallet, s.range || "all versions",
-           s.pts.reduce((a, p) => a + (p.matches || 0), 0).toLocaleString(), fmtShare(last.share)];
+           total.toLocaleString(), fmtShare(TOTALS.txs ? total / TOTALS.txs : 0)];
         const row = table.insertRow();
         for (const c of cells) row.insertCell().textContent = c;
       }
@@ -1273,6 +1282,7 @@ async function boot() {
   AX = D.axis_summaries || {};
   const w = D.window || {};
   const totals = D.totals || {};
+  TOTALS = totals;
   if (w.start_height != null) {
     document.getElementById("win").textContent = `height ${fmtInt(w.start_height)}–${fmtInt(w.end_height)} · ${fmtInt(w.epochs)} days`;
   }
