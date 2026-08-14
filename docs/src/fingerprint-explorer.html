@@ -632,6 +632,14 @@ const fmtInt = n => Number(n).toLocaleString("en-US");
 const pct = x => x == null ? "—" : x >= 0.1 ? (x * 100).toFixed(1) + "%" : x >= 0.001 ? (x * 100).toFixed(2) + "%" : x > 0 ? (x * 100).toFixed(3) + "%" : "0%";
 const esc = s => String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
+// Display labels for raw scanner enum values whose internal name isn't self-describing.
+// The key stays the wire value everywhere (cond/axis_value_series lookups, the ML CSV);
+// only the shown text changes. `CakeGroupC` is Cake's nSequence signature — RBF set on
+// inputs[0] only (0x01), the rest left at default 0xffffffff — so it reads as the pattern
+// it is, not an opaque research-group letter.
+const VALUE_LABELS = { nsequence: { CakeGroupC: "first 0x01, rest 0xffffffff" } };
+const valueLabel = (axis, value) => (VALUE_LABELS[axis] && VALUE_LABELS[axis][value]) || value;
+
 let FIELDS = {};
 
 function valueMap(col) {
@@ -905,7 +913,7 @@ function renderAxis() {
       idCell = `<div class="metric"><span class="num" style="color:var(--faint)">—</span><div class="lab" style="text-transform:none;letter-spacing:0;color:var(--faint)">no CORE anonymity set</div></div>`;
     }
     return `<div class="vrow">
-      <div class="vname">${esc(v.value)}<span class="rl">mean ${pct(v.share)}${vrare ? " · very rare" : rare ? " · rare" : ""}</span></div>
+      <div class="vname">${esc(valueLabel(current, v.value))}<span class="rl">mean ${pct(v.share)}${vrare ? " · very rare" : rare ? " · rare" : ""}</span></div>
       <div class="metric"><div class="top"><span class="num">${pct(v.share)}</span><span class="lab">${pct(lo)}–${pct(hi)}</span></div>${shareBar}</div>
       ${idCell}
     </div>`;
@@ -997,7 +1005,7 @@ function eraFacetsAxis(axis) {
     const series = constrained.map(e => {
       const v = ERA.TA[e.label][axis];
       const id = axisValueId(axis, v);
-      return { pts: ERA.AVS[axis][v], old: e.old, range: e.range, value: v, id, tag: `${axis} = ${v}` };
+      return { pts: ERA.AVS[axis][v], old: e.old, range: e.range, value: v, id, tag: `${axis} = ${valueLabel(axis, v)}` };
     });
     facets.push({
       wallet,
@@ -1006,7 +1014,7 @@ function eraFacetsAxis(axis) {
       sub: constrained.map((e, i) => {
         const id = series[i].id;
         const idTxt = id ? ` · in set <100: ${pct(id.lt100)}` : " · no CORE anon set";
-        return `${e.range || "all versions"} · ${axis} = ${ERA.TA[e.label][axis]}${idTxt}`;
+        return `${e.range || "all versions"} · ${axis} = ${valueLabel(axis, ERA.TA[e.label][axis])}${idTxt}`;
       }).join("  ·  "),
       series,
     });
@@ -1224,7 +1232,7 @@ function drawEraFacets() {
         const v = ERA.TA[e.label] ? ERA.TA[e.label][eraAxis] : undefined;
         const series = v != null && ERA.AVS[eraAxis] ? ERA.AVS[eraAxis][v] : undefined;
         const cells = series
-          ? [wallet, e.range || "all versions", v, fmtShare(series[series.length - 1].share),
+          ? [wallet, e.range || "all versions", valueLabel(eraAxis, v), fmtShare(series[series.length - 1].share),
              (id => id ? pct(id.lt10) : "—")(axisValueId(eraAxis, v)),
              (id => id ? pct(id.lt100) : "—")(axisValueId(eraAxis, v))]
           : [wallet, e.range || "all versions", "— (wildcard)", "—", "—", "—"];
