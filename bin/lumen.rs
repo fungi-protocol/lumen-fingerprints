@@ -1,4 +1,5 @@
 use std::io::{BufWriter, Write};
+use std::net::ToSocketAddrs;
 use std::path::{Path, PathBuf};
 
 use lumen_core::{
@@ -24,8 +25,8 @@ fn usage() -> ! {
     eprintln!(
         "usage:
   lumen scan   --datadir <dir> --out <epochs.jsonl> [--features <path.csv[.zst]>]
-                [--vectors <path.csv[.zst]>]
-                [--start-height N] [--stop-height N] [--epoch-size N] [--peer host:port]
+                [--vectors <path.csv[.zst]>] [--fresh] [--no-default-peers]
+                [--start-height N] [--stop-height N] [--epoch-size N] [--peer host:port]...
   lumen report --epochs <epochs.jsonl[.zst]> --out-dir <dir> [--templates <wallets.toml>]
                 # writes <dir>/report.json AND <dir>/wallet-axis-cross.csv (the ML cross)
   lumen series --epochs <epochs.jsonl[.zst]> --out <series.csv> [--min-share F]
@@ -33,6 +34,11 @@ fn usage() -> ! {
 
   --start-height defaults to the last complete epoch in --out, else {ASSUME_UTREEXO_HEIGHT}
   (Floresta's mainnet assume-utreexo checkpoint; blocks below it need the backfill path).
+  --peer may be repeated. With no --peer, scan dials default utreexo peers (Davidson's
+  dlsouza seed, resolved fresh; LUMEN_SCAN_PEERS overrides, --no-default-peers disables) so
+  it never stalls at 0 utreexo peers. --fresh wipes the datadir + epochs output and scans
+  from the floor in one pass — the only faithful way to (re)measure a full window, since
+  utreexo cannot re-serve blocks a resumed datadir already synced past.
   `scan` takes no --templates: it no longer matches against wallet templates at all —
   matching happens entirely at report time (see `report`'s --templates below), so a scan
   is a one-time investment in the raw data, independent of any wallet list.
@@ -52,6 +58,35 @@ fn arg(args: &[String], name: &str) -> Option<String> {
         .position(|a| a == name)
         .and_then(|i| args.get(i + 1))
         .cloned()
+}
+
+fn has_flag(args: &[String], name: &str) -> bool {
+    args.iter().any(|a| a == name)
+}
+
+/// The utreexo peers a bare `lumen scan` dials when no `--peer` is given, so it never
+/// stalls at "0 utreexo peers". Discovery over DNS is unreliable (the calvinkim seed is
+/// empty; Davidson's `dlsouza` seed resolves but not always in time), and a wiped datadir
+/// has no `anchors.json` to reconnect through — so we seed the fixed-peer list ourselves:
+/// `LUMEN_SCAN_PEERS` ("host:port host:port …") wins, else we resolve Davidson's utreexo
+/// DNS seed for fresh IPs, else fall back to two nodes confirmed serving `0x1000` + full
+/// NETWORK. `--peer` (which fills `fixed_peers`) or `--no-default-peers` skip this.
+fn default_utreexo_peers() -> Vec<String> {
+    if let Ok(s) = std::env::var("LUMEN_SCAN_PEERS") {
+        let v: Vec<String> = s.split_whitespace().map(str::to_string).collect();
+        if !v.is_empty() {
+            return v;
+        }
+    }
+    let mut peers: Vec<String> = ("x1000.bitcoin.seed.dlsouza.lol", 8333u16)
+        .to_socket_addrs()
+        .map(|it| it.map(|a| a.to_string()).collect())
+        .unwrap_or_default();
+    if peers.is_empty() {
+        peers.push("189.44.63.101:8333".to_string());
+        peers.push("1.228.21.110:8333".to_string());
+    }
+    peers
 }
 
 fn main() {
@@ -87,6 +122,17 @@ fn cmd_scan(args: &[String]) {
     let features_out = arg(args, "--features").map(PathBuf::from);
     let vectors_out = arg(args, "--vectors").map(PathBuf::from);
 
+    // `--fresh`: a faithful full measurement. utreexo keeps no old blocks, so a datadir
+    // already synced past the floor silently skips blocks it can no longer serve. Wipe the
+    // chainstate and the epochs output, then start from the floor (below), so the scan
+    // re-downloads every block in one pass instead of resuming into an under-count.
+    if has_flag(args, "--fresh") {
+        let _ = std::fs::remove_dir_all(Path::new(&datadir));
+        let _ = std::fs::create_dir_all(Path::new(&datadir));
+        let _ = std::fs::remove_file(&out);
+        println!("--fresh: wiped datadir {datadir} and epochs output; scanning from the floor");
+    }
+
     let resumed = resume_point(&out).expect("reading resume point");
     let start_height: u32 = arg(args, "--start-height")
         .map(|s| s.parse().expect("--start-height must be a number"))
@@ -106,6 +152,13 @@ fn cmd_scan(args: &[String]) {
         .filter(|(_, a)| a.as_str() == "--peer")
         .filter_map(|(i, _)| args.get(i + 1).cloned())
         .collect();
+    if config.fixed_peers.is_empty() && !has_flag(args, "--no-default-peers") {
+        config.fixed_peers = default_utreexo_peers();
+        println!(
+            "no --peer given; dialing default utreexo peers: {}",
+            config.fixed_peers.join(", ")
+        );
+    }
 
     let mut source = FlorestaSource::start(config).expect("starting Floresta");
 
@@ -137,12 +190,15 @@ fn cmd_scan(args: &[String]) {
 
 fn cmd_tip(args: &[String]) {
     let datadir = arg(args, "--datadir").unwrap_or_else(|| usage());
-    let fixed_peers: Vec<String> = args
+    let mut fixed_peers: Vec<String> = args
         .iter()
         .enumerate()
         .filter(|(_, a)| a.as_str() == "--peer")
         .filter_map(|(i, _)| args.get(i + 1).cloned())
         .collect();
+    if fixed_peers.is_empty() && !has_flag(args, "--no-default-peers") {
+        fixed_peers = default_utreexo_peers();
+    }
     eprintln!("syncing headers to find the live tip (needs peers; can take a few minutes)...");
     let info = sync_tip(Path::new(&datadir), fixed_peers).expect("syncing chain tip");
     println!(

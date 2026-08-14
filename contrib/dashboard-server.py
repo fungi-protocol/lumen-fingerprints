@@ -96,9 +96,22 @@ def run_scan(server, mode):
 
         send("phase", {"phase": "connecting"})
 
-        cmd = survey_bin.split() + [
-            "scan", "--datadir", datadir, "--out", epochs_path,
-        ]
+        # The scanner owns the "just works" defaults now (bin/lumen.rs): with no --peer it
+        # dials Davidson's utreexo peers so it never stalls at 0 peers (override via
+        # LUMEN_SCAN_PEERS), and --fresh wipes the datadir + epochs and scans from the floor
+        # in one faithful pass -- so the dashboard and a bare CLI scan behave identically.
+        cmd = survey_bin.split() + ["scan", "--datadir", datadir, "--out", epochs_path]
+        if mode == "fresh":
+            cmd.append("--fresh")
+            # A fresh full scan is also when we capture the per-transaction feature vectors
+            # -- the ML training corpus. It is large (one row per tx), so it goes to a
+            # gitignored file named by the scanned window, not into the committed tree.
+            floor = getattr(server, "floor", None) or 939969
+            tip = getattr(server, "tip", None) or "tip"
+            os.makedirs("data/vectors", exist_ok=True)
+            vectors_path = os.path.join("data/vectors", f"mainnet-{floor}-{tip}.csv.zst")
+            cmd += ["--vectors", vectors_path]
+            send("log", {"line": f"ML vectors -> {vectors_path}"})
         proc = subprocess.Popen(
             cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
             text=True, bufsize=1)
