@@ -32,7 +32,7 @@ Already have the data? Run `nix run .#serve` to open the Explorer without scanni
     es = new EventSource("api/scan?mode="+mode);
     es.addEventListener("log", function(e){ var l=$("scanlog"); l.textContent += JSON.parse(e.data).line+"\n"; l.scrollTop=l.scrollHeight; });
     es.addEventListener("progress", function(e){ var p=JSON.parse(e.data);
-      $("scanstat").textContent = (p.pct!=null) ? ("height "+p.height+" · epoch "+p.epochs+" · "+p.pct+"%") : ("height "+p.height+" · epoch "+p.epochs);
+      $("scanstat").textContent = (p.pct!=null) ? ("height "+p.height+" · "+p.epochs+" days · "+p.pct+"%") : ("height "+p.height+" · "+p.epochs+" days");
       $("scanbar").style.width = (p.pct!=null?p.pct:0)+"%"; });
     es.addEventListener("done", function(){ if(es){es.close();es=null;} ui(false);
       $("scanstat").textContent = stopped ? "Scan stopped." : "Scan complete."; $("scandone").hidden=false; });

@@ -67,10 +67,11 @@
             ./target/release/lumen scan --datadir "$DATADIR" --out out/epochs.jsonl
             echo "==> compressing the finished epochs file (zstd)"
             ${pkgs.zstd}/bin/zstd -q -f --rm out/epochs.jsonl -o out/epochs.jsonl.zst
-            echo "==> aggregating the report"
+            echo "==> aggregating the report (report.json + wallet-axis-cross.csv)"
             ./target/release/lumen report --epochs out/epochs.jsonl.zst --out-dir out/report
-            echo "==> emitting explorer-data.json from your scan"
+            echo "==> emitting explorer-data.json + the ML wallet×axis cross CSV from your scan"
             ${pkgs.python3}/bin/python3 "$PWD/contrib/dashboard-data.py" out/report/report.json docs/src/explorer-data.json
+            cp out/report/wallet-axis-cross.csv docs/src/wallet-axis-cross.csv
             echo "==> building + serving the site with YOUR data"
             ${pkgs.mdbook}/bin/mdbook build "$PWD/docs" --dest-dir "$PWD/docs/book"
             echo "Serving http://localhost:8000  (Ctrl-C to stop)"
@@ -100,6 +101,8 @@
             ${pkgs.python3}/bin/python3 "$PWD/contrib/dashboard-server.py" \
               --book "$PWD/docs/book" --datadir "$DATADIR" \
               --epochs "$PWD/out/epochs.jsonl" --emit "$PWD/docs/book/explorer-data.json" \
+              --emit-upstream "$PWD/docs/src/explorer-data.json" \
+              --cross-upstream "$PWD/docs/src/wallet-axis-cross.csv" \
               --port 8000 --open
           ''}";
         };

@@ -2,7 +2,7 @@
 """Local control server for the Fingerprint dashboard: serves the built book and
 exposes /api/status, /api/scan (SSE), /api/stop to run a Floresta-backed scan and
 stream progress. Localhost only. Python stdlib only."""
-import argparse, json, os, queue, subprocess, sys, threading, time
+import argparse, json, os, queue, shutil, subprocess, sys, threading, time
 import http.server
 import urllib.parse
 
@@ -105,7 +105,10 @@ def run_scan(server, mode):
         with server.events_lock:
             state["proc"] = proc
 
-        def reaggregate():
+        emit_upstream = getattr(server, "emit_upstream", None)
+        cross_upstream = getattr(server, "cross_upstream", None)
+
+        def reaggregate(final=False):
             report_dir = os.path.join(datadir, "report")
             subprocess.run(
                 survey_bin.split() + [
@@ -115,6 +118,18 @@ def run_scan(server, mode):
             subprocess.run(
                 [sys.executable, dashboard_emit, report_json, emit_target],
                 check=True)
+            # The live emit (`emit_target`) drives the served book and is rewritten every
+            # reaggregate. The upstream copies are the committed `docs/src` artifacts (the
+            # Explorer's JSON and the ML-facing wallet×axis cross CSV `lumen report` writes
+            # next to report.json); they are written ONLY on the final reaggregate so a
+            # scan leaves the source tree with exactly the artifacts to commit, not files
+            # that churned on every throttle tick.
+            if final and emit_upstream:
+                shutil.copyfile(emit_target, emit_upstream)
+                send("log", {"line": f"upstream explorer-data.json updated: {emit_upstream}"})
+            if final and cross_upstream:
+                shutil.copyfile(os.path.join(report_dir, "wallet-axis-cross.csv"), cross_upstream)
+                send("log", {"line": f"upstream wallet-axis-cross.csv updated: {cross_upstream}"})
             send("updated", {})
 
         scanning = False
@@ -194,7 +209,7 @@ def run_scan(server, mode):
         # gets `phase:done` + `done`, just possibly with stale aggregated
         # output. Log the failure to stderr for visibility.
         try:
-            reaggregate()
+            reaggregate(final=True)
         except Exception as e:
             print(f"final reaggregate failed: {e}", file=sys.stderr)
         final = progress(epochs_path, server.floor, server.tip)
@@ -351,6 +366,8 @@ def make_server(book_dir, datadir, epochs_path, floor=0, tip=0, port=0):
     server.scan_lock = threading.Lock()
     server.events_lock = threading.Lock()
     server.emit_target = os.path.join(book_dir, "explorer-data.json")
+    server.emit_upstream = None
+    server.cross_upstream = None
     server.repo_name = os.path.basename(os.path.abspath("."))
     return server
 
@@ -361,6 +378,12 @@ def main():
     parser.add_argument("--datadir", required=True, help="Floresta/survey datadir")
     parser.add_argument("--epochs", required=True, help="epochs .jsonl path")
     parser.add_argument("--emit", required=True, help="explorer-data.json emit target")
+    parser.add_argument("--emit-upstream", default=None,
+                        help="also copy the final explorer-data.json here "
+                             "(e.g. the committed docs/src file the public site serves)")
+    parser.add_argument("--cross-upstream", default=None,
+                        help="also copy the final wallet-axis-cross.csv here "
+                             "(the committed ML-facing wallet×axis cross)")
     parser.add_argument("--port", type=int, default=8000)
     parser.add_argument("--open", action="store_true",
                         help="open the dashboard in a browser once it is serving")
@@ -374,6 +397,8 @@ def main():
     # returns; progress shows height/epoch meanwhile and gains a % once the tip is known.
     server = make_server(args.book, args.datadir, args.epochs, None, None, args.port)
     server.emit_target = args.emit
+    server.emit_upstream = args.emit_upstream
+    server.cross_upstream = args.cross_upstream
 
     def query_tip():
         cmd = survey_bin.split() + ["tip", "--datadir", args.datadir]

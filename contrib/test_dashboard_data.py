@@ -85,6 +85,70 @@ class FieldsEmitTest(unittest.TestCase):
             if os.path.exists(explorer_path):
                 os.unlink(explorer_path)
 
+    def test_axis_value_series_and_template_axes_passthrough(self):
+        """The per-axis wallet-view data passes through verbatim, and defaults to {}."""
+        report = {
+            "window": {"start_height": 100, "end_height": 200},
+            "totals": {"tx_count": 1000},
+            "axis_summaries": [],
+            "encoding_families": {},
+            "conditional_anonymity": {},
+            "axis_value_series": {
+                "nsequence": {"CakeGroupC": [{"start_height": 100, "share": 0.1}]}
+            },
+            "template_axes": {"cake": {"nsequence": "CakeGroupC"}},
+        }
+        with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as f:
+            json.dump(report, f)
+            report_path = f.name
+        explorer_path = tempfile.mktemp(suffix=".json")
+        try:
+            script_path = os.path.join(os.path.dirname(__file__), "dashboard-data.py")
+            result = subprocess.run(
+                [sys.executable, script_path, report_path, explorer_path],
+                capture_output=True, text=True
+            )
+            self.assertEqual(result.returncode, 0, f"Script failed: {result.stderr}")
+            with open(explorer_path) as f:
+                explorer = json.load(f)
+            self.assertEqual(explorer["axis_value_series"], report["axis_value_series"])
+            self.assertEqual(explorer["template_axes"], report["template_axes"])
+        finally:
+            if os.path.exists(report_path):
+                os.unlink(report_path)
+            if os.path.exists(explorer_path):
+                os.unlink(explorer_path)
+
+    def test_axis_value_series_defaults_empty(self):
+        """axis_value_series / template_axes default to {} on a legacy report."""
+        report = {
+            "window": {"start_height": 100, "end_height": 200},
+            "totals": {"tx_count": 1000},
+            "axis_summaries": [],
+            "encoding_families": {},
+            "conditional_anonymity": {},
+        }
+        with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as f:
+            json.dump(report, f)
+            report_path = f.name
+        explorer_path = tempfile.mktemp(suffix=".json")
+        try:
+            script_path = os.path.join(os.path.dirname(__file__), "dashboard-data.py")
+            result = subprocess.run(
+                [sys.executable, script_path, report_path, explorer_path],
+                capture_output=True, text=True
+            )
+            self.assertEqual(result.returncode, 0, f"Script failed: {result.stderr}")
+            with open(explorer_path) as f:
+                explorer = json.load(f)
+            self.assertEqual(explorer["axis_value_series"], {})
+            self.assertEqual(explorer["template_axes"], {})
+        finally:
+            if os.path.exists(report_path):
+                os.unlink(report_path)
+            if os.path.exists(explorer_path):
+                os.unlink(explorer_path)
+
     def test_fields_empty_when_missing_from_report(self):
         """Test that fields defaults to empty dict when not in report."""
         report = {

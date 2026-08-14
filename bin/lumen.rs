@@ -27,6 +27,7 @@ fn usage() -> ! {
                 [--vectors <path.csv[.zst]>]
                 [--start-height N] [--stop-height N] [--epoch-size N] [--peer host:port]
   lumen report --epochs <epochs.jsonl[.zst]> --out-dir <dir> [--templates <wallets.toml>]
+                # writes <dir>/report.json AND <dir>/wallet-axis-cross.csv (the ML cross)
   lumen series --epochs <epochs.jsonl[.zst]> --out <series.csv> [--min-share F]
   lumen tip    --datadir <dir>                       # print the chain floor/tip as JSON
 

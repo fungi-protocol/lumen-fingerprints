@@ -78,6 +78,93 @@ class ScanSSE(unittest.TestCase):
         self.assertIn("updated", kinds); self.assertIn("done", kinds)
         srv.shutdown()
 
+    def test_final_reaggregate_copies_to_emit_upstream(self):
+        import threading, urllib.request
+        book = tempfile.mkdtemp(); work = tempfile.mkdtemp()
+        epochs = os.path.join(work, "epochs.jsonl")
+        env = dict(os.environ,
+                   LUMEN_BIN=f"{sys.executable} {os.path.dirname(__file__)}/fake_survey.py",
+                   DASHBOARD_EMIT=f"{os.path.dirname(__file__)}/dashboard-data.py")
+        os.environ.update(env)
+        srv = dss.make_server(book, work, epochs, 939969, 940257)
+        emit_target = os.path.join(work, "explorer-data.json")
+        upstream = os.path.join(work, "upstream-explorer-data.json")
+        srv.emit_target = emit_target
+        srv.emit_upstream = upstream
+        threading.Thread(target=srv.serve_forever, daemon=True).start()
+        port = srv.server_address[1]
+        req = urllib.request.Request(f"http://127.0.0.1:{port}/api/scan?mode=fresh")
+        kinds = []
+        with urllib.request.urlopen(req) as r:
+            for raw in r:
+                line = raw.decode().strip()
+                if line.startswith("event:"):
+                    kinds.append(line.split(":", 1)[1].strip())
+                if "done" in kinds:
+                    break
+        srv.shutdown()
+        # The final reaggregate must have mirrored the live emit into the upstream
+        # (committed docs/src) path, byte-for-byte.
+        self.assertTrue(os.path.exists(upstream),
+                        "emit_upstream file must exist after a completed scan")
+        with open(emit_target) as a, open(upstream) as b:
+            self.assertEqual(a.read(), b.read())
+
+    def test_final_reaggregate_copies_cross_csv_upstream(self):
+        import threading, urllib.request
+        book = tempfile.mkdtemp(); work = tempfile.mkdtemp()
+        epochs = os.path.join(work, "epochs.jsonl")
+        env = dict(os.environ,
+                   LUMEN_BIN=f"{sys.executable} {os.path.dirname(__file__)}/fake_survey.py",
+                   DASHBOARD_EMIT=f"{os.path.dirname(__file__)}/dashboard-data.py")
+        os.environ.update(env)
+        srv = dss.make_server(book, work, epochs, 939969, 940257)
+        srv.emit_target = os.path.join(work, "explorer-data.json")
+        cross_upstream = os.path.join(work, "upstream-wallet-axis-cross.csv")
+        srv.cross_upstream = cross_upstream
+        threading.Thread(target=srv.serve_forever, daemon=True).start()
+        port = srv.server_address[1]
+        req = urllib.request.Request(f"http://127.0.0.1:{port}/api/scan?mode=fresh")
+        kinds = []
+        with urllib.request.urlopen(req) as r:
+            for raw in r:
+                line = raw.decode().strip()
+                if line.startswith("event:"):
+                    kinds.append(line.split(":", 1)[1].strip())
+                if "done" in kinds:
+                    break
+        srv.shutdown()
+        self.assertTrue(os.path.exists(cross_upstream),
+                        "wallet-axis-cross.csv must be copied to cross_upstream after a scan")
+        with open(cross_upstream) as f:
+            self.assertTrue(f.readline().startswith("start_height,end_height,wallet_era,axis,value"))
+
+    def test_no_emit_upstream_leaves_no_extra_file(self):
+        # Without emit_upstream set (the default), a scan writes only emit_target.
+        import threading, urllib.request
+        book = tempfile.mkdtemp(); work = tempfile.mkdtemp()
+        epochs = os.path.join(work, "epochs.jsonl")
+        env = dict(os.environ,
+                   LUMEN_BIN=f"{sys.executable} {os.path.dirname(__file__)}/fake_survey.py",
+                   DASHBOARD_EMIT=f"{os.path.dirname(__file__)}/dashboard-data.py")
+        os.environ.update(env)
+        srv = dss.make_server(book, work, epochs, 939969, 940257)
+        srv.emit_target = os.path.join(work, "explorer-data.json")
+        self.assertIsNone(srv.emit_upstream)
+        threading.Thread(target=srv.serve_forever, daemon=True).start()
+        port = srv.server_address[1]
+        req = urllib.request.Request(f"http://127.0.0.1:{port}/api/scan?mode=fresh")
+        kinds = []
+        with urllib.request.urlopen(req) as r:
+            for raw in r:
+                line = raw.decode().strip()
+                if line.startswith("event:"):
+                    kinds.append(line.split(":", 1)[1].strip())
+                if "done" in kinds:
+                    break
+        srv.shutdown()
+        self.assertIn("done", kinds)
+
     def test_bad_mode_does_not_crash(self):
         import threading, urllib.request
         book = tempfile.mkdtemp(); work = tempfile.mkdtemp()

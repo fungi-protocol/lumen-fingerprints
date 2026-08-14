@@ -1,5 +1,7 @@
+use std::borrow::Cow;
 use std::collections::BTreeMap;
-use std::io::{BufRead, BufReader};
+use std::fs::File;
+use std::io::{BufRead, BufReader, BufWriter, Write};
 use std::path::Path;
 
 use serde::Serialize;
@@ -28,6 +30,18 @@ pub struct TemplatePoint {
     pub matches: u64,
     /// Fraction of the epoch's transactions consistent with this template — the
     /// measured anonymity set, as a share of the population.
+    pub share: f64,
+}
+
+/// One epoch's share for a single (axis, value) pair a template constrains — the
+/// per-epoch trajectory the Explorer draws when the wallet-eras view is narrowed to one
+/// fingerprint axis. `share` is that value's marginal on the axis for the epoch (txs
+/// carrying it / epoch txs), 0.0 for an epoch that classified transactions but never saw
+/// the value, matching `template_series`'s per-epoch semantics. Leaner than
+/// `TemplatePoint` (no `matches`) because the axis view only ever plots the trajectory.
+#[derive(Debug, Serialize)]
+pub struct AxisSharePoint {
+    pub start_height: u32,
     pub share: f64,
 }
 
@@ -105,6 +119,19 @@ pub struct Report {
     /// question than `axis_summaries` above, which is why it is no longer the
     /// headline.
     pub template_series: BTreeMap<String, Vec<TemplatePoint>>,
+    /// Per-axis, per-value per-epoch share trajectory, populated ONLY for the (axis,
+    /// value) pairs some template constrains — the wallet-eras view narrowed to a single
+    /// fingerprint axis. Keyed `axis -> value -> [per-epoch points]`. A wallet that pins
+    /// axis `A` to value `v` reads its trajectory straight off `axis_value_series[A][v]`;
+    /// restricting to template-constrained pairs (a few dozen, not every observed
+    /// axis-value) keeps this small. Empty when no template constrains any current axis.
+    pub axis_value_series: BTreeMap<String, BTreeMap<String, Vec<AxisSharePoint>>>,
+    /// Which axes each wallet era constrains and to what value: `era_label -> {axis ->
+    /// value}`, restricted to current axes. Lets the Explorer decide, for the selected
+    /// axis, which eras have a claim to plot (and look up which of `axis_value_series`'s
+    /// value trajectories is theirs) without re-parsing `wallets.toml` in the browser. An
+    /// era with no current-axis constraints maps to an empty inner map.
+    pub template_axes: BTreeMap<String, BTreeMap<String, String>>,
     /// Per-transaction boolean signals (`EpochRow::aux_counts`), aggregated the same
     /// way as `axis_marginals` — flag name -> share of all classified transactions
     /// where it holds. These are NOT axes: a transaction carries all, some, or none of
@@ -513,6 +540,15 @@ struct Aggregates {
     /// indistinguishable from a typo in the template's axis name, and is itself the
     /// most alarming finding the tool can produce: a wallet with no anonymity set).
     template_series: BTreeMap<String, Vec<TemplatePoint>>,
+    /// Pre-seeded (in `new`) with an empty `Vec` for every (axis, value) pair any
+    /// template constrains, so `fold_row` can append one per-epoch point per pair without
+    /// re-deriving the pair set each row. Same pre-population discipline as
+    /// `template_series`: a constrained value that never occurs must still surface as an
+    /// explicit all-zeros trajectory, not vanish. Becomes `Report::axis_value_series`.
+    axis_value_series: BTreeMap<String, BTreeMap<String, Vec<AxisSharePoint>>>,
+    /// Built once in `new` from the templates (no per-row folding); moved verbatim into
+    /// `Report::template_axes`.
+    template_axes: BTreeMap<String, BTreeMap<String, String>>,
     /// Column name -> its `FieldAgg` merged (via `merge_field`) across every epoch seen
     /// so far. Stays empty if no epoch's `field_aggs` has ever been non-empty, which is
     /// exactly what makes `Report::fields` come out `[]` for a legacy scan — see
@@ -534,12 +570,35 @@ impl Aggregates {
             templates.len(),
             "duplicate era labels would silently merge series"
         );
+        let mut axis_value_series: BTreeMap<String, BTreeMap<String, Vec<AxisSharePoint>>> =
+            BTreeMap::new();
+        let mut template_axes: BTreeMap<String, BTreeMap<String, String>> = BTreeMap::new();
+        for t in templates {
+            let mut constrained = BTreeMap::new();
+            for (axis, value) in &t.axes {
+                // Mirror `fold_row`/`assemble_report`'s current-axis filter: a template
+                // may name a since-retired axis, and pre-seeding it here would create an
+                // `axis_value_series` entry the marginals never fill.
+                if !is_current_axis(axis) {
+                    continue;
+                }
+                axis_value_series
+                    .entry(axis.clone())
+                    .or_default()
+                    .entry(value.clone())
+                    .or_default();
+                constrained.insert(axis.clone(), value.clone());
+            }
+            template_axes.insert(t.era_label(), constrained);
+        }
         Self {
             totals: Totals { txs: 0, defects: 0 },
             axis_marginals: BTreeMap::new(),
             vectors: BTreeMap::new(),
             aux_counts: BTreeMap::new(),
             template_series,
+            axis_value_series,
+            template_axes,
             field_aggs: BTreeMap::new(),
             start_height: None,
             end_height: 0,
@@ -588,6 +647,30 @@ fn fold_row(acc: &mut Aggregates, row: &EpochRow, templates: &[WalletTemplate]) 
     for (name, count) in &row.aux_counts {
         *acc.aux_counts.entry(name.clone()).or_insert(0) += count;
     }
+
+    // Per-epoch trajectory for each template-constrained (axis, value) pair. Same 0%
+    // semantics as `fold_value_share_bounds_row`: a value absent from a txs > 0 epoch is
+    // a real 0% observation for that epoch, so the series stays aligned one point per
+    // epoch (mirroring `template_series`), and an all-zero trajectory truthfully shows a
+    // constrained value that never occurs.
+    for (axis, per_value) in acc.axis_value_series.iter_mut() {
+        let counts_this_epoch = row.axis_counts.get(axis);
+        for (value, series) in per_value.iter_mut() {
+            let count = counts_this_epoch
+                .and_then(|c| c.get(value))
+                .copied()
+                .unwrap_or(0);
+            series.push(AxisSharePoint {
+                start_height: row.start_height,
+                share: if row.txs == 0 {
+                    0.0
+                } else {
+                    count as f64 / row.txs as f64
+                },
+            });
+        }
+    }
+
     // Chain-wide CORE joint-vector counts, for `conditional_anonymity`.
     for (key, count) in &row.vectors {
         *acc.vectors.entry(key.clone()).or_insert(0) += count;
@@ -1172,6 +1255,8 @@ fn assemble_report(
         vectors,
         aux_counts,
         template_series,
+        axis_value_series,
+        template_axes,
         field_aggs,
         start_height,
         end_height,
@@ -1240,6 +1325,8 @@ fn assemble_report(
         conditional_anonymity: conditional_anonymity(&vectors),
         change_heuristic_abstention_rate,
         template_series,
+        axis_value_series,
+        template_axes,
         aux_flags,
         encoding_families,
         fields: build_field_reports(&field_aggs),
@@ -1323,7 +1410,75 @@ pub fn read_epoch_rows(epochs_path: &Path) -> Result<Vec<EpochRow>, ReportError>
     epoch_rows(epochs_path)?.collect()
 }
 
-/// Build the report from a scan's JSONL output and serialise it to `report.json`.
+/// Escape one CSV field per RFC 4180: quote (doubling embedded quotes) only when the
+/// field carries a character that would otherwise be ambiguous. An era label or an
+/// `output_types` value (`"[P2wpkh, OpReturn]"`) can contain a comma, so this is load-
+/// bearing, not decorative.
+fn csv_field(s: &str) -> Cow<'_, str> {
+    if s.contains([',', '"', '\n', '\r']) {
+        Cow::Owned(format!("\"{}\"", s.replace('"', "\"\"")))
+    } else {
+        Cow::Borrowed(s)
+    }
+}
+
+/// Writes the wallet×axis cross as CSV — the ML-facing twin of `axis_value_series` +
+/// `template_axes` + `conditional_anonymity`, all of which the report already holds, so
+/// this is a pure in-memory projection with no extra pass over the epochs file. One row
+/// per (epoch, wallet era, constrained axis): the era's pinned value, that value's share
+/// that epoch, and the value's window-level identifiability (`in_set_lt10`/`lt100`, blank
+/// for a non-CORE axis that carries no conditional-anonymity number). `end_height` is
+/// derived from the epoch sequence itself — the next epoch's `start_height` minus one,
+/// or the window end for the last epoch — so no per-point end needs storing.
+fn write_cross_csv(report: &Report, out: &Path) -> Result<(), ReportError> {
+    let mut w = BufWriter::new(File::create(out).map_err(ReportError::Io)?);
+    writeln!(
+        w,
+        "start_height,end_height,wallet_era,axis,value,share,in_set_lt10,in_set_lt100"
+    )
+    .map_err(ReportError::Io)?;
+    for (era, axes) in &report.template_axes {
+        for (axis, value) in axes {
+            let Some(series) = report
+                .axis_value_series
+                .get(axis)
+                .and_then(|m| m.get(value))
+            else {
+                continue;
+            };
+            let (id10, id100) = report
+                .conditional_anonymity
+                .get(axis)
+                .and_then(|m| m.get(value))
+                .map(|c| (c.share_lt10.to_string(), c.share_lt100.to_string()))
+                .unwrap_or_default();
+            for (i, pt) in series.iter().enumerate() {
+                let end_height = series
+                    .get(i + 1)
+                    .map(|next| next.start_height.saturating_sub(1))
+                    .unwrap_or(report.window.end_height);
+                writeln!(
+                    w,
+                    "{},{},{},{},{},{},{},{}",
+                    pt.start_height,
+                    end_height,
+                    csv_field(era),
+                    csv_field(axis),
+                    csv_field(value),
+                    pt.share,
+                    id10,
+                    id100
+                )
+                .map_err(ReportError::Io)?;
+            }
+        }
+    }
+    w.flush().map_err(ReportError::Io)
+}
+
+/// Build the report from a scan's JSONL output and serialise it: `report.json` (the full
+/// report) plus `wallet-axis-cross.csv` (the ML-facing wallet×axis cross). Both are
+/// projections of the same in-memory `Report`, so they can never disagree.
 pub fn write_report(
     epochs_path: &Path,
     out_dir: &Path,
@@ -1334,6 +1489,7 @@ pub fn write_report(
 
     let json = serde_json::to_string_pretty(&report).map_err(ReportError::Parse)?;
     std::fs::write(out_dir.join("report.json"), json).map_err(ReportError::Io)?;
+    write_cross_csv(&report, &out_dir.join("wallet-axis-cross.csv"))?;
 
     Ok(())
 }
@@ -1484,6 +1640,73 @@ mod tests {
                 template.name
             );
         }
+    }
+
+    #[test]
+    fn axis_value_series_and_template_axes_drive_the_per_axis_wallet_view() {
+        let rows = vec![
+            row(1000, &[("Rbf", 90), ("CakeGroupC", 10)], ("cake", 10)),
+            row(1144, &[("Rbf", 80), ("CakeGroupC", 20)], ("cake", 20)),
+        ];
+        let cake = nsequence_template("cake", "CakeGroupC");
+        let ghost = nsequence_template("ghost", "NeverObservedOnChain");
+        let report = build_report(&rows, &[cake, ghost]);
+
+        // template_axes records exactly which axis each era pins, and to what.
+        assert_eq!(report.template_axes["cake"]["nsequence"], "CakeGroupC");
+        assert_eq!(
+            report.template_axes["ghost"]["nsequence"],
+            "NeverObservedOnChain"
+        );
+
+        // A constrained value that DOES occur carries its per-epoch marginal trajectory —
+        // the exact numbers the narrowed wallet-eras chart plots for that era.
+        let cake_series = &report.axis_value_series["nsequence"]["CakeGroupC"];
+        assert_eq!(cake_series.len(), 2);
+        assert_eq!(cake_series[0].start_height, 1000);
+        assert!((cake_series[0].share - 0.1).abs() < 1e-9);
+        assert!((cake_series[1].share - 0.2).abs() < 1e-9);
+
+        // A constrained value that never occurs is an explicit all-zeros trajectory,
+        // present (not absent), so a wallet with no anonymity set on the axis still shows.
+        let ghost_series = &report.axis_value_series["nsequence"]["NeverObservedOnChain"];
+        assert_eq!(ghost_series.len(), 2);
+        assert!(ghost_series.iter().all(|p| p.share == 0.0));
+
+        // Only template-constrained pairs are emitted: `Rbf` is observed but no template
+        // pins it, so it stays out of the (small) axis_value_series payload.
+        assert!(!report.axis_value_series["nsequence"].contains_key("Rbf"));
+    }
+
+    #[test]
+    fn write_cross_csv_emits_one_row_per_epoch_wallet_axis() {
+        let rows = vec![
+            row(1000, &[("Rbf", 90), ("CakeGroupC", 10)], ("cake", 10)),
+            row(1144, &[("Rbf", 80), ("CakeGroupC", 20)], ("cake", 20)),
+        ];
+        let cake = nsequence_template("cake", "CakeGroupC");
+        let report = build_report(&rows, std::slice::from_ref(&cake));
+
+        let out = std::env::temp_dir().join("lumen_cross_csv_test.csv");
+        write_cross_csv(&report, &out).unwrap();
+        let csv = std::fs::read_to_string(&out).unwrap();
+        std::fs::remove_file(&out).ok();
+
+        let lines: Vec<&str> = csv.lines().collect();
+        assert_eq!(
+            lines[0],
+            "start_height,end_height,wallet_era,axis,value,share,in_set_lt10,in_set_lt100"
+        );
+        // one constrained pair (cake pins nsequence=CakeGroupC) × two epochs
+        assert_eq!(lines.len(), 3);
+        assert_eq!(lines[1].split(',').count(), 8);
+        assert!(lines[1].starts_with("1000,"));
+        assert!(lines[1].contains(",cake,nsequence,CakeGroupC,"));
+        assert!(lines[1].contains(",0.1,"));
+        // end_height derived from the sequence: epoch 0 ends at next start − 1; the last
+        // epoch ends at the window end (1144 + 143).
+        assert_eq!(lines[1].split(',').nth(1).unwrap(), "1143");
+        assert_eq!(lines[2].split(',').nth(1).unwrap(), "1287");
     }
 
     #[test]

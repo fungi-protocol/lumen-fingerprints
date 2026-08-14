@@ -262,6 +262,8 @@
         <span class="era-key"><svg width="26" height="10"><line x1="1" y1="5" x2="25" y2="5" class="era-line-current"/></svg> current / open era</span>
         <span class="era-key"><svg width="26" height="10"><line x1="1" y1="5" x2="25" y2="5" class="era-line-old"/></svg> earlier era</span>
       </div>
+      <div class="picker" id="era-picker"></div>
+      <p class="lede" id="era-mode-note" style="margin:0 0 14px;font-size:13px"></p>
       <div class="era-grid" id="era-grid"></div>
       <div class="era-readout" id="era-readout" aria-live="polite">&nbsp;</div>
       <details class="era-table">
@@ -943,24 +945,115 @@ function fmtShare(s) {
   if (s >= 0.01) return (s * 100).toFixed(1) + "%";
   return (s * 100).toPrecision(2) + "%";
 }
-function renderWalletEras(TS) {
-  const labels = Object.keys(TS);
-  if (!labels.length) return;
-  const sec = document.getElementById("wallets-eras");
-  sec.hidden = false;
+/* Wallet-eras state. The section is driven by its own axis selector (`eraAxis`),
+   independent of the sparseness-axes picker above: "__all__" is the full-template
+   consistency view (the section's original behaviour); any other value narrows every
+   facet to a single fingerprint axis, plotting the per-epoch marginal of the value each
+   wallet pins on it. ERA holds the three data blocks the two views read from. */
+const ERA_ALL = "__all__";
+let eraAxis = ERA_ALL;
+let ERA = { TS: {}, AVS: {}, TA: {} };
 
-  // group era series by wallet
+// era label -> [{wallet, range, old}] grouped by wallet, in a stable order.
+function walletsFromLabels(labels) {
   const wallets = new Map();
   for (const label of labels) {
     const p = parseEraLabel(label);
     if (!wallets.has(p.wallet)) wallets.set(p.wallet, []);
-    wallets.get(p.wallet).push({ label, ...p, pts: TS[label] });
+    wallets.get(p.wallet).push({ label, ...p });
+  }
+  return wallets;
+}
+
+// Full-template view: one series per era, share = fraction of txs consistent with the
+// whole template (carries `matches`, so the hover readout can show tx counts).
+function eraFacetsAll() {
+  const wallets = walletsFromLabels(Object.keys(ERA.TS));
+  return [...wallets.entries()].map(([wallet, eras]) => ({
+    wallet,
+    sub: eras.map(e => e.range || "all versions").join("  ·  "),
+    series: eras.map(e => ({ pts: ERA.TS[e.label], old: e.old, range: e.range, tag: e.range || "all" })),
+  }));
+}
+
+// Per-axis view: one series per era that *constrains* the axis, share = that epoch's
+// marginal of the value the era pins (`axis_value_series[axis][value]`). Eras that leave
+// the axis a wildcard are collected into `omitted` and named below the grid, not plotted.
+// Identifiability of one axis value, from `conditional_anonymity` (COND). Only CORE axes
+// carry it, so a value on a non-CORE axis (or one never seen conditioned) reports null —
+// the same "no CORE anonymity set" state the per-value table shows.
+function axisValueId(axis, value) {
+  const c = COND[axis] && COND[axis][value];
+  return c ? { lt10: c.share_lt10, lt100: c.share_lt100 } : null;
+}
+
+function eraFacetsAxis(axis) {
+  const wallets = walletsFromLabels(Object.keys(ERA.TS));
+  const facets = [], omitted = [];
+  for (const [wallet, eras] of wallets) {
+    const constrained = eras.filter(e => ERA.TA[e.label] && ERA.TA[e.label][axis] != null
+      && ERA.AVS[axis] && ERA.AVS[axis][ERA.TA[e.label][axis]]);
+    if (!constrained.length) { omitted.push(wallet); continue; }
+    const series = constrained.map(e => {
+      const v = ERA.TA[e.label][axis];
+      const id = axisValueId(axis, v);
+      return { pts: ERA.AVS[axis][v], old: e.old, range: e.range, value: v, id, tag: `${axis} = ${v}` };
+    });
+    facets.push({
+      wallet,
+      // Per-era subtitle carries the pinned value AND its identifiability, so each wallet
+      // version reads its own "how much this axis pins me down" straight off the facet.
+      sub: constrained.map((e, i) => {
+        const id = series[i].id;
+        const idTxt = id ? ` · in set <100: ${pct(id.lt100)}` : " · no CORE anon set";
+        return `${e.range || "all versions"} · ${axis} = ${ERA.TA[e.label][axis]}${idTxt}`;
+      }).join("  ·  "),
+      series,
+    });
+  }
+  return { facets, omitted };
+}
+
+function renderWalletEras(D) {
+  ERA = { TS: D.template_series || {}, AVS: D.axis_value_series || {}, TA: D.template_axes || {} };
+  if (!Object.keys(ERA.TS).length) return;
+  document.getElementById("wallets-eras").hidden = false;
+
+  // Selector: "All axes" plus every axis some template constrains, in the CORE→EXT→HEUR
+  // order the sparseness picker uses, skipping axes no template pins.
+  const ORDER = ["version", "nsequence", "nlocktime", "input_order", "output_order", "output_structure",
+    "input_types", "output_types", "low_r", "sighash", "uncompressed_pubkey", "op_return",
+    "input_subtype", "low_s", "ecdsa_sigs", "input_age", "feerate_bucket", "round_feerate",
+    "locktime_offset", "change_position", "change_type"];
+  const constrained = new Set(Object.values(ERA.TA).flatMap(m => Object.keys(m)));
+  const axes = ORDER.filter(a => constrained.has(a));
+  if (!axes.includes(eraAxis)) eraAxis = ERA_ALL;
+  const picker = document.getElementById("era-picker");
+  const chip = (a, lab) => `<button class="chip" data-a="${a}" aria-pressed="${a === eraAxis}">${lab}</button>`;
+  picker.innerHTML = chip(ERA_ALL, "All axes") + axes.map(a => chip(a, a)).join("");
+  picker.onclick = e => {
+    const b = e.target.closest(".chip");
+    if (!b) return;
+    eraAxis = b.dataset.a;
+    [...picker.querySelectorAll(".chip")].forEach(c => c.setAttribute("aria-pressed", c.dataset.a === eraAxis));
+    drawEraFacets();
+  };
+  drawEraFacets();
+}
+
+function drawEraFacets() {
+  const note = document.getElementById("era-mode-note");
+  let facets, omitted = [];
+  if (eraAxis === ERA_ALL) {
+    facets = eraFacetsAll();
+    note.textContent = "Full-template consistency: each line is the share of transactions consistent with a wallet's entire fingerprint vector. Pick an axis to see one axis in isolation.";
+  } else {
+    ({ facets, omitted } = eraFacetsAxis(eraAxis));
+    note.textContent = `One axis in isolation (${eraAxis}): each line is the per-epoch share of the value a wallet pins on ${eraAxis}. Wallets pinning the same value share a line — the label says which value.`;
   }
   // facet order: by max observed share, descending — fixed, not filter-dependent
-  const facets = [...wallets.entries()].map(([wallet, series]) => ({
-    wallet, series,
-    peak: Math.max(...series.flatMap(s => s.pts.map(pt => pt.share))),
-  })).sort((a, b) => b.peak - a.peak);
+  for (const f of facets) f.peak = Math.max(...f.series.flatMap(s => s.pts.map(pt => pt.share)));
+  facets.sort((a, b) => b.peak - a.peak);
 
   const W = 240, H = 130, ML = 34, MR = 6, MT = 6, MB = 18;   // includes the x-axis band
   const grid = document.getElementById("era-grid");
@@ -976,10 +1069,9 @@ function renderWalletEras(TS) {
 
     const div = document.createElement("div");
     div.className = "era-facet";
-    const sub = f.series.map(s => s.range || "all versions").join("  ·  ");
     div.innerHTML = `<h4></h4><div class="era-sub"></div>`;
     div.querySelector("h4").textContent = f.wallet;
-    div.querySelector(".era-sub").textContent = sub;
+    div.querySelector(".era-sub").textContent = f.sub;
 
     const NS = "http://www.w3.org/2000/svg";
     const svg = document.createElementNS(NS, "svg");
@@ -1077,7 +1169,11 @@ function renderWalletEras(TS) {
       cursor.setAttribute("x1", X(xs[idx])); cursor.setAttribute("x2", X(xs[idx]));
       cursor.style.opacity = 1;
       readout.textContent = `${f.wallet} @ h${xs[idx]}: ` + f.series
-        .map(s => `${s.range || "all"} ${fmtShare(s.pts[idx].share)} (${s.pts[idx].matches.toLocaleString()} tx)`)
+        .map(s => {
+          const pt = s.pts[idx];
+          const tx = pt.matches != null ? ` (${pt.matches.toLocaleString()} tx)` : "";
+          return `${s.tag} ${fmtShare(pt.share)}${tx}`;
+        })
         .join("  ·  ");
     };
     hit.addEventListener("mousemove", show);
@@ -1088,22 +1184,44 @@ function renderWalletEras(TS) {
     grid.appendChild(div);
   }
 
+  // Wallets that don't fingerprint on the selected axis are named, not silently dropped —
+  // a wildcard on this axis is itself information ("this wallet makes no claim here").
+  let omitNote = document.getElementById("era-omitted");
+  if (!omitNote) {
+    omitNote = document.createElement("p");
+    omitNote.id = "era-omitted";
+    omitNote.className = "lede";
+    omitNote.style.cssText = "margin:14px 0 0;font-size:12.5px;color:var(--faint)";
+    grid.after(omitNote);
+  }
+  omitNote.textContent = omitted.length
+    ? `Not fingerprinted on ${eraAxis} (axis left as a wildcard): ${omitted.join(", ")}.`
+    : "";
+
   // table view twin: one row per era series (cells set via textContent — labels are
-  // build-time data from wallets.toml, but never trust it as markup)
+  // build-time data from wallets.toml, but never trust it as markup). In the per-axis
+  // view there is no template match count, so the count column becomes the pinned value.
+  const perAxis = eraAxis !== ERA_ALL;
   const table = document.getElementById("era-table-body");
   table.textContent = "";
   const headRow = table.insertRow();
-  for (const h of ["wallet", "era", "total consistent tx", "share (last epoch)"]) {
+  const head = perAxis
+    ? ["wallet", "era", eraAxis, "share (last epoch)", "in set <10", "in set <100"]
+    : ["wallet", "era", "total consistent tx", "share (last epoch)"];
+  for (const h of head) {
     const th = document.createElement("th");
     th.textContent = h;
     headRow.appendChild(th);
   }
   for (const f of facets) {
     for (const s of f.series) {
-      const total = s.pts.reduce((a, p) => a + p.matches, 0);
       const last = s.pts[s.pts.length - 1];
+      const cells = perAxis
+        ? [f.wallet, s.range || "all versions", s.value, fmtShare(last.share),
+           s.id ? pct(s.id.lt10) : "—", s.id ? pct(s.id.lt100) : "—"]
+        : [f.wallet, s.range || "all versions",
+           s.pts.reduce((a, p) => a + (p.matches || 0), 0).toLocaleString(), fmtShare(last.share)];
       const row = table.insertRow();
-      const cells = [f.wallet, s.range || "all versions", total.toLocaleString(), fmtShare(last.share)];
       for (const c of cells) row.insertCell().textContent = c;
     }
   }
@@ -1126,14 +1244,14 @@ async function boot() {
   const w = D.window || {};
   const totals = D.totals || {};
   if (w.start_height != null) {
-    document.getElementById("win").textContent = `h${fmtInt(w.start_height)}–${fmtInt(w.end_height)} · ${fmtInt(w.epochs)} epochs`;
+    document.getElementById("win").textContent = `height ${fmtInt(w.start_height)}–${fmtInt(w.end_height)} · ${fmtInt(w.epochs)} days`;
   }
   document.getElementById("livewin").textContent =
-    `Live window: ${fmtInt(totals.txs || 0)} transactions, heights ${fmtInt(w.start_height || 0)}–${fmtInt(w.end_height || 0)}, ${fmtInt(w.epochs || 0)} epochs.`;
+    `Live window: ${fmtInt(totals.txs || 0)} transactions, height ${fmtInt(w.start_height || 0)}–${fmtInt(w.end_height || 0)}, ${fmtInt(w.epochs || 0)} days.`;
 
   wireAllRows();
   bootAxes();
-  renderWalletEras(D.template_series || {});
+  renderWalletEras(D);
 }
 
 boot();

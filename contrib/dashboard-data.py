@@ -10,6 +10,8 @@ out = {
     "encoding_families": d["encoding_families"],
     "cond": d["conditional_anonymity"],
     "template_series": d.get("template_series", {}),
+    "axis_value_series": d.get("axis_value_series", {}),
+    "template_axes": d.get("template_axes", {}),
     "fields": { f["name"]: f for f in d.get("fields", []) },
 }
 json.dump(out, open(sys.argv[2], "w"), separators=(",", ":"))

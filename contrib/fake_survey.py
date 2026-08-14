@@ -2,7 +2,8 @@
 # `scan`: append 2 epoch rows to --out, print a log line each, then exit.
 #   Always scans a small fixed number of epochs (2 epochs = 288 blocks) so
 #   tests stay fast.
-# `report`: write a minimal report.json with the keys the emitter reads.
+# `report`: write a minimal report.json with the keys the emitter reads, plus a
+#   wallet-axis-cross.csv (header only) mirroring what the real `lumen report` emits.
 # `tip`: print one JSON line with floor/tip/in_ibd, like `lumen tip`.
 import json, sys, time
 
@@ -36,3 +37,5 @@ elif sys.argv[1] == "report":
                "axis_summaries": {}, "encoding_families": {},
                "conditional_anonymity": {}},
               open(os.path.join(out_dir, "report.json"), "w"))
+    with open(os.path.join(out_dir, "wallet-axis-cross.csv"), "w") as f:
+        f.write("start_height,end_height,wallet_era,axis,value,share,in_set_lt10,in_set_lt100\n")
