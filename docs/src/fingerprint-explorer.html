@@ -255,12 +255,12 @@
     </section>
 
     <section id="wallets-eras" hidden>
-      <h3>Wallet eras</h3>
-      <div class="title">Template consistency over time, by wallet era</div>
-      <p class="lede">Share of transactions <em>consistent with</em> each wallet template, over the whole scan — an upper bound on the anonymity set (a sharper adversary only narrows it), not attribution. Versioned wallets show two eras (earlier dashed).</p>
+      <h3>Wallet versions</h3>
+      <div class="title">Template consistency over time, by wallet version</div>
+      <p class="lede">Share of transactions <em>consistent with</em> each wallet template, over the whole scan — an upper bound on the anonymity set (a sharper adversary only narrows it), not attribution. Wallets with a behavior change show two versions (earlier dashed).</p>
       <div class="era-legend" aria-hidden="false">
-        <span class="era-key"><svg width="26" height="10"><line x1="1" y1="5" x2="25" y2="5" class="era-line-current"/></svg> current / open era</span>
-        <span class="era-key"><svg width="26" height="10"><line x1="1" y1="5" x2="25" y2="5" class="era-line-old"/></svg> earlier era</span>
+        <span class="era-key"><svg width="26" height="10"><line x1="1" y1="5" x2="25" y2="5" class="era-line-current"/></svg> current / open version</span>
+        <span class="era-key"><svg width="26" height="10"><line x1="1" y1="5" x2="25" y2="5" class="era-line-old"/></svg> earlier version</span>
       </div>
       <p class="picker-hint"><b>What each wallet fixes</b> on this axis. <b>All axes</b> = full-template view.</p>
       <div class="picker" id="era-picker"></div>
@@ -1224,8 +1224,8 @@ function drawEraFacets() {
   table.textContent = "";
   const headRow = table.insertRow();
   const head = perAxis
-    ? ["wallet", "era", eraAxis, "share (whole scan)", "in set <10", "in set <100"]
-    : ["wallet", "era", "total consistent tx", "share (whole scan)"];
+    ? ["wallet", "version", eraAxis, "share (whole scan)", "in set <10", "in set <100"]
+    : ["wallet", "version", "total consistent tx", "share (whole scan)"];
   for (const h of head) {
     const th = document.createElement("th");
     th.textContent = h;

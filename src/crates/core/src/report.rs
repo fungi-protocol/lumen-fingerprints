@@ -1434,7 +1434,7 @@ fn write_cross_csv(report: &Report, out: &Path) -> Result<(), ReportError> {
     let mut w = BufWriter::new(File::create(out).map_err(ReportError::Io)?);
     writeln!(
         w,
-        "start_height,end_height,wallet_era,axis,value,share,in_set_lt10,in_set_lt100"
+        "start_height,end_height,wallet_version,axis,value,share,in_set_lt10,in_set_lt100"
     )
     .map_err(ReportError::Io)?;
     for (era, axes) in &report.template_axes {
@@ -1695,7 +1695,7 @@ mod tests {
         let lines: Vec<&str> = csv.lines().collect();
         assert_eq!(
             lines[0],
-            "start_height,end_height,wallet_era,axis,value,share,in_set_lt10,in_set_lt100"
+            "start_height,end_height,wallet_version,axis,value,share,in_set_lt10,in_set_lt100"
         );
         // one constrained pair (cake pins nsequence=CakeGroupC) × two epochs
         assert_eq!(lines.len(), 3);

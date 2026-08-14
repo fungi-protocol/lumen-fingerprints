@@ -1,4 +1,4 @@
-start_height,end_height,wallet_era,axis,value,share,in_set_lt10,in_set_lt100
+start_height,end_height,wallet_version,axis,value,share,in_set_lt10,in_set_lt100
 939969,940112,BTCPay Server (btcpayserver ≥v1.13.0),input_order,Other,0.03161144288425787,0.005321665864141281,0.033836414574495884
 940113,940256,BTCPay Server (btcpayserver ≥v1.13.0),input_order,Other,0.02784839291885872,0.005321665864141281,0.033836414574495884
 940257,940400,BTCPay Server (btcpayserver ≥v1.13.0),input_order,Other,0.02518694436937959,0.005321665864141281,0.033836414574495884
