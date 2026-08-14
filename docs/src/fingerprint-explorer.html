@@ -152,6 +152,8 @@
 
   /* --- section 12 (sparseness axes) picker, ported --- */
   .picker { display: flex; flex-wrap: wrap; gap: 7px; margin-bottom: 10px; }
+  .picker-hint { font-size: 13px; color: var(--muted); margin: 0 0 7px; max-width: 70ch; }
+  .picker-hint b { color: var(--ink); font-weight: 650; }
   .chip { font-family: var(--mono); font-size: 12px; padding: 5px 11px; border-radius: 999px; border: 1px solid var(--line-strong); background: var(--panel); color: var(--muted); cursor: pointer; transition: .12s; }
   .chip:hover { color: var(--ink); border-color: var(--accent); }
   .chip[aria-pressed="true"] { background: var(--accent); color: var(--ground); border-color: var(--accent); }
@@ -244,6 +246,7 @@
       </div>
 
       <p class="lede" style="margin-top:22px"><b>Chain share</b>: how common the value is. <b>Identifying</b>: the share of its transactions landing in an anonymity set under 100 — high means it pins you down. These set sizes are <b>upper bounds on distinguishability</b> (the templates use &ldquo;consistent-with&rdquo; semantics), so a better-informed adversary can only narrow them, never widen them.</p>
+      <p class="picker-hint">Pick an axis to read <b>its on-chain values</b> — every value it takes and how identifying each is, independent of any wallet.</p>
       <div class="picker" id="picker"></div>
       <div class="card">
         <div class="colhead"><span>Value</span><span>Chain share (mean · range)</span><span>Identifying — share in a set &lt; 100</span></div>
@@ -262,6 +265,7 @@
         <span class="era-key"><svg width="26" height="10"><line x1="1" y1="5" x2="25" y2="5" class="era-line-current"/></svg> current / open era</span>
         <span class="era-key"><svg width="26" height="10"><line x1="1" y1="5" x2="25" y2="5" class="era-line-old"/></svg> earlier era</span>
       </div>
+      <p class="picker-hint">Pick an axis to see <b>what each wallet does on it</b> — the value every catalogued wallet fixes there. Only axes some wallet fingerprints appear; <b>All axes</b> shows the full-template view instead.</p>
       <div class="picker" id="era-picker"></div>
       <p class="lede" id="era-mode-note" style="margin:0 0 14px;font-size:13px"></p>
       <div class="era-grid" id="era-grid"></div>
