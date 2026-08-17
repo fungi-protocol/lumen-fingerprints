@@ -1,4 +1,6 @@
-<title>Lumen Fingerprints — Raw Data Catalog</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lumen Fingerprints</title>
 <style>
   :root {
     --ground: #0a0e0c;
@@ -47,7 +49,7 @@
 
   /* hero band */
   .hero { padding: clamp(34px, 6vw, 60px) 0 26px; border-bottom: 1px solid var(--line); }
-  .hero h2 { font-size: clamp(26px, 4.4vw, 40px); line-height: 1.08; margin: 0 0 14px; letter-spacing: -.02em; text-wrap: balance; max-width: 20ch; }
+  .hero h2 { font-size: clamp(22px, 3.2vw, 30px); line-height: 1.12; margin: 0 0 14px; letter-spacing: -.02em; text-wrap: balance; max-width: 20ch; }
   .hero p { color: var(--muted); max-width: 66ch; margin: 0 0 26px; font-size: 15.5px; }
   .counts { display: grid; grid-template-columns: repeat(auto-fit, minmax(148px, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
   .count { background: var(--panel); padding: 16px 18px; }
@@ -64,7 +66,8 @@
   nav.rail .grp { font-family: var(--mono); font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--faint); margin: 18px 0 6px 12px; }
 
   main { padding: 30px 0 90px; min-width: 0; }
-  #tab-explorer > .wrap { padding: 30px 0 90px; max-width: 900px; }
+  #tab-axes > .wrap, #tab-wallets > .wrap { padding: 30px 0 90px; max-width: 900px; }
+  #tab-overview > .wrap { padding: 10px 0 90px; }
 
   section { padding: 22px 0 8px; scroll-margin-top: 70px; }
   section > h3 { font-size: 12px; letter-spacing: .12em; text-transform: uppercase; color: var(--accent); font-family: var(--mono); margin: 0 0 4px; font-weight: 600; }
@@ -209,11 +212,53 @@
   .era-table table { border-collapse: collapse; margin-top: 8px; }
   .era-table td, .era-table th { padding: 3px 10px; text-align: right; font-variant-numeric: tabular-nums; }
   .era-table th:first-child, .era-table td:first-child { text-align: left; }
+
+  /* --- data-series palette (validated: ΔE ok on --panel, ≥3:1 contrast) ---
+     --series-green / --series-blue are DATA colors; --accent stays UI-only.
+     --rare is reserved for "identifying" status, always with a label. */
+  :root { --series-green: #2ea043; --series-blue: #3987e5; }
+
+  /* --- overview --- */
+  #tab-overview .hero h2 { max-width: 26ch; }
+  .ov-note { color: var(--faint); font-size: 12px; margin: 6px 0 0; }
+  .chart-card { padding: 18px 18px 12px; }
+  .chart-card svg { display: block; width: 100%; height: auto; }
+  .chart-card .chart-legend svg { display: inline-block; width: 12px; height: 12px; }
+  .chart-card svg text { font: 10px var(--mono); fill: var(--muted); font-variant-numeric: tabular-nums; }
+  .chart-card svg .axis-line { stroke: var(--line); stroke-width: 1; }
+  .chart-card svg .cursor { stroke: var(--muted); stroke-width: 1; opacity: 0; }
+  .chart-card svg .hit { fill: transparent; cursor: crosshair; }
+  .chart-card svg .pt-label { fill: var(--ink); font-size: 10px; }
+  .chart-readout { min-height: 1.5em; font: 12px var(--mono); color: var(--muted); margin-top: 8px; }
+  .chart-card { position: relative; }
+  .viz-tip { position: absolute; background: var(--ground); border: 1px solid var(--line-strong); border-radius: 8px; padding: 7px 10px; font: 11px var(--mono); color: var(--ink); pointer-events: none; z-index: 5; max-width: 300px; box-shadow: var(--shadow); }
+  .viz-tip .t-sub { color: var(--muted); margin-top: 2px; }
+  .chart-legend { display: flex; flex-wrap: wrap; gap: 14px 20px; font-size: 12.5px; color: var(--muted); margin: 0 0 10px; }
+  .chart-legend .k { display: inline-flex; align-items: center; gap: 6px; }
+  .count .n .u { font-size: 15px; color: var(--muted); font-weight: 500; }
+  .tile-trend { font-size: 11px; color: var(--faint); margin-top: 2px; font-family: var(--mono); }
+
+  /* range interval drawn over a share bar (min–max across epochs) */
+  .track { position: relative; }
+  .range-band { position: absolute; top: 3px; bottom: 3px; border-radius: 3px; background: color-mix(in srgb, var(--ink) 26%, transparent); pointer-events: none; }
+
+  #ov-sets .pbar-row { grid-template-columns: minmax(110px, 200px) 1fr 170px; }
+  .grid2 { display: grid; gap: 16px; grid-template-columns: 1fr; }
+  @media (min-width: 860px) { .grid2 { grid-template-columns: 1fr 1fr; align-items: start; } }
+  .chart-sub { font-family: var(--mono); font-size: 11px; letter-spacing: .05em; text-transform: uppercase; color: var(--faint); margin: 0 0 10px; }
+
+  /* ranked "habits that pin you down" rows */
+  .rank-row { display: grid; grid-template-columns: minmax(200px, 1.15fr) 2fr 76px; gap: 14px; align-items: center; padding: 11px 18px; border-top: 1px solid var(--line); }
+  .rank-row:first-child { border-top: none; }
+  @media (max-width: 680px) { .rank-row { grid-template-columns: 1fr; gap: 5px; } }
+  .rank-name { font-family: var(--mono); font-size: 12.5px; color: var(--ink); }
+  .rank-name .sub { display: block; font-size: 10.5px; color: var(--faint); margin-top: 2px; font-variant-numeric: tabular-nums; }
+  .rank-val { text-align: right; font-family: var(--mono); font-size: 12.5px; color: var(--ink); font-variant-numeric: tabular-nums; }
 </style>
 
 <header class="top">
   <div class="wrap">
-    <h1>Raw Data Catalog</h1>
+    <h1>Lumen Fingerprints</h1>
     <span class="sub" id="win">everything the codebase measures, per transaction &amp; in aggregate</span>
     <a class="src-link" href="https://github.com/fungi-protocol/lumen-fingerprints" target="_blank" rel="noopener">source on GitHub ↗</a>
   </div>
@@ -221,12 +266,159 @@
 
 <div class="tabbar" role="tablist" aria-label="View">
   <div class="wrap">
-    <button type="button" class="tab" id="tabbtn-catalog" role="tab" aria-selected="true" aria-controls="tab-catalog">What we collect</button>
-    <button type="button" class="tab" id="tabbtn-explorer" role="tab" aria-selected="false" aria-controls="tab-explorer">Fingerprint Explorer</button>
+    <button type="button" class="tab" id="tabbtn-overview" role="tab" aria-selected="true" aria-controls="tab-overview">Overview</button>
+    <button type="button" class="tab" id="tabbtn-axes" role="tab" aria-selected="false" aria-controls="tab-axes">Fingerprint axes</button>
+    <button type="button" class="tab" id="tabbtn-wallets" role="tab" aria-selected="false" aria-controls="tab-wallets">Wallet versions</button>
+    <button type="button" class="tab" id="tabbtn-catalog" role="tab" aria-selected="false" aria-controls="tab-catalog">What we collect</button>
   </div>
 </div>
 
-<div id="tab-explorer" class="tabpanel" hidden role="tabpanel" aria-labelledby="tabbtn-explorer">
+<div id="tab-overview" class="tabpanel" role="tabpanel" aria-labelledby="tabbtn-overview">
+  <div class="hero">
+    <div class="wrap">
+      <h2 id="ov-title">~156 days of Bitcoin, fingerprinted</h2>
+      <p id="ov-lede">Every transaction across 22,463 blocks (heights 939,969–962,432, about 156 days), 96,778,612 transactions in all: the habits of the wallet software, read from the chain.</p>
+    </div>
+  </div>
+  <div class="wrap" style="max-width: 980px">
+    <section id="ov-race-sec">
+      <h3>Wallet fingerprints</h3>
+      <div class="title">Transactions matching each wallet's fingerprint</div>
+      <p class="lede">% of all tx whose shape matches each wallet's fingerprint. A match is a ceiling, not proof the wallet sent it. <a href="#/wallets">Per-wallet detail →</a></p>
+      <div class="card chart-card">
+        <div class="chart-legend" id="ov-race-legend"></div>
+        <div id="ov-race"></div>
+        <div class="chart-readout" id="ov-race-readout">&nbsp;</div>
+      </div>
+    </section>
+
+    <section id="ov-ranked-sec">
+      <h3>Identifiability</h3>
+      <div class="title">The habits that pin you down most</div>
+      <p class="lede">The strongest tells: % of a value's transactions landing in an anonymity set under 100. Dot area = tx count. Last row is the crowd, for contrast. Every value is on the map below; the full list is under <a href="#/axes">Fingerprint axes →</a></p>
+      <div class="card chart-card">
+        <div id="ov-ranked"></div>
+      </div>
+    </section>
+
+    <section id="ov-sets-sec">
+      <h3>Anonymity sets</h3>
+      <div class="title">How many transactions look exactly alike?</div>
+      <p class="lede">Every transaction grouped by how many others were built the exact same way. A big crowd hides it; a crowd of one leaves it unique.</p>
+      <div class="card chart-card">
+        <div id="ov-sets"></div>
+      </div>
+    </section>
+
+    <section id="ov-scatter-sec">
+      <h3>The full map</h3>
+      <div class="title">Every CORE fingerprint value at once</div>
+      <p class="lede">One dot per fingerprint value. Hover any dot to read it.</p>
+      <div class="card chart-card">
+        <div id="ov-scatter"></div>
+        <div class="viz-tip" id="ov-scatter-tip" hidden></div>
+        <p class="ov-note">Dot area = tx count. Values with under 100 tx are omitted (trivially identifying).</p>
+      </div>
+    </section>
+
+    <section id="ov-anatomy-sec">
+      <h3>Anatomy</h3>
+      <div class="title">What transactions look like</div>
+      <div class="grid2">
+        <div class="card chart-card">
+          <div class="chart-sub">Output shape: % of all tx</div>
+          <div id="ov-shapes"></div>
+        </div>
+        <div class="card chart-card">
+          <div class="chart-sub">Age of the youngest coin spent: % of all tx</div>
+          <div id="ov-age"></div>
+        </div>
+        <div class="card chart-card">
+          <div class="chart-sub">Virtual size: % of all tx</div>
+          <div id="ov-vsize"></div>
+        </div>
+        <div class="card chart-card">
+          <div class="chart-sub">Observable habits: % of all tx</div>
+          <div id="ov-habits"></div>
+        </div>
+        <div class="card chart-card">
+          <div class="chart-sub">Input script generation: % of all tx</div>
+          <div id="ov-scripttech"></div>
+        </div>
+        <div class="card chart-card">
+          <div class="chart-sub">Declared nVersion: % of all tx</div>
+          <div id="ov-version"></div>
+        </div>
+        <div class="card chart-card">
+          <div class="chart-sub">Inputs per tx: % of all tx</div>
+          <div id="ov-incount"></div>
+        </div>
+        <div class="card chart-card">
+          <div class="chart-sub">Outputs per tx: % of all tx</div>
+          <div id="ov-outcount"></div>
+        </div>
+        <div class="card chart-card">
+          <div class="chart-sub">Address encoding used in outputs: % of all tx</div>
+          <div id="ov-encoding"></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="ov-change-sec">
+      <h3>Wallet clustering</h3>
+      <div class="title">Where these fingerprints feed clustering</div>
+      <p class="lede">Clustering groups coins by owner: the step downstream that consumes fingerprints. These are its three classic on-chain handles, measured on every transaction.</p>
+      <div class="card chart-card">
+        <div class="chart-sub">Clustering handles offered: % of all tx</div>
+        <div id="ov-ladder"></div>
+      </div>
+      <div class="grid2">
+        <div class="card chart-card">
+          <div class="chart-sub">Where the script-type heuristic places the change: % of all tx</div>
+          <div id="ov-changepos"></div>
+        </div>
+        <div class="card chart-card">
+          <div class="chart-sub">Output script type matches the inputs: % of all tx</div>
+          <div id="ov-typematch"></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="ov-drift-sec">
+      <h3>Drift</h3>
+      <div class="title">Habits are shifting inside the window</div>
+      <p class="lede">Share of all tx with each habit, day by day.</p>
+      <div class="grid2" id="ov-drift"></div>
+    </section>
+
+    <section id="ov-opreturn-sec">
+      <h3>Data outputs</h3>
+      <div class="title">Most transactions carry an OP_RETURN</div>
+      <p class="lede" id="ov-opreturn-lede">Share of transactions with a data output, day by day (the line ends at the last day; the bars below average the whole window).</p>
+      <div class="card chart-card">
+        <div id="ov-opreturn"></div>
+        <div class="chart-readout" id="ov-opreturn-readout">&nbsp;</div>
+      </div>
+      <div class="card chart-card">
+        <div class="chart-sub">Where transactions carry data: % of all tx</div>
+        <div id="ov-protocols"></div>
+      </div>
+    </section>
+
+    <section id="ov-feerate-sec">
+      <h3>Fees</h3>
+      <div class="title">What transactions pay</div>
+      <p class="lede">Feerate distribution over the window: % of all tx.</p>
+      <div class="card chart-card">
+        <div id="ov-feerate"></div>
+      </div>
+    </section>
+
+
+  </div>
+</div>
+
+<div id="tab-axes" class="tabpanel" hidden role="tabpanel" aria-labelledby="tabbtn-axes">
   <div class="wrap">
     <section id="axes">
       <h3>12 · Sparseness axes</h3>
@@ -245,22 +437,27 @@
         <div class="rows"><div class="row"><span class="field"><b>change_position, change_type</b></span><span class="tag marginal">marginal</span><span class="desc">From a fallible change heuristic; counted per-value, kept out of the joint key.</span></div></div>
       </div>
 
-      <p class="lede" style="margin-top:22px"><b>Chain share</b>: how common the value is. <b>Identifying</b>: share landing in an anonymity set under 100 (higher = more pinned down). Set sizes here are upper bounds (so identifiability is a lower bound) — a sharper adversary only narrows the set, never widens it.</p>
-      <p class="picker-hint">An axis's <b>on-chain values</b> — wallet-agnostic.</p>
+      <p class="lede" style="margin-top:22px"><b>Chain share</b>: how common the value is. <b>Identifying</b>: share landing in an anonymity set under 100 (higher = more pinned down). Set sizes here are upper bounds, so identifiability is a lower bound: a sharper adversary only narrows the set, never widens it.</p>
+      <p class="picker-hint">An axis's <b>on-chain values</b>, wallet-agnostic.</p>
       <div class="picker" id="picker"></div>
       <div class="card">
-        <div class="colhead"><span>Value</span><span>Chain share (mean · range)</span><span>Identifying — share in a set &lt; 100</span></div>
+        <div class="colhead"><span>Value</span><span>Chain share: % of all tx (mean · epoch range)</span><span>Identifying: % of these tx in a set &lt; 100</span></div>
         <div id="values"></div>
       </div>
     </section>
+  </div>
+</div>
 
+<div id="tab-wallets" class="tabpanel" hidden role="tabpanel" aria-labelledby="tabbtn-wallets">
+  <div class="wrap">
     <section id="wallets-eras" hidden>
       <h3>Wallet versions</h3>
       <div class="title">Template consistency over time, by wallet version</div>
-      <p class="lede">Share of transactions <em>consistent with</em> each wallet template, over the whole scan — an upper bound on the anonymity set (a sharper adversary only narrows it), not attribution. Wallets with a behavior change show two versions (earlier dashed).</p>
+      <p class="lede">Share of transactions <em>consistent with</em> each wallet template, over the whole scan: an upper bound on the anonymity set (a sharper adversary only narrows it), not attribution. Wallets with a behavior change show two versions (earlier dashed).</p>
       <div class="era-legend" aria-hidden="false">
         <span class="era-key"><svg width="26" height="10"><line x1="1" y1="5" x2="25" y2="5" class="era-line-current"/></svg> current / open version</span>
         <span class="era-key"><svg width="26" height="10"><line x1="1" y1="5" x2="25" y2="5" class="era-line-old"/></svg> earlier version</span>
+        <span class="era-key" style="color:var(--faint)">lines are 7-epoch medians (raw series ghosted) · y-scale is per facet: read each facet's own top label</span>
       </div>
       <p class="picker-hint"><b>What each wallet fixes</b> on this axis. <b>All axes</b> = full-template view.</p>
       <div class="picker" id="era-picker"></div>
@@ -894,13 +1091,18 @@ function renderAxis() {
   document.getElementById("values").innerHTML = vals.map(v => {
     const lo = v.min_epoch_share ?? v.share, hi = v.max_epoch_share ?? v.share;
     const rare = v.share < 0.01, vrare = v.share < 0.001;
-    const shareBar = `<div class="track"><div class="fill" style="width:${Math.max(1.2, v.share / maxShare * 100).toFixed(2)}%;background:var(--accent)"></div></div>`;
+    // zero draws nothing; a tiny nonzero share still gets a visible sliver.
+    // the faint band overlays the min–max share across epochs on the same scale.
+    const bw = v.share > 0 ? Math.max(0.8, v.share / maxShare * 100) : 0;
+    const bandLo = (lo / maxShare * 100), bandW = Math.max(0.5, (hi - lo) / maxShare * 100);
+    const band = hi > lo ? `<span class="range-band" style="left:${bandLo.toFixed(2)}%;width:${Math.min(bandW, 100 - bandLo).toFixed(2)}%"></span>` : "";
+    const shareBar = `<div class="track"><div class="fill" style="width:${bw.toFixed(2)}%;background:var(--series-green)"></div>${band}</div>`;
     let idCell;
     const c = cond && cond[v.value];
     if (c) {
       const s = c.share_lt100;
       idCell = `<div class="metric"><div class="top"><span class="lab">in set &lt; 100</span><span class="num" style="color:${idColor(s)}">${pct(s)}</span></div>
-        <div class="track"><div class="fill" style="width:${Math.max(1, s * 100).toFixed(2)}%;background:${idColor(s)}"></div></div>
+        <div class="track"><div class="fill" style="width:${(s > 0 ? Math.max(0.8, s * 100) : 0).toFixed(2)}%;background:${idColor(s)}"></div></div>
         <div class="lab" style="text-transform:none;letter-spacing:0;color:var(--faint)">${pct(c.share_lt10)} in a set &lt; 10</div></div>`;
     } else {
       idCell = `<div class="metric"><span class="num" style="color:var(--faint)">—</span><div class="lab" style="text-transform:none;letter-spacing:0;color:var(--faint)">no CORE anonymity set</div></div>`;
@@ -929,6 +1131,7 @@ function bootAxes() {
     current = b.dataset.a;
     [...picker.querySelectorAll(".chip")].forEach(c => c.setAttribute("aria-pressed", c.dataset.a === current));
     renderAxis();
+    history.replaceState(null, "", "#/axis/" + encodeURIComponent(current)); // deep-linkable, no hashchange
   });
   renderAxis();
 }
@@ -1112,20 +1315,28 @@ function drawEraFacets() {
       t.textContent = "h" + Math.round(h / 1000) + "k";
       svg.appendChild(t);
     }
-    // series lines: earlier era first (under), current on top
-    // first pass: draw all lines, collect series info
+    // series lines: earlier era first (under), current on top.
+    // main line is the 7-epoch rolling median (single-day spikes otherwise bury the
+    // trend); the raw series stays visible as a ghost at low opacity.
     const seriesInfo = [];
     for (const s of [...f.series].sort((a, b) => (b.old ? 1 : 0) - (a.old ? 1 : 0))) {
-      const d = s.pts.map((pt, i) => (i ? "L" : "M") + X(pt.start_height).toFixed(1) + " " + Y(pt.share).toFixed(1)).join("");
+      const med = rollMedian(s.pts.map(pt => pt.share), 7);
+      const pathD = ys => s.pts.map((pt, i) => (i ? "L" : "M") + X(pt.start_height).toFixed(1) + " " + Y(ys[i]).toFixed(1)).join("");
+      const ghost = document.createElementNS(NS, "path");
+      ghost.setAttribute("d", pathD(s.pts.map(pt => pt.share)));
+      ghost.setAttribute("fill", "none");
+      ghost.setAttribute("class", s.old ? "era-line-old" : "era-line-current");
+      ghost.setAttribute("opacity", "0.22");
+      svg.appendChild(ghost);
       const path = document.createElementNS(NS, "path");
-      path.setAttribute("d", d);
+      path.setAttribute("d", pathD(med));
       path.setAttribute("fill", "none");
       path.setAttribute("class", s.old ? "era-line-old" : "era-line-current");
       svg.appendChild(path);
       // collect series endpoint info for collision resolution
       const last = s.pts[s.pts.length - 1];
       const naturalY = Math.max(MT + 8, Y(last.share) - 3);
-      seriesInfo.push({s, last, naturalY});
+      seriesInfo.push({s, last, first: s.pts[0], naturalY});
     }
     // second pass: resolve collisions by nudging lower-share label downward
     const labelYs = []; // [{y, share}]
@@ -1152,13 +1363,22 @@ function drawEraFacets() {
       }
       labelYs.push({y: ly, share: info.last.share});
     }
-    // third pass: create text elements with resolved ys
+    // third pass: create text elements with resolved ys; the current series also
+    // gets its starting value so the facet reads "start → end" at a glance
     for (let i = 0; i < seriesInfo.length; i++) {
+      const info = seriesInfo[i];
       const t = document.createElementNS(NS, "text");
       t.setAttribute("x", W - MR); t.setAttribute("y", labelYs[i].y);
       t.setAttribute("text-anchor", "end");
-      t.textContent = fmtShare(seriesInfo[i].last.share);
+      t.textContent = fmtShare(info.last.share);
       svg.appendChild(t);
+      if (!info.s.old && info.first) {
+        const t0 = document.createElementNS(NS, "text");
+        t0.setAttribute("x", ML + 2);
+        t0.setAttribute("y", Math.max(MT + 8, Math.min(H - MB - 3, Y(info.first.share) - 3)));
+        t0.textContent = fmtShare(info.first.share) + " →";
+        svg.appendChild(t0);
+      }
     }
     // hover: full-plot hit rect + vertical cursor + shared readout (enhances, never gates)
     const cursor = document.createElementNS(NS, "line");
@@ -1205,7 +1425,7 @@ function drawEraFacets() {
     grid.after(omitNote);
   }
   omitNote.textContent = omitted.length
-    ? `No value fixed on ${eraAxis} (— in table): ${omitted.join(", ")}.`
+    ? `No value fixed on ${eraAxis}: ${omitted.join(", ")}.`
     : "";
 
   // table view twin: one row per era series (cells set via textContent — labels are
@@ -1255,6 +1475,619 @@ function drawEraFacets() {
   }
 }
 
+/* ---------- shared chart helpers ---------- */
+function rollMedian(arr, k) {
+  const half = Math.floor(k / 2), out = new Array(arr.length);
+  for (let i = 0; i < arr.length; i++) {
+    const win = arr.slice(Math.max(0, i - half), Math.min(arr.length, i + half + 1)).slice().sort((a, b) => a - b);
+    const m = win.length >> 1;
+    out[i] = win.length % 2 ? win[m] : (win[m - 1] + win[m]) / 2;
+  }
+  return out;
+}
+function niceStep(raw) {
+  const mag = Math.pow(10, Math.floor(Math.log10(raw)));
+  for (const m of [1, 2, 2.5, 5, 10]) if (raw <= m * mag) return m * mag;
+  return 10 * mag;
+}
+const SVGNS = "http://www.w3.org/2000/svg";
+function svgEl(tag, attrs) {
+  const el = document.createElementNS(SVGNS, tag);
+  for (const k in attrs) el.setAttribute(k, attrs[k]);
+  return el;
+}
+
+/* Trend chart: rolling-median main line per series, raw series ghosted, direct end
+   labels, hairline grid, crosshair + shared readout. One y-axis, zero-based. */
+function drawTrend(mount, readout, seriesList, opts = {}) {
+  mount.textContent = "";
+  if (!seriesList.length || !seriesList[0].pts.length) return;
+  const many = seriesList.length > 3; // many series: labels move to a right margin, ghosts drop
+  const W = opts.W || 920, H = opts.H || 280, ML = 46, MR = many ? 190 : 8, MT = 12, MB = 22;
+  const xs = seriesList[0].pts.map(p => p.h);
+  const x0 = xs[0], x1 = xs[xs.length - 1];
+  const yMax = opts.yMax || Math.max(...seriesList.flatMap(s => s.pts.map(p => p.share))) * 1.06;
+  const X = h => ML + (h - x0) / (x1 - x0 || 1) * (W - ML - MR);
+  const Y = s => MT + (1 - s / yMax) * (H - MT - MB);
+  const svg = svgEl("svg", { viewBox: `0 0 ${W} ${H}`, role: "img" });
+  if (opts.label) svg.setAttribute("aria-label", opts.label);
+
+  const step = niceStep(yMax / 4);
+  for (let v = 0; v <= yMax + 1e-12; v += step) {
+    svg.appendChild(svgEl("line", { x1: ML, x2: W - MR, y1: Y(v), y2: Y(v), class: "axis-line" }));
+    const t = svgEl("text", { x: ML - 5, y: Y(v), "text-anchor": "end", "dominant-baseline": "middle" });
+    t.textContent = fmtShare(v);
+    svg.appendChild(t);
+  }
+  for (const [h, anchor] of [[x0, "start"], [x1, "end"]]) {
+    const t = svgEl("text", { x: X(h), y: H - 5, "text-anchor": anchor });
+    t.textContent = "height " + fmtInt(h);
+    svg.appendChild(t);
+  }
+
+  // background (context) series first, highlighted on top
+  const drawOrder = [...seriesList].sort((a, b) => (a.bg ? 0 : 1) - (b.bg ? 0 : 1));
+  for (const s of drawOrder) {
+    const med = rollMedian(s.pts.map(p => p.share), 7);
+    const d = ys => s.pts.map((p, i) => (i ? "L" : "M") + X(p.h).toFixed(1) + " " + Y(ys[i]).toFixed(1)).join("");
+    if (!many) svg.appendChild(svgEl("path", { d: d(s.pts.map(p => p.share)), fill: "none", stroke: s.color, "stroke-width": 1.4, opacity: 0.2 }));
+    const main = svgEl("path", { d: d(med), fill: "none", stroke: s.color, "stroke-width": s.bg ? 1.4 : 2 });
+    if (s.dash) main.setAttribute("stroke-dasharray", "5 4");
+    if (s.bg) main.setAttribute("opacity", "0.75");
+    svg.appendChild(main);
+  }
+  // direct end labels, nudged apart both ways so they stay inside the plot
+  const ends = seriesList.map(s => ({ s, y: Y(s.pts[s.pts.length - 1].share) })).sort((a, b) => a.y - b.y);
+  for (let i = 1; i < ends.length; i++) if (ends[i].y - ends[i - 1].y < 13) ends[i].y = ends[i - 1].y + 13;
+  for (let i = ends.length - 1; i >= 0; i--) {
+    const maxY = i === ends.length - 1 ? H - MB + 4 : ends[i + 1].y - 13;
+    if (ends[i].y > maxY) ends[i].y = maxY;
+  }
+  for (const e of ends) {
+    const last = e.s.pts[e.s.pts.length - 1];
+    svg.appendChild(svgEl("circle", { cx: X(last.h), cy: Y(last.share), r: e.s.bg ? 2 : 3, fill: e.s.color }));
+    const t = many
+      ? svgEl("text", { x: W - MR + 10, y: Math.max(MT + 4, e.y), "dominant-baseline": "middle", class: e.s.bg ? "" : "pt-label" })
+      : svgEl("text", { x: X(last.h) - 6, y: Math.max(MT + 4, e.y), "text-anchor": "end", "dominant-baseline": "middle", class: "pt-label" });
+    t.textContent = (seriesList.length > 1 ? e.s.name + " " : "") + fmtShare(last.share);
+    svg.appendChild(t);
+  }
+  // start label for single-series charts: "start → " at the left edge
+  if (seriesList.length === 1) {
+    const first = seriesList[0].pts[0];
+    const t = svgEl("text", { x: ML + 4, y: Math.max(MT + 4, Y(first.share) - 8), class: "pt-label" });
+    t.textContent = fmtShare(first.share) + " →";
+    svg.appendChild(t);
+  }
+
+  const cursor = svgEl("line", { class: "cursor", y1: MT, y2: H - MB });
+  svg.appendChild(cursor);
+  const hit = svgEl("rect", { class: "hit", x: ML, y: MT, width: W - ML - MR, height: H - MT - MB, tabindex: 0 });
+  hit.addEventListener("mousemove", ev => {
+    const r = svg.getBoundingClientRect();
+    const fx = (ev.clientX - r.left) / r.width * W;
+    let i = Math.round((fx - ML) / (W - ML - MR) * (xs.length - 1));
+    i = Math.max(0, Math.min(xs.length - 1, i));
+    cursor.setAttribute("x1", X(xs[i])); cursor.setAttribute("x2", X(xs[i]));
+    cursor.style.opacity = 1;
+    if (readout) readout.textContent = `height ${fmtInt(xs[i])}: ` +
+      seriesList.map(s => `${s.name} ${fmtShare(s.pts[i].share)}`).join("  ·  ");
+  });
+  hit.addEventListener("mouseleave", () => { cursor.style.opacity = 0; if (readout) readout.innerHTML = "&nbsp;"; });
+  svg.appendChild(hit);
+  mount.appendChild(svg);
+}
+
+/* Identifiability scatter: one dot per CORE (axis, value). x = whole-scan chain share
+   (log), y = share of that value's tx landing in a CORE anonymity set < 100.
+   Dot area tracks log(n); values with n < 100 draw hollow. Labels only on the
+   hand-picked story points — everything else speaks through the hover readout. */
+const SCATTER_LABELS = {
+  "op_return|true": "carries OP_RETURN",
+  "output_types|[P2wpkh, OpReturn]": "the [P2WPKH + OP_RETURN] shape",
+  "uncompressed_pubkey|Yes": "uncompressed pubkey",
+  "nsequence|Lone0x01": "lone 0x01 nSequence",
+  "input_order|Bip69": "BIP-69 input order",
+  "nlocktime|Backdated": "backdated locktime",
+  "version|3": "nVersion 3 (TRUC)",
+  "sighash|AcpAll": "SIGHASH ALL|ACP",
+  "input_types|Uniform(P2tr)": "all-taproot inputs",
+  "input_types|Mixed": "mixed input script types",
+  "output_order|ValueAscending": "outputs sorted small → large",
+  "nlocktime|Zero": "locktime zero",
+};
+function collectCondPoints() {
+  const pts = [];
+  for (const axis in COND) {
+    for (const value in COND[axis]) {
+      const c = COND[axis][value];
+      const share = axisWholeShare(axis, value);
+      if (!(share > 0)) continue;
+      const n = Object.values(c.buckets || {}).reduce((a, b) => a + b, 0);
+      pts.push({ axis, value, x: share, y: c.share_lt100, lt10: c.share_lt10, n });
+    }
+  }
+  return pts;
+}
+
+/* Ranked lollipop: the most identifying high-volume habits on a shared axis.
+   Stem length = % in a set < 100; dot area = tx count; the biggest crowd is
+   appended in green as contrast. */
+function drawRanked(mount) {
+  mount.textContent = "";
+  const all = collectCondPoints();
+  if (!all.length) return;
+  // only named habits rank here — raw axis=value combos read as jargon; the full
+  // uncurated set lives on the axes page and in the map below
+  const rows = all.filter(p => SCATTER_LABELS[p.axis + "|" + p.value] && p.n >= 1000)
+    .sort((a, b) => b.y - a.y).slice(0, 8);
+  const crowd = all.slice().sort((a, b) => b.n - a.n)[0];
+  if (crowd && !rows.includes(crowd)) rows.push(crowd);
+  const W = 920, RH = 44, ML = 310, MR = 60, MT = 26, MB = 6, H = MT + rows.length * RH + MB;
+  const yTop = Math.max(...rows.map(p => p.y)) * 1.02;
+  const step = niceStep(yTop / 4);
+  const xMax = Math.ceil(yTop / step) * step;
+  const X = v => ML + v / xMax * (W - ML - MR);
+  const svg = svgEl("svg", { viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": "Most identifying fingerprint values" });
+  for (let v = 0; v <= xMax + 1e-12; v += step) {
+    svg.appendChild(svgEl("line", { x1: X(v), x2: X(v), y1: MT, y2: H - MB, class: "axis-line" }));
+    const t = svgEl("text", { x: X(v), y: 12, "text-anchor": "middle" });
+    t.textContent = fmtShare(v);
+    svg.appendChild(t);
+  }
+  rows.forEach((p, i) => {
+    const key = p.axis + "|" + p.value;
+    const isCrowd = p === crowd;
+    const color = isCrowd ? "var(--series-green)" : "var(--rare)";
+    const cy = MT + i * RH + RH / 2;
+    const name = svgEl("text", { x: 0, y: cy - 3, class: "pt-label" });
+    name.textContent = SCATTER_LABELS[key] || `${p.axis} = ${p.value}`;
+    svg.appendChild(name);
+    const sub = svgEl("text", { x: 0, y: cy + 11 });
+    sub.textContent = `${pct(p.x)} of chain · ${fmtInt(p.n)} tx`;
+    svg.appendChild(sub);
+    const r = Math.min(11, 2.5 + Math.max(0, Math.log10(Math.max(p.n, 1))));
+    svg.appendChild(svgEl("line", { x1: X(0), x2: Math.max(X(0), X(p.y) - r), y1: cy, y2: cy, stroke: color, "stroke-width": 2 }));
+    svg.appendChild(svgEl("circle", { cx: X(p.y), cy, r, fill: color, "fill-opacity": 0.9, stroke: "var(--panel)", "stroke-width": 1 }));
+    const val = svgEl("text", { x: X(p.y) + r + 6, y: cy, "dominant-baseline": "middle", class: "pt-label" });
+    val.textContent = pct(p.y) + (isCrowd ? " (the crowd: baseline, not a tell)" : "");
+    svg.appendChild(val);
+  });
+  mount.appendChild(svg);
+}
+
+/* Absolute-scale bar list: width IS the share of all tx (0–100%), so bars across
+   different charts compare truthfully. Zero share draws nothing. */
+function ovBarsAbs(items) {
+  return items.map(i => `<div class="pbar-row">
+    <span class="plab">${esc(i.label)}</span>
+    <span class="pbar-track"><span class="pbar-fill" style="width:${(i.share > 0 ? Math.max(0.6, i.share * 100) : 0).toFixed(2)}%;background:var(--series-green)"></span></span>
+    <span class="pbar-val">${pct(i.share)}</span>
+  </div>`).join("");
+}
+
+function drawShapes(mount) {
+  const vs = AX.output_types && AX.output_types.values;
+  if (!vs) return;
+  const sorted = [...vs].sort((a, b) => b.share - a.share);
+  const top = sorted.slice(0, 7).map(v => ({ label: v.value, share: v.share }));
+  const rest = sorted.slice(7);
+  if (rest.length) top.push({ label: `other (${rest.length} shapes)`, share: rest.reduce((a, v) => a + v.share, 0) });
+  mount.innerHTML = ovBarsAbs(top);
+}
+
+function drawAge(mount) {
+  const vs = AX.input_age && AX.input_age.values;
+  if (!vs) return;
+  const LAB = { SameBlock: "same block", Within6: "≤ 6 blocks (~1 h)", Within144: "≤ 144 blocks (~1 day)", Older: "older" };
+  const order = ["SameBlock", "Within6", "Within144", "Older"];
+  const items = order.map(k => {
+    const v = vs.find(x => x.value === k);
+    return v ? { label: LAB[k], share: v.share } : null;
+  }).filter(Boolean);
+  mount.innerHTML = ovBarsAbs(items);
+}
+
+function drawFeerate(mount) {
+  const f = FIELDS.feerate_sat_per_vb;
+  if (!f || !f.hist) return;
+  const items = f.hist.filter(b => b.share > 0).map(b => ({ label: bucketLabel(b.lo, b.hi) + " sat/vB", share: b.share }));
+  let html = ovBarsAbs(items);
+  if (f.stats) {
+    const s = f.stats;
+    html += `<div class="pstats">median ${(Math.round(s.median * 10) / 10).toLocaleString("en-US")} sat/vB · p90 ${(Math.round(s.p90 * 10) / 10).toLocaleString("en-US")} sat/vB</div>`;
+  }
+  mount.innerHTML = html;
+}
+
+/* Chain-wide anonymity-set size distribution: every tx has exactly one value on
+   any single CORE axis, so summing that axis's cond buckets counts each tx once
+   (verified: totals match). Sets under 100 draw in the reserved status color. */
+function drawSets(mount) {
+  const axis = COND.version ? "version" : Object.keys(COND)[0];
+  if (!axis) return;
+  const agg = {};
+  for (const v in COND[axis])
+    for (const [k, n] of Object.entries(COND[axis][v].buckets || {})) agg[k] = (agg[k] || 0) + n;
+  const total = Object.values(agg).reduce((a, b) => a + b, 0);
+  if (!total) return;
+  const ORDER = ["exactly 1", "2-9", "10-99", "100-999", "1,000-9,999", "10,000-99,999", ">=100,000"];
+  const LAB = { "exactly 1": "unique (set of 1)", "2-9": "2–9", "10-99": "10–99", "100-999": "100–999",
+    "1,000-9,999": "1,000–9,999", "10,000-99,999": "10,000–99,999", ">=100,000": "100,000 or more" };
+  const small = new Set(["exactly 1", "2-9", "10-99"]);
+  mount.innerHTML = ORDER.filter(k => agg[k]).map(k => {
+    const share = agg[k] / total;
+    const color = small.has(k) ? "var(--rare)" : "var(--series-green)";
+    return `<div class="pbar-row">
+      <span class="plab">${esc(LAB[k])}</span>
+      <span class="pbar-track"><span class="pbar-fill" style="width:${(share > 0 ? Math.max(0.6, share * 100) : 0).toFixed(2)}%;background:${color}"></span></span>
+      <span class="pbar-val">${pct(share)} · ${fmtInt(agg[k])} tx</span>
+    </div>`;
+  }).join("") + `<div class="pstats">a crowd under 100 (orange) is small enough to start pinning a wallet down</div>`;
+}
+
+/* Habit-drift small multiples from axis_value_series: fixed picks with a story,
+   each drawn with the shared trend component (median line, ghost, start/end labels). */
+function drawDrift(mount) {
+  const PICKS = [
+    ["output_order", "Bip69", "BIP-69 output order"],
+    ["low_r", "Yes", "low-R signature grinding"],
+    ["input_types", "Uniform(P2wpkh)", "all inputs P2WPKH"],
+    ["sighash", "All", "SIGHASH_ALL"],
+    ["uncompressed_pubkey", "No", "compressed pubkeys only"],
+    ["nsequence", "Rbf", "RBF nSequence"],
+  ];
+  mount.textContent = "";
+  for (const [axis, value, title] of PICKS) {
+    const pts = seriesFromAVS(axis, value);
+    if (!pts) continue;
+    const card = document.createElement("div");
+    card.className = "card chart-card";
+    const sub = document.createElement("div");
+    sub.className = "chart-sub";
+    sub.textContent = title;
+    card.appendChild(sub);
+    const holder = document.createElement("div");
+    card.appendChild(holder);
+    mount.appendChild(card);
+    drawTrend(holder, null, [{ name: title, color: "var(--series-green)", pts }], { W: 440, H: 170, label: title + " share per epoch" });
+  }
+}
+
+function drawScriptTech(mount) {
+  const vs = AX.input_subtype && AX.input_subtype.values;
+  if (!vs) return;
+  const LAB = { Bare: "bare (no wrapped script)", TaprootKeyPath: "taproot key-path", TaprootScriptPath: "taproot script-path",
+    P2shP2wpkh: "wrapped SegWit (P2SH-P2WPKH)", P2wshMultisig: "P2WSH multisig", P2wshOther: "P2WSH other",
+    Mixed: "mixed", P2shOther: "P2SH other", P2shMultisig: "P2SH multisig" };
+  const items = [...vs].sort((a, b) => b.share - a.share).map(v => ({ label: LAB[v.value] || v.value, share: v.share }));
+  mount.innerHTML = ovBarsAbs(items);
+}
+
+function drawVersion(mount) {
+  const vs = AX.version && AX.version.values;
+  if (!vs) return;
+  const items = [...vs].filter(v => v.share > 1e-6).sort((a, b) => b.share - a.share)
+    .map(v => ({ label: "version " + v.value, share: v.share }));
+  mount.innerHTML = ovBarsAbs(items);
+}
+
+/* Change detection, the Möser-style tells measured chain-wide: where the
+   script-type heuristic places the change (Indeterminate = it abstains), and
+   how often an output's script type matches the inputs' (the address-type tell). */
+function drawChangePos(mount) {
+  const vs = AX.change_position && AX.change_position.values;
+  if (!vs) return;
+  const LAB = { First: "first output", Last: "last output", Middle: "a middle output", Indeterminate: "indeterminate (heuristic abstains)" };
+  const items = [...vs].sort((a, b) => b.share - a.share).map(v => ({ label: LAB[v.value] || v.value, share: v.share }));
+  mount.innerHTML = ovBarsAbs(items);
+}
+
+function drawTypeMatch(mount) {
+  const a = boolShare("first_output_matches_input_type"), b = boolShare("last_output_matches_input_type");
+  if (!a && !b) return;
+  const items = [
+    a && { label: "first output matches the input type", share: a.yes },
+    b && { label: "last output matches the input type", share: b.yes },
+  ].filter(Boolean);
+  mount.innerHTML = ovBarsAbs(items) +
+    `<div class="pstats">an output matching the inputs' script type is the classic change candidate</div>`;
+}
+
+/* The clustering ladder from the literature, measured chain-wide: same-tx address
+   reuse (near-certain evidence), the common-input heuristic (needs 2+ inputs to
+   apply at all), and change identification (the script-type heuristic found a
+   candidate rather than abstaining). */
+function drawLadder(mount) {
+  const reuse = boolShare("address_reuse");
+  const change = boolShare("change_type_present");
+  const ic = FIELDS.input_count && FIELDS.input_count.hist;
+  const multiIn = ic ? ic.filter(b => (b.lo ?? 0) >= 2).reduce((a, b) => a + b.share, 0) : null;
+  const items = [
+    reuse && { label: "address reuse: an output pays back an input's address", share: reuse.yes },
+    change && { label: "change identification: the script-type heuristic finds a candidate", share: change.yes },
+    multiIn != null && { label: "common-input heuristic: 2 or more inputs to link", share: multiIn },
+  ].filter(Boolean);
+  if (items.length) mount.innerHTML = ovBarsAbs(items);
+}
+
+function countItems(col, unit) {
+  const f = FIELDS[col];
+  if (!f || !f.hist) return null;
+  const merged = [];
+  for (const b of f.hist) {
+    if (!(b.share > 0)) continue;
+    const lo = b.lo ?? 0, hi = b.hi;
+    if (lo >= 5) { // fold the tail
+      const last = merged[merged.length - 1];
+      if (last && last.tail) { last.share += b.share; continue; }
+      merged.push({ label: "5 or more", share: b.share, tail: true });
+    } else {
+      merged.push({ label: hi != null && hi - lo <= 1 ? String(Math.round(lo)) : `${Math.round(lo)}–${Math.round(hi - 1)}`, share: b.share });
+    }
+  }
+  return merged.map(({ label, share }) => ({ label: label + " " + unit + (label === "1" ? "" : "s"), share }));
+}
+
+function drawCounts(mount, col, unit) {
+  const items = countItems(col, unit);
+  if (items) mount.innerHTML = ovBarsAbs(items);
+}
+
+/* Output address-encoding families. Shares overlap (one tx can pay several
+   families), so this is "% of tx with at least one output of family X", not a
+   partition — labelled as such and left unsorted-to-100. */
+function drawEncoding(mount) {
+  const e = DATA.encoding_families;
+  if (!e || !e.families) return;
+  const items = [...e.families].sort((a, b) => b.share - a.share)
+    .map(f => ({ label: f.family, share: f.share }));
+  mount.innerHTML = ovBarsAbs(items) +
+    `<div class="pstats">% of tx with at least one output of each family — a tx can use several, so these do not sum to 100%</div>`;
+}
+
+function drawVsize(mount) {
+  const f = FIELDS.vsize;
+  if (!f || !f.hist) return;
+  const items = f.hist.filter(b => b.share > 0).map(b => ({ label: bucketLabel(b.lo, b.hi) + " vB", share: b.share }));
+  let html = ovBarsAbs(items);
+  if (f.stats) html += `<div class="pstats">median ${fmtInt(Math.round(f.stats.median))} vB · p90 ${fmtInt(Math.round(f.stats.p90))} vB</div>`;
+  mount.innerHTML = html;
+}
+
+/* Privacy-relevant boolean habits, absolute shares of all tx. Each is a direct
+   chain observation or a stated heuristic; labels say what is observed, only. */
+function drawHabits(mount) {
+  const HABITS = [
+    ["bip125_rbf", "signals RBF"],
+    ["address_reuse", "pays an output back to an input's address"],
+    ["round_feerate", "round feerate (whole sat/vB)"],
+    ["changeless", "changeless (fewer than 2 outputs)"],
+    ["uih2", "input smaller than smallest output (UIH2)"],
+    ["uih1", "more inputs than the largest output needs (UIH1)"],
+    ["round_payment", "round payment (multiple of 0.001 BTC)"],
+    ["round_fee", "round fee (multiple of 1,000 sat)"],
+  ];
+  const items = HABITS.map(([col, label]) => {
+    const s = boolShare(col);
+    return s ? { label, share: s.yes } : null;
+  }).filter(Boolean).sort((a, b) => b.share - a.share);
+  if (items.length) mount.innerHTML = ovBarsAbs(items);
+}
+
+/* What the OP_RETURN wave actually is: protocol envelopes vs the base signal. */
+/* Two distinct data-carrying surfaces, not one breakdown. A runestone IS an
+   OP_RETURN (subset), so OP_RETURN splits into runes + everything else. An
+   inscription lives in the taproot witness, not an OP_RETURN output at all —
+   shown separately so the two are never conflated. */
+function drawProtocols(mount) {
+  const op = boolShare("op_return"), rune = boolShare("has_runestone"), insc = boolShare("has_inscription_envelope");
+  if (!op) return;
+  const other = Math.max(0, op.yes - (rune ? rune.yes : 0));
+  const items = [
+    { label: "OP_RETURN: runestone (Runes)", share: rune ? rune.yes : 0 },
+    { label: "OP_RETURN: other data", share: other },
+    insc && { label: "inscription in taproot witness (Ordinals)", share: insc.yes },
+  ].filter(Boolean);
+  mount.innerHTML = ovBarsAbs(items) +
+    `<div class="pstats">whole-window average. OP_RETURN outputs (runes + other, ${pct(op.yes)} of tx) are almost entirely runes; inscriptions ride the taproot witness, a separate surface</div>`;
+}
+
+function drawScatter(mount, readout) {
+  mount.textContent = "";
+  // values with under 100 tx are 100%-identifying by definition — noise, not signal
+  const pts = collectCondPoints().filter(p => p.n >= 100);
+  if (!pts.length) return;
+  const W = 920, H = 500, ML = 52, MR = 16, MT = 34, MB = 34;
+  // log10 domain fitted to the data, rounded down to an even decade for clean ticks
+  const LX0 = Math.min(-2, 2 * Math.floor(Math.floor(Math.log10(Math.min(...pts.map(p => p.x)))) / 2)), LX1 = 0;
+  const X = s => ML + (Math.max(LX0, Math.log10(s)) - LX0) / (LX1 - LX0) * (W - ML - MR);
+  const Y = s => MT + (1 - s) * (H - MT - MB);
+  const svg = svgEl("svg", { viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": "Chain share vs identifiability, one dot per fingerprint value" });
+
+  for (let e = LX0; e <= LX1; e += 2) {
+    const x = X(Math.pow(10, e));
+    svg.appendChild(svgEl("line", { x1: x, x2: x, y1: MT, y2: H - MB, class: "axis-line" }));
+    const t = svgEl("text", { x, y: H - 18, "text-anchor": "middle" });
+    const sharePct = Math.pow(10, e) * 100;
+    t.textContent = sharePct >= 1 ? sharePct + "%" : sharePct.toFixed(-Math.log10(sharePct)) + "%";
+    svg.appendChild(t);
+  }
+  for (const v of [0, 0.25, 0.5, 0.75, 1]) {
+    svg.appendChild(svgEl("line", { x1: ML, x2: W - MR, y1: Y(v), y2: Y(v), class: "axis-line" }));
+    const t = svgEl("text", { x: ML - 6, y: Y(v), "text-anchor": "end", "dominant-baseline": "middle" });
+    t.textContent = (v * 100) + "%";
+    svg.appendChild(t);
+  }
+  const xcap = svgEl("text", { x: W - MR, y: H - 4, "text-anchor": "end", class: "pt-label" });
+  xcap.textContent = "how common: % of all transactions (log scale) →";
+  svg.appendChild(xcap);
+  const ycap = svgEl("text", { x: ML - 6, y: 12, class: "pt-label" });
+  ycap.textContent = "↑ how identifying: % of its transactions in an anonymity set under 100";
+  svg.appendChild(ycap);
+
+  // in-plot zone captions carry the reading, so the lede can stay short
+  const zoneA = svgEl("text", { x: W - MR - 6, y: H - MB - 46, "text-anchor": "end" });
+  zoneA.textContent = "the crowd hides here ↘";
+  svg.appendChild(zoneA);
+  const zoneB = svgEl("text", { x: ML + 8, y: MT + 16 });
+  zoneB.textContent = "rare habits sit exposed here";
+  svg.appendChild(zoneB);
+
+  pts.sort((a, b) => b.n - a.n); // draw big crowds first so small dots stay on top
+  for (const p of pts) {
+    const r = 2.2 + 1.05 * Math.max(0, Math.log10(Math.max(p.n, 1)));
+    const named = !!SCATTER_LABELS[p.axis + "|" + p.value];
+    p.el = svgEl("circle", {
+      cx: X(p.x).toFixed(1), cy: Y(p.y).toFixed(1), r: r.toFixed(1),
+      fill: "var(--series-green)",
+      "fill-opacity": named ? "0.95" : "0.3",
+    });
+    svg.appendChild(p.el);
+  }
+  // labels: greedy vertical collision pass stacking UPWARD from the lowest dot
+  // (most labeled points crowd the bottom band, and the space above them is empty);
+  // a leader line ties any label that had to move away from its dot
+  const labeled = pts
+    .filter(p => SCATTER_LABELS[p.axis + "|" + p.value])
+    .map(p => ({ p, lab: SCATTER_LABELS[p.axis + "|" + p.value], px: X(p.x), py: Y(p.y) }))
+    .sort((a, b) => b.py - a.py);
+  let prevY = 1e9;
+  for (const L of labeled) {
+    const left = L.px > W * 0.68;
+    const ly = Math.max(MT + 10, Math.min(L.py - 8, prevY - 13));
+    prevY = ly;
+    if (Math.abs(ly - L.py) > 10) {
+      svg.appendChild(svgEl("line", {
+        x1: L.px + (left ? -4 : 4), y1: L.py, x2: L.px + (left ? -26 : 26), y2: ly - 3,
+        stroke: "var(--faint)", "stroke-width": 1,
+      }));
+    }
+    const t = svgEl("text", {
+      x: L.px + (left ? -30 : 30), y: ly,
+      "text-anchor": left ? "end" : "start", class: "pt-label",
+    });
+    t.textContent = L.lab;
+    svg.appendChild(t);
+  }
+
+  // hover: floating tooltip at the cursor + the hovered dot lights up
+  const tip = document.getElementById("ov-scatter-tip");
+  let hot = null;
+  const cool = () => { if (hot) { hot.el.setAttribute("fill-opacity", hot.named ? "0.95" : "0.3"); hot = null; } };
+  const hit = svgEl("rect", { class: "hit", x: 0, y: 0, width: W, height: H, tabindex: 0 });
+  hit.addEventListener("mousemove", ev => {
+    const rct = svg.getBoundingClientRect();
+    const mx = (ev.clientX - rct.left) / rct.width * W, my = (ev.clientY - rct.top) / rct.height * H;
+    let best = null, bd = 22 * 22;
+    for (const p of pts) {
+      const dx = X(p.x) - mx, dy = Y(p.y) - my, d = dx * dx + dy * dy;
+      if (d < bd) { bd = d; best = p; }
+    }
+    if (!tip) return;
+    if (!best) { tip.hidden = true; cool(); return; }
+    if (hot !== best) {
+      cool();
+      best.named = !!SCATTER_LABELS[best.axis + "|" + best.value];
+      best.el.setAttribute("fill-opacity", "1");
+      hot = best;
+    }
+    const name = SCATTER_LABELS[best.axis + "|" + best.value];
+    tip.innerHTML = `<div>${esc(name || best.axis + " = " + best.value)}</div>` +
+      (name ? `<div class="t-sub">${esc(best.axis + " = " + best.value)}</div>` : "") +
+      `<div class="t-sub">${pct(best.x)} of all tx \u00b7 ${fmtInt(best.n)} tx</div>` +
+      `<div class="t-sub">identifying: ${pct(best.y)} in a set &lt; 100</div>`;
+    const card = mount.closest(".chart-card") || mount.parentElement;
+    const crd = card.getBoundingClientRect();
+    tip.hidden = false;
+    const px = ev.clientX - crd.left + 14, py = ev.clientY - crd.top + 14;
+    tip.style.left = Math.min(px, crd.width - tip.offsetWidth - 8) + "px";
+    tip.style.top = py + "px";
+  });
+  hit.addEventListener("mouseleave", () => { if (tip) tip.hidden = true; cool(); });
+  svg.appendChild(hit);
+  mount.appendChild(svg);
+}
+
+/* ---------- overview ---------- */
+function axisTopValue(axis) {
+  const vs = AX[axis] && AX[axis].values;
+  if (!vs || !vs.length) return null;
+  return [...vs].sort((a, b) => b.share - a.share)[0];
+}
+let DATA = {};
+function seriesFromAVS(axis, value, invert) {
+  const s = (DATA.axis_value_series || {})[axis];
+  const pts = s && s[value];
+  if (!pts) return null;
+  return pts.map(p => ({ h: p.start_height, share: invert ? 1 - p.share : p.share }));
+}
+function renderOverview(D) {
+  const w = D.window || {}, totals = D.totals || {};
+  if (w.epochs) {
+    document.getElementById("ov-title").textContent = `~${fmtInt(w.epochs)} days of Bitcoin, fingerprinted`;
+    const blocks = (w.end_height != null && w.start_height != null) ? w.end_height - w.start_height : null;
+    document.getElementById("ov-lede").textContent =
+      `Every transaction across ` +
+      (blocks ? `${fmtInt(blocks)} blocks (heights ${fmtInt(w.start_height)}–${fmtInt(w.end_height)}, about ${fmtInt(w.epochs)} days)` : `heights ${fmtInt(w.start_height)}–${fmtInt(w.end_height)}`) +
+      (totals.txs ? `, ${fmtInt(totals.txs)} transactions in all` : "") +
+      `: the habits of the wallet software, read from the chain.`;
+  }
+  drawRanked(document.getElementById("ov-ranked"));
+  drawSets(document.getElementById("ov-sets"));
+  drawScatter(document.getElementById("ov-scatter"));
+  drawDrift(document.getElementById("ov-drift"));
+  drawShapes(document.getElementById("ov-shapes"));
+  drawAge(document.getElementById("ov-age"));
+  drawVsize(document.getElementById("ov-vsize"));
+  drawHabits(document.getElementById("ov-habits"));
+  drawScriptTech(document.getElementById("ov-scripttech"));
+  drawVersion(document.getElementById("ov-version"));
+  drawEncoding(document.getElementById("ov-encoding"));
+  drawChangePos(document.getElementById("ov-changepos"));
+  drawTypeMatch(document.getElementById("ov-typematch"));
+  drawLadder(document.getElementById("ov-ladder"));
+  drawCounts(document.getElementById("ov-incount"), "input_count", "input");
+  drawCounts(document.getElementById("ov-outcount"), "output_count", "output");
+  drawProtocols(document.getElementById("ov-protocols"));
+  drawFeerate(document.getElementById("ov-feerate"));
+
+  const opSeries = seriesFromAVS("op_return", "false", true);
+  if (opSeries) {
+    drawTrend(document.getElementById("ov-opreturn"), document.getElementById("ov-opreturn-readout"),
+      [{ name: "OP_RETURN share", color: "var(--series-green)", pts: opSeries }],
+      { label: "Share of transactions carrying an OP_RETURN, per epoch", H: 260 });
+  }
+
+  // all catalogued templates: the two largest current-version series carry color,
+  // the rest are context lines in gray; earlier versions dash. Every series is
+  // end-labeled, so nothing is silently dropped.
+  const TS = D.template_series || {};
+  const eras = Object.keys(TS).map(k => {
+    const p = parseEraLabel(k);
+    return { key: k, wallet: p.wallet, old: p.old, pts: TS[k].map(pt => ({ h: pt.start_height, share: pt.share })) };
+  });
+  if (eras.length) {
+    // one color per wallet (validated 9-hue palette; direct end labels carry
+    // identity as the secondary encoding), assigned by final share so the order
+    // is deterministic across rescans. Earlier versions dash in the same hue.
+    const PAL = ["#3987e5", "#bf8700", "#1fa8b5", "#2ea043", "#a371f7", "#cf6a2a", "#db61a2", "#8c9c34", "#b13a44"];
+    const byWallet = new Map();
+    for (const s of eras) byWallet.set(s.wallet, Math.max(byWallet.get(s.wallet) ?? 0, s.pts[s.pts.length - 1].share));
+    const wallets = [...byWallet.keys()].sort((a, b) => byWallet.get(b) - byWallet.get(a));
+    const colorOf = new Map(wallets.map((w, i) => [w, PAL[i % PAL.length]]));
+    const race = eras.map(s => ({
+      name: s.wallet + (s.old ? " (earlier)" : ""),
+      color: colorOf.get(s.wallet), dash: s.old, pts: s.pts,
+    }));
+    document.getElementById("ov-race-legend").innerHTML =
+      wallets.map(w => `<span class="k"><span class="dot" style="background:${colorOf.get(w)}"></span>${esc(w)}</span>`).join("")
+      + `<span class="k"><svg width="26" height="10"><line x1="1" y1="5" x2="25" y2="5" stroke="var(--muted)" stroke-width="2" stroke-dasharray="5 4"/></svg>earlier version</span>`;
+    drawTrend(document.getElementById("ov-race"), document.getElementById("ov-race-readout"), race,
+      { label: "Template-consistent share over time, all catalogued wallets", H: 340 });
+  }
+}
+
 /* ---------- boot ---------- */
 async function boot() {
   let D;
@@ -1266,6 +2099,7 @@ async function boot() {
     document.getElementById("livewin").textContent = "No explorer-data.json found — showing the static catalog only.";
     return;
   }
+  DATA = D;
   FIELDS = D.fields || {};
   COND = D.cond || {};
   AX = D.axis_summaries || {};
@@ -1273,7 +2107,7 @@ async function boot() {
   const totals = D.totals || {};
   TOTALS = totals;
   if (w.start_height != null) {
-    document.getElementById("win").textContent = `height ${fmtInt(w.start_height)}–${fmtInt(w.end_height)} · ${fmtInt(w.epochs)} days`;
+    document.getElementById("win").textContent = `height ${fmtInt(w.start_height)}–${fmtInt(w.end_height)} · ~${fmtInt(w.epochs)} days`;
   }
   document.getElementById("livewin").textContent =
     `Live window: ${fmtInt(totals.txs || 0)} transactions, height ${fmtInt(w.start_height || 0)}–${fmtInt(w.end_height || 0)}, ${fmtInt(w.epochs || 0)} days.`;
@@ -1281,32 +2115,57 @@ async function boot() {
   wireAllRows();
   bootAxes();
   renderWalletEras(D);
+  renderOverview(D);
+  route(); // re-run: a #/axis/<name> deep link needs AX loaded to select its chip
 }
 
 boot();
 
-/* ---------- tabs ---------- */
-(function () {
-  const tabs = [
-    { btn: document.getElementById("tabbtn-catalog"), panel: document.getElementById("tab-catalog") },
-    { btn: document.getElementById("tabbtn-explorer"), panel: document.getElementById("tab-explorer") },
-  ];
-  function activate(target) {
-    tabs.forEach(({ btn, panel }) => {
-      const on = btn === target;
-      btn.setAttribute("aria-selected", String(on));
-      panel.hidden = !on;
-    });
+/* ---------- views: hash-routed (#/ overview · #/axes · #/axis/<name> · #/wallets ·
+   #/catalog; a bare #section-id anchor means a catalog section) ---------- */
+const VIEWS = ["overview", "axes", "wallets", "catalog"];
+function activateView(name) {
+  for (const n of VIEWS) {
+    document.getElementById("tabbtn-" + n).setAttribute("aria-selected", String(n === name));
+    document.getElementById("tab-" + n).hidden = n !== name;
   }
-  tabs.forEach(({ btn }, i) => {
-    btn.addEventListener("click", () => activate(btn));
+}
+function route() {
+  const h = location.hash;
+  if (h.startsWith("#/")) {
+    let name = (h.slice(2).split("/")[0]) || "overview";
+    if (h.startsWith("#/axis/")) {
+      name = "axes";
+      const ax = decodeURIComponent(h.slice("#/axis/".length));
+      if (AX[ax] && ax !== current) {
+        current = ax;
+        const picker = document.getElementById("picker");
+        [...picker.querySelectorAll(".chip")].forEach(c => c.setAttribute("aria-pressed", String(c.dataset.a === current)));
+        renderAxis();
+      }
+    }
+    activateView(VIEWS.includes(name) ? name : "overview");
+  } else if (h.length > 1) {
+    activateView("catalog");
+    const el = document.getElementById(h.slice(1));
+    if (el) el.scrollIntoView();
+  } else {
+    activateView("overview");
+  }
+}
+(function () {
+  VIEWS.forEach((n, i) => {
+    const btn = document.getElementById("tabbtn-" + n);
+    btn.addEventListener("click", () => { location.hash = n === "overview" ? "#/" : "#/" + n; });
     btn.addEventListener("keydown", e => {
       if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
       e.preventDefault();
-      const next = tabs[(i + (e.key === "ArrowRight" ? 1 : tabs.length - 1)) % tabs.length].btn;
-      next.focus();
-      activate(next);
+      const next = VIEWS[(i + (e.key === "ArrowRight" ? 1 : VIEWS.length - 1)) % VIEWS.length];
+      document.getElementById("tabbtn-" + next).focus();
+      location.hash = next === "overview" ? "#/" : "#/" + next;
     });
   });
+  window.addEventListener("hashchange", route);
+  route();
 })();
 </script>
