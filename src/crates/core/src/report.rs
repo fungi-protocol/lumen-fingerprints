@@ -131,7 +131,7 @@ pub struct Report {
     /// axis, which eras have a claim to plot (and look up which of `axis_value_series`'s
     /// value trajectories is theirs) without re-parsing `wallets.toml` in the browser. An
     /// era with no current-axis constraints maps to an empty inner map.
-    pub template_axes: BTreeMap<String, BTreeMap<String, String>>,
+    pub template_axes: BTreeMap<String, BTreeMap<String, Vec<String>>>,
     /// Per-transaction boolean signals (`EpochRow::aux_counts`), aggregated the same
     /// way as `axis_marginals` — flag name -> share of all classified transactions
     /// where it holds. These are NOT axes: a transaction carries all, some, or none of
@@ -548,7 +548,7 @@ struct Aggregates {
     axis_value_series: BTreeMap<String, BTreeMap<String, Vec<AxisSharePoint>>>,
     /// Built once in `new` from the templates (no per-row folding); moved verbatim into
     /// `Report::template_axes`.
-    template_axes: BTreeMap<String, BTreeMap<String, String>>,
+    template_axes: BTreeMap<String, BTreeMap<String, Vec<String>>>,
     /// Column name -> its `FieldAgg` merged (via `merge_field`) across every epoch seen
     /// so far. Stays empty if no epoch's `field_aggs` has ever been non-empty, which is
     /// exactly what makes `Report::fields` come out `[]` for a legacy scan — see
@@ -572,22 +572,27 @@ impl Aggregates {
         );
         let mut axis_value_series: BTreeMap<String, BTreeMap<String, Vec<AxisSharePoint>>> =
             BTreeMap::new();
-        let mut template_axes: BTreeMap<String, BTreeMap<String, String>> = BTreeMap::new();
+        let mut template_axes: BTreeMap<String, BTreeMap<String, Vec<String>>> = BTreeMap::new();
         for t in templates {
             let mut constrained = BTreeMap::new();
-            for (axis, value) in &t.axes {
+            for (axis, values) in &t.axes {
                 // Mirror `fold_row`/`assemble_report`'s current-axis filter: a template
                 // may name a since-retired axis, and pre-seeding it here would create an
                 // `axis_value_series` entry the marginals never fill.
                 if !is_current_axis(axis) {
                     continue;
                 }
-                axis_value_series
-                    .entry(axis.clone())
-                    .or_default()
-                    .entry(value.clone())
-                    .or_default();
-                constrained.insert(axis.clone(), value.clone());
+                // An axis may pin a SET of accepted values (see `WalletTemplate::axes`);
+                // seed each so every value gets its own share series, and carry the whole
+                // set through to `template_axes` for the explorer + the cross CSV.
+                for v in values {
+                    axis_value_series
+                        .entry(axis.clone())
+                        .or_default()
+                        .entry(v.clone())
+                        .or_default();
+                }
+                constrained.insert(axis.clone(), values.clone());
             }
             template_axes.insert(t.era_label(), constrained);
         }
@@ -1438,7 +1443,12 @@ fn write_cross_csv(report: &Report, out: &Path) -> Result<(), ReportError> {
     )
     .map_err(ReportError::Io)?;
     for (era, axes) in &report.template_axes {
-        for (axis, value) in axes {
+        // An axis may pin a set of accepted values; emit one row per value, so each keeps
+        // its own share and identifiability (a single-valued axis is just one row).
+        for (axis, value) in axes
+            .iter()
+            .flat_map(|(axis, vs)| vs.iter().map(move |v| (axis, v)))
+        {
             let Some(series) = report
                 .axis_value_series
                 .get(axis)
@@ -1544,7 +1554,7 @@ mod tests {
             software: None,
             from_version: None,
             until_version: None,
-            axes: [("nsequence".to_string(), expected.to_string())]
+            axes: [("nsequence".to_string(), vec![expected.to_string()])]
                 .into_iter()
                 .collect(),
         }
@@ -1653,10 +1663,10 @@ mod tests {
         let report = build_report(&rows, &[cake, ghost]);
 
         // template_axes records exactly which axis each era pins, and to what.
-        assert_eq!(report.template_axes["cake"]["nsequence"], "CakeGroupC");
+        assert_eq!(report.template_axes["cake"]["nsequence"], ["CakeGroupC"]);
         assert_eq!(
             report.template_axes["ghost"]["nsequence"],
-            "NeverObservedOnChain"
+            ["NeverObservedOnChain"]
         );
 
         // A constrained value that DOES occur carries its per-epoch marginal trajectory —
@@ -1801,7 +1811,7 @@ mod tests {
             software: None,
             from_version: None,
             until_version: None,
-            axes: [("nsequence".to_string(), expected.to_string())]
+            axes: [("nsequence".to_string(), vec![expected.to_string()])]
                 .into_iter()
                 .collect(),
         };
@@ -2631,7 +2641,7 @@ mod tests {
             software: Some("cake_wallet".to_string()),
             from_version: None,
             until_version: Some("4.28.0".to_string()),
-            axes: [("nsequence".to_string(), "CakeGroupC".to_string())]
+            axes: [("nsequence".to_string(), vec!["CakeGroupC".to_string()])]
                 .into_iter()
                 .collect(),
         };
@@ -2641,7 +2651,7 @@ mod tests {
             software: Some("cake_wallet".to_string()),
             from_version: Some("4.28.0".to_string()),
             until_version: None,
-            axes: [("nsequence".to_string(), "Rbf".to_string())]
+            axes: [("nsequence".to_string(), vec!["Rbf".to_string()])]
                 .into_iter()
                 .collect(),
         };

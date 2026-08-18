@@ -404,7 +404,14 @@ input_order = "Other"            # GetShuffledInputVector; shuffle-before-signin
 sighash = "All"                  # holds for the default addresstype (bech32/P2WPKH); Core
                                   # can also sign taproot or mix input types under non-default
                                   # config (fingerprints.json hedges single_type as "prefers
-                                  # single, mixes"), so input_types is intentionally left unset
+                                  # single, mixes")
+input_types = ["Uniform(P2wpkh)", "Uniform(P2tr)", "Uniform(P2pkh)", "Uniform(P2sh)", "Uniform(P2wsh)", "Mixed"]
+                                  # Core spends whatever type the wallet holds, so this is a
+                                  # SET of accepted values, not a single one: it can NOT be
+                                  # pinned to one type without false-negating Core's own txs.
+                                  # But Core never spends bare P2PK or NonStandard inputs, so
+                                  # excluding those two removes txs that provably aren't Core
+                                  # from its anonymity set. No-signal (Unknown) still matches.
 low_r = "Yes"                    # PR #13666 ("Always create signatures with Low R values"),
                                   # merged 2018-08-13, first shipped v0.17.0 (commit
                                   # 18dfea0dd0) — confirms the brief's hypothesis

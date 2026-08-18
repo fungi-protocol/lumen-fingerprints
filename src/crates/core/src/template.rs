@@ -61,12 +61,40 @@ pub struct WalletTemplate {
     pub from_version: Option<String>,
     /// First version (exclusive) that no longer produces it.
     pub until_version: Option<String>,
-    pub axes: BTreeMap<String, String>,
+    /// Each axis maps to the SET of values consistent with it. A single-valued TOML entry
+    /// (`nsequence = "Rbf"`) is a one-element set; a list (`input_types = ["A", "B"]`) pins
+    /// the axis to any of several values, for wallets that vary within a bounded range on
+    /// that axis (e.g. Core spends any common input type but never NonStandard/P2pk).
+    pub axes: BTreeMap<String, Vec<String>>,
+}
+
+/// A TOML axis value is either a single string or a list of strings; both collapse to the
+/// `Vec<String>` set `axes` stores. Metadata fields (name, confidence, …) are always
+/// single strings and reject a list.
+#[derive(Deserialize)]
+#[serde(untagged)]
+enum RawValue {
+    One(String),
+    Many(Vec<String>),
 }
 
 #[derive(Deserialize)]
 struct RawFile {
-    wallet: Vec<BTreeMap<String, String>>,
+    wallet: Vec<BTreeMap<String, RawValue>>,
+}
+
+/// Remove a metadata field that must be a single string, erroring if it was given as a list.
+fn take_single(
+    entry: &mut BTreeMap<String, RawValue>,
+    key: &str,
+) -> Result<Option<String>, TemplateError> {
+    match entry.remove(key) {
+        None => Ok(None),
+        Some(RawValue::One(s)) => Ok(Some(s)),
+        Some(RawValue::Many(_)) => Err(TemplateError::Parse(format!(
+            "{key} must be a single value, not a list"
+        ))),
+    }
 }
 
 pub fn load_templates(path: &Path) -> Result<Vec<WalletTemplate>, TemplateError> {
@@ -81,28 +109,38 @@ pub fn parse_templates(text: &str) -> Result<Vec<WalletTemplate>, TemplateError>
         .wallet
         .into_iter()
         .map(|mut entry| {
-            let name = entry
-                .remove("name")
+            let name = take_single(&mut entry, "name")?
                 .ok_or_else(|| TemplateError::Parse("wallet entry without a name".into()))?;
-            let confidence = match entry.remove("confidence").as_deref() {
+            let confidence = match take_single(&mut entry, "confidence")?.as_deref() {
                 Some("chain-proven") => Confidence::ChainProven,
                 Some("code-predicted") | None => Confidence::CodePredicted,
                 Some(other) => {
                     return Err(TemplateError::Parse(format!("unknown confidence: {other}")));
                 }
             };
-            let software = entry.remove("software");
-            let from_version = entry.remove("from_version");
-            let until_version = entry.remove("until_version");
+            let software = take_single(&mut entry, "software")?;
+            let from_version = take_single(&mut entry, "from_version")?;
+            let until_version = take_single(&mut entry, "until_version")?;
             if software.is_none() && (from_version.is_some() || until_version.is_some()) {
                 return Err(TemplateError::Parse(format!(
                     "wallet {name}: from_version/until_version require software"
                 )));
             }
-            for axis in entry.keys() {
-                if !is_known_axis(axis) {
-                    return Err(TemplateError::UnknownAxis(axis.clone()));
+            let mut axes = BTreeMap::new();
+            for (axis, value) in entry {
+                if !is_known_axis(&axis) {
+                    return Err(TemplateError::UnknownAxis(axis));
                 }
+                let values = match value {
+                    RawValue::One(s) => vec![s],
+                    RawValue::Many(v) => v,
+                };
+                if values.is_empty() {
+                    return Err(TemplateError::Parse(format!(
+                        "wallet {name}: axis {axis} has an empty value set"
+                    )));
+                }
+                axes.insert(axis, values);
             }
             Ok(WalletTemplate {
                 name,
@@ -110,7 +148,7 @@ pub fn parse_templates(text: &str) -> Result<Vec<WalletTemplate>, TemplateError>
                 software,
                 from_version,
                 until_version,
-                axes: entry,
+                axes,
             })
         })
         .collect::<Result<_, _>>()?;
@@ -171,7 +209,9 @@ impl WalletTemplate {
             {
                 return true;
             }
-            actual.as_ref() == expected.as_str()
+            // An axis pins a SET of accepted values (a one-element set in the common case);
+            // the observed value is consistent-with the template if it is any of them.
+            expected.iter().any(|allowed| allowed == actual.as_ref())
         })
     }
 
@@ -224,13 +264,13 @@ mod tests {
             .expect("one Cake era must be current");
         assert_eq!(old_era.confidence, Confidence::ChainProven);
         assert_eq!(
-            old_era.axes.get("input_order").map(String::as_str),
-            Some("Bip69"),
+            old_era.axes.get("input_order").map(Vec::as_slice),
+            Some(["Bip69".to_string()].as_slice()),
             "the pre-shuffle era regains the input_order signal the CONFLICT block dropped"
         );
         assert_eq!(
-            new_era.axes.get("input_order").map(String::as_str),
-            Some("Other"),
+            new_era.axes.get("input_order").map(Vec::as_slice),
+            Some(["Other".to_string()].as_slice()),
             "the current era records the post-#3379 shuffle"
         );
     }
@@ -275,7 +315,7 @@ mod tests {
         let mut axes = BTreeMap::new();
         // The Cake fixture is pure-ECDSA, so uncompressed_pubkey resolves to No, not
         // Indeterminate. input_order on a 1-input tx is what we want to exercise here.
-        axes.insert("input_order".to_string(), "Other".to_string());
+        axes.insert("input_order".to_string(), vec!["Other".to_string()]);
         let template = WalletTemplate {
             name: "t".into(),
             confidence: Confidence::CodePredicted,
@@ -294,6 +334,58 @@ mod tests {
         assert!(
             template.matches(&v),
             "an indeterminate axis carries no signal, so it cannot contradict a template"
+        );
+    }
+
+    #[test]
+    fn core_input_types_allow_set_excludes_nonstandard_and_p2pk() {
+        // Core leaves no single value on input_types (it spends whatever the wallet
+        // holds), but it never spends bare P2PK or NonStandard scripts. The template
+        // pins input_types to the SET of types Core can produce. A tx is consistent-with
+        // Core only if its input_types is one of those, or carries no signal. This is what
+        // stops NonStandard/P2pk txs (which contradict Core) from inflating its set.
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("templates/wallets.toml");
+        let templates = load_templates(&path).unwrap();
+        let core = templates.iter().find(|t| t.name == "Bitcoin Core").unwrap();
+
+        // The six axes Core pins besides input_types, set to values Core produces so the
+        // only axis under test is input_types.
+        let base = || {
+            let mut m = BTreeMap::new();
+            m.insert("version".to_string(), "2".to_string());
+            m.insert("nsequence".to_string(), "Rbf".to_string());
+            m.insert("input_order".to_string(), "Other".to_string());
+            m.insert("sighash".to_string(), "All".to_string());
+            m.insert("low_r".to_string(), "Yes".to_string());
+            m.insert("uncompressed_pubkey".to_string(), "No".to_string());
+            m
+        };
+        let with = |it: &str| {
+            let mut m = base();
+            m.insert("input_types".to_string(), it.to_string());
+            m
+        };
+
+        assert!(
+            core.matches_axes(&with("Uniform(P2wpkh)")),
+            "Core spends P2WPKH"
+        );
+        assert!(
+            core.matches_axes(&with("Mixed")),
+            "Core can mix input types"
+        );
+        assert!(
+            !core.matches_axes(&with("Uniform(NonStandard)")),
+            "Core never spends NonStandard inputs"
+        );
+        assert!(
+            !core.matches_axes(&with("Uniform(P2pk)")),
+            "Core never spends bare P2PK inputs"
+        );
+        // A no-signal input_types still cannot contradict.
+        assert!(
+            core.matches_axes(&with("Unknown")),
+            "no-signal input_types matches"
         );
     }
 
@@ -318,7 +410,7 @@ mod tests {
         // A transaction with no-signal feerate (cannot compute the value) should
         // still match, because no-signal axes cannot contradict templates.
         let mut axes = BTreeMap::new();
-        axes.insert("feerate_bucket".to_string(), "5".to_string());
+        axes.insert("feerate_bucket".to_string(), vec!["5".to_string()]);
         let template = WalletTemplate {
             name: "test-feerate".into(),
             confidence: Confidence::CodePredicted,
@@ -391,7 +483,7 @@ mod tests {
     #[test]
     fn matches_axes_treats_indeterminate_as_no_signal() {
         let mut axes = BTreeMap::new();
-        axes.insert("feerate_bucket".to_string(), "5".to_string());
+        axes.insert("feerate_bucket".to_string(), vec!["5".to_string()]);
         let template = WalletTemplate {
             name: "t".into(),
             confidence: Confidence::CodePredicted,
@@ -412,7 +504,7 @@ mod tests {
     #[test]
     fn matches_axes_treats_a_missing_axis_as_a_wildcard() {
         let mut axes = BTreeMap::new();
-        axes.insert("feerate_bucket".to_string(), "5".to_string());
+        axes.insert("feerate_bucket".to_string(), vec!["5".to_string()]);
         let template = WalletTemplate {
             name: "t".into(),
             confidence: Confidence::CodePredicted,
@@ -429,7 +521,7 @@ mod tests {
     #[test]
     fn matches_axes_rejects_a_genuine_contradiction() {
         let mut axes = BTreeMap::new();
-        axes.insert("nsequence".to_string(), "CakeGroupC".to_string());
+        axes.insert("nsequence".to_string(), vec!["CakeGroupC".to_string()]);
         let template = WalletTemplate {
             name: "t".into(),
             confidence: Confidence::CodePredicted,
@@ -461,8 +553,8 @@ mod tests {
         assert_eq!(t.from_version.as_deref(), Some("4.28.0"));
         assert_eq!(t.until_version, None);
         assert_eq!(
-            t.axes.get("nsequence").map(String::as_str),
-            Some("CakeGroupC")
+            t.axes.get("nsequence").map(Vec::as_slice),
+            Some(["CakeGroupC".to_string()].as_slice())
         );
     }
 
