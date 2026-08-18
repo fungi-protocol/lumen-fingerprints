@@ -276,8 +276,8 @@
 <div id="tab-overview" class="tabpanel" role="tabpanel" aria-labelledby="tabbtn-overview">
   <div class="hero">
     <div class="wrap">
-      <h2 id="ov-title">~156 days of Bitcoin, fingerprinted</h2>
-      <p id="ov-lede">Every transaction across 22,463 blocks (heights 939,969–962,432, about 156 days), 96,778,612 transactions in all: the habits of the wallet software, read from the chain.</p>
+      <h2 id="ov-title" style="visibility:hidden">Bitcoin, fingerprinted</h2>
+      <p id="ov-lede" style="visibility:hidden">Every transaction in the scanned window: the habits of the wallet software, read from the chain.</p>
     </div>
   </div>
   <div class="wrap" style="max-width: 980px">
@@ -2052,6 +2052,8 @@ function renderOverview(D) {
       (blocks ? `${fmtInt(blocks)} blocks (heights ${fmtInt(w.start_height)}–${fmtInt(w.end_height)}, about ${fmtInt(w.epochs)} days)` : `heights ${fmtInt(w.start_height)}–${fmtInt(w.end_height)}`) +
       (totals.txs ? `, ${fmtInt(totals.txs)} transactions in all` : "") +
       `: the habits of the wallet software, read from the chain.`;
+    document.getElementById("ov-title").style.visibility = "visible";
+    document.getElementById("ov-lede").style.visibility = "visible";
   }
   drawRanked(document.getElementById("ov-ranked"));
   drawSets(document.getElementById("ov-sets"));
