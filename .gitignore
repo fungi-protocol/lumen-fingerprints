@@ -17,3 +17,6 @@ __pycache__/
 
 # ML training corpus: per-tx feature vectors, one row per transaction (large, out-of-git)
 data/vectors/
+
+# regenerable from explorer-data.json / lumen report (redundant, out-of-git)
+docs/src/wallet-axis-cross.csv
