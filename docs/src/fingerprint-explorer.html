@@ -284,7 +284,7 @@
     <section id="ov-race-sec">
       <h3>Wallet fingerprints</h3>
       <div class="title">Transactions matching each wallet's fingerprint</div>
-      <p class="lede">% of all tx whose shape matches each wallet's fingerprint. A match is a ceiling, not proof the wallet sent it. <a href="#/wallets">Per-wallet detail →</a></p>
+      <p class="lede">% of all tx that could be each wallet, not proof it sent them. Core leads because its shape is the most generic: the widest anonymity set. The label is the whole-window average. <a href="#/wallets">Per-wallet detail →</a></p>
       <div class="card chart-card">
         <div class="chart-legend" id="ov-race-legend"></div>
         <div id="ov-race"></div>
@@ -1200,26 +1200,38 @@ function axisWholeShare(axis, value) {
   return hit ? hit.share : 0;
 }
 
+// An era pins each axis to a SET of accepted values (a one-element set in the common
+// case). Return that set as an array, tolerating a legacy scalar for old data.
+function eraAxisValues(label, axis) {
+  const raw = ERA.TA[label] && ERA.TA[label][axis];
+  return Array.isArray(raw) ? raw : (raw == null ? [] : [raw]);
+}
+
 function eraFacetsAxis(axis) {
   const wallets = walletsFromLabels(Object.keys(ERA.TS));
   const facets = [], omitted = [];
   for (const [wallet, eras] of wallets) {
-    const constrained = eras.filter(e => ERA.TA[e.label] && ERA.TA[e.label][axis] != null
-      && ERA.AVS[axis] && ERA.AVS[axis][ERA.TA[e.label][axis]]);
-    if (!constrained.length) { omitted.push(wallet); continue; }
-    const series = constrained.map(e => {
-      const v = ERA.TA[e.label][axis];
+    // One plottable line per (era, value): a set-valued axis fans out into a line per
+    // accepted value, each with its own share series and identifiability.
+    const lines = [];
+    for (const e of eras) {
+      for (const v of eraAxisValues(e.label, axis)) {
+        if (ERA.AVS[axis] && ERA.AVS[axis][v]) lines.push({ e, v });
+      }
+    }
+    if (!lines.length) { omitted.push(wallet); continue; }
+    const series = lines.map(({ e, v }) => {
       const id = axisValueId(axis, v);
       return { pts: ERA.AVS[axis][v], old: e.old, range: e.range, value: v, id, tag: `${axis} = ${v}` };
     });
     facets.push({
       wallet,
-      // Per-era subtitle carries the pinned value AND its identifiability, so each wallet
+      // Per-line subtitle carries the pinned value AND its identifiability, so each wallet
       // version reads its own "how much this axis pins me down" straight off the facet.
-      sub: constrained.map((e, i) => {
+      sub: lines.map(({ e, v }, i) => {
         const id = series[i].id;
         const idTxt = id ? ` · in set <100: ${pct(id.lt100)}` : " · no CORE anon set";
-        return `${e.range || "all versions"} · ${axis} = ${ERA.TA[e.label][axis]}${idTxt}`;
+        return `${e.range || "all versions"} · ${axis} = ${v}${idTxt}`;
       }).join("  ·  "),
       series,
     });
@@ -1451,15 +1463,19 @@ function drawEraFacets() {
     // the chart above can plot — a wildcard has no value to draw a line for).
     for (const [wallet, eras] of walletsFromLabels(Object.keys(ERA.TS))) {
       for (const e of eras) {
-        const v = ERA.TA[e.label] ? ERA.TA[e.label][eraAxis] : undefined;
-        const series = v != null && ERA.AVS[eraAxis] ? ERA.AVS[eraAxis][v] : undefined;
-        const cells = series
-          ? [wallet, e.range || "all versions", v, fmtShare(axisWholeShare(eraAxis, v)),
+        // A set-valued axis lists one row per accepted value; an era that leaves the axis
+        // a wildcard (or pins only never-observed values) shows a single "—" row.
+        const plottable = eraAxisValues(e.label, eraAxis)
+          .filter(v => ERA.AVS[eraAxis] && ERA.AVS[eraAxis][v]);
+        const rows = plottable.length
+          ? plottable.map(v => [wallet, e.range || "all versions", v, fmtShare(axisWholeShare(eraAxis, v)),
              (id => id ? pct(id.lt10) : "—")(axisValueId(eraAxis, v)),
-             (id => id ? pct(id.lt100) : "—")(axisValueId(eraAxis, v))]
-          : [wallet, e.range || "all versions", "—", "—", "—", "—"];
-        const row = table.insertRow();
-        for (const c of cells) row.insertCell().textContent = c;
+             (id => id ? pct(id.lt100) : "—")(axisValueId(eraAxis, v))])
+          : [[wallet, e.range || "all versions", "—", "—", "—", "—"]];
+        for (const cells of rows) {
+          const row = table.insertRow();
+          for (const c of cells) row.insertCell().textContent = c;
+        }
       }
     }
   } else {
@@ -1519,9 +1535,9 @@ function drawTrend(mount, readout, seriesList, opts = {}) {
     t.textContent = fmtShare(v);
     svg.appendChild(t);
   }
-  for (const [h, anchor] of [[x0, "start"], [x1, "end"]]) {
+  for (const [h, anchor, labelH] of [[x0, "start", x0], [x1, "end", opts.xEnd != null ? opts.xEnd : x1]]) {
     const t = svgEl("text", { x: X(h), y: H - 5, "text-anchor": anchor });
-    t.textContent = "height " + fmtInt(h);
+    t.textContent = "height " + fmtInt(labelH);
     svg.appendChild(t);
   }
 
@@ -1536,8 +1552,12 @@ function drawTrend(mount, readout, seriesList, opts = {}) {
     if (s.bg) main.setAttribute("opacity", "0.75");
     svg.appendChild(main);
   }
-  // direct end labels, nudged apart both ways so they stay inside the plot
-  const ends = seriesList.map(s => ({ s, y: Y(s.pts[s.pts.length - 1].share) })).sort((a, b) => a.y - b.y);
+  // direct end labels, nudged apart both ways so they stay inside the plot. A series
+  // may carry `avgShare` (whole-window mean) to label with instead of its last-epoch
+  // value; the wallet chart uses it so the headline number is the aggregate the title
+  // promises, not just the final day. Other charts omit it and keep the last value.
+  const labelShareOf = s => s.avgShare != null ? s.avgShare : s.pts[s.pts.length - 1].share;
+  const ends = seriesList.map(s => ({ s, y: Y(labelShareOf(s)) })).sort((a, b) => a.y - b.y);
   for (let i = 1; i < ends.length; i++) if (ends[i].y - ends[i - 1].y < 13) ends[i].y = ends[i - 1].y + 13;
   for (let i = ends.length - 1; i >= 0; i--) {
     const maxY = i === ends.length - 1 ? H - MB + 4 : ends[i + 1].y - 13;
@@ -1549,7 +1569,7 @@ function drawTrend(mount, readout, seriesList, opts = {}) {
     const t = many
       ? svgEl("text", { x: W - MR + 10, y: Math.max(MT + 4, e.y), "dominant-baseline": "middle", class: e.s.bg ? "" : "pt-label" })
       : svgEl("text", { x: X(last.h) - 6, y: Math.max(MT + 4, e.y), "text-anchor": "end", "dominant-baseline": "middle", class: "pt-label" });
-    t.textContent = (seriesList.length > 1 ? e.s.name + " " : "") + fmtShare(last.share);
+    t.textContent = (seriesList.length > 1 ? e.s.name + " " : "") + fmtShare(labelShareOf(e.s));
     svg.appendChild(t);
   }
   // start label for single-series charts: "start → " at the left edge
@@ -2076,15 +2096,20 @@ function renderOverview(D) {
     for (const s of eras) byWallet.set(s.wallet, Math.max(byWallet.get(s.wallet) ?? 0, s.pts[s.pts.length - 1].share));
     const wallets = [...byWallet.keys()].sort((a, b) => byWallet.get(b) - byWallet.get(a));
     const colorOf = new Map(wallets.map((w, i) => [w, PAL[i % PAL.length]]));
+    // Label each line with its whole-window share (sum of per-epoch matches over all
+    // txs), not its last-epoch value: the daily share swings wildly, so the final day
+    // is a misleading headline. The line still shows the day-by-day trend.
+    const total = (D.totals && D.totals.txs) || 0;
     const race = eras.map(s => ({
       name: s.wallet + (s.old ? " (earlier)" : ""),
       color: colorOf.get(s.wallet), dash: s.old, pts: s.pts,
+      avgShare: total ? TS[s.key].reduce((a, e) => a + (e.matches || 0), 0) / total : undefined,
     }));
     document.getElementById("ov-race-legend").innerHTML =
       wallets.map(w => `<span class="k"><span class="dot" style="background:${colorOf.get(w)}"></span>${esc(w)}</span>`).join("")
       + `<span class="k"><svg width="26" height="10"><line x1="1" y1="5" x2="25" y2="5" stroke="var(--muted)" stroke-width="2" stroke-dasharray="5 4"/></svg>earlier version</span>`;
     drawTrend(document.getElementById("ov-race"), document.getElementById("ov-race-readout"), race,
-      { label: "Template-consistent share over time, all catalogued wallets", H: 340 });
+      { label: "Template-consistent share over time, all catalogued wallets", H: 340, xEnd: D.window && D.window.end_height });
   }
 }
 
