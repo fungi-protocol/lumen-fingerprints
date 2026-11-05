@@ -1,10 +1,4 @@
-# contrib/fake_survey.py — stands in for the real `survey` binary in tests.
-# `scan`: append 2 epoch rows to --out, print a log line each, then exit.
-#   Always scans a small fixed number of epochs (2 epochs = 288 blocks) so
-#   tests stay fast.
-# `report`: write a minimal report.json with the keys the emitter reads, plus a
-#   wallet-axis-cross.csv (header only) mirroring what the real `lumen report` emits.
-# `tip`: print one JSON line with floor/tip/in_ibd, like `lumen tip`.
+# Test stand-in for `lumen`; scans only 2 epochs (288 blocks) to keep tests fast.
 import json, sys, time
 
 def arg(name):

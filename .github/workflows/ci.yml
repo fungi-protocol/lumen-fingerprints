@@ -16,9 +16,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - name: Format
         run: cargo fmt --all -- --check
-      # --locked everywhere: the committed Cargo.lock pins the rust-bitcoin ecosystem to
-      # the versions Floresta's utreexo proofs need. --locked fails the build if anything
-      # would float that lock, which is exactly the regression we want CI to catch.
+      # --locked: Cargo.lock pins rust-bitcoin to the versions Floresta's utreexo proofs need.
       - name: Clippy
         run: cargo clippy --workspace --all-targets --locked -- -D warnings
       - name: Build

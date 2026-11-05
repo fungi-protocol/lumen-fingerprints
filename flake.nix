@@ -9,8 +9,6 @@
       forAll = f: nixpkgs.lib.genAttrs systems (system: f nixpkgs.legacyPackages.${system});
     in
     {
-      # `nix build` -> ./result : the static site (study + explorer) with whatever
-      # explorer-data.json is currently committed. Deploy ./result to GitHub Pages.
       packages = forAll (pkgs: {
         default = pkgs.stdenv.mkDerivation {
           pname = "wallet-fingerprint-survey-site";
@@ -22,7 +20,6 @@
         };
       });
 
-      # `nix develop` -> mdbook + python for the site, cargo/rustc for the scanner.
       devShells = forAll (pkgs: {
         default = pkgs.mkShell {
           packages = [ pkgs.mdbook pkgs.python3 pkgs.cargo pkgs.rustc pkgs.zstd ];
@@ -30,7 +27,6 @@
       });
 
       apps = forAll (pkgs: {
-        # View the site locally with the data currently committed.
         serve = {
           type = "app";
           program = "${pkgs.writeShellScript "serve" ''
@@ -41,7 +37,6 @@
           ''}";
         };
 
-        # Regenerate explorer-data.json from an existing report.json — no scan.
         emit = {
           type = "app";
           program = "${pkgs.writeShellScript "emit" ''
@@ -52,8 +47,6 @@
           ''}";
         };
 
-        # One-shot CLI scan: scan -> report -> data -> build -> serve, in one command.
-        # The native scan uses your own Rust toolchain (rustup); the datadir defaults.
         scan = {
           type = "app";
           program = "${pkgs.writeShellScript "scan" ''
@@ -79,16 +72,10 @@
           ''}";
         };
 
-        # The interactive dashboard: builds the scanner + book, then starts the control
-        # server. The server queries the live chain tip (lumen tip) and serves the site
-        # with a working ▶ Run button that scans the full [floor, tip] range and fills the
-        # Explorer in live. Localhost only.
         dashboard = {
           type = "app";
           program = "${pkgs.writeShellScript "dashboard" ''
             set -e
-            # Datadir is optional: default to a hidden per-user dir so the user needs to
-            # know nothing about Floresta — just `nix run .#dashboard`, then click Run.
             DATADIR="''${1:-$HOME/.wallet-fingerprint-survey/floresta}"
             command -v cargo >/dev/null || { echo "error: cargo not found — install rustup (https://rustup.rs)."; exit 1; }
             mkdir -p out "$DATADIR"
