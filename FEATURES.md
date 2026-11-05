@@ -135,10 +135,9 @@ where the heuristically-identified change output sits among the tx's outputs.
 **`change_type_present`** (84): boolean, `1.0` iff the heuristic identified a change
 output at all (regardless of its position).
 
-## Group A — nSequence bit aggregates (columns 85–90)
+## nSequence bit aggregates (columns 85–90)
 
-These replace the old presence-only view of `nSequence` with a decomposition of the
-32-bit field's actual bit layout: **bit 31** is the disable flag, **bit 22** is the
+A decomposition of the 32-bit `nSequence` field's actual bit layout: **bit 31** is the disable flag, **bit 22** is the
 relative-locktime type flag, **bits 0–15** are the relative-locktime value, and **bits
 16–21 and 23–30** are reserved (should be zero). Computed per-input across all of a
 tx's inputs, then folded to booleans/a max over the tx.
@@ -152,17 +151,16 @@ tx's inputs, then folded to booleans/a max over the tx.
 | `nsequence_reserved_bits_set` | `1.0` iff any bit-31-clear input has any of the should-be-zero reserved bits set (mask `0x7FBF0000` = bits 16–21 and 23–30). A nonstandard-construction fingerprint — well-behaved wallets never set these. |
 | `bip68_relative_value_max` | the maximum of the low-16-bit value (bits 0–15) taken over all BIP-68-active inputs (bit 31 clear, version >= 2); `0.0` if there are no such inputs. Not itself a boolean. |
 
-## Group B — nLockTime coupling (column 91)
+## nLockTime coupling (column 91)
 
 | column | meaning |
 |---|---|
 | `nlocktime_dead` | `1.0` iff `nLockTime` is non-zero AND `all_inputs_final` is true. Consensus only enforces `nLockTime` when at least one input is non-final (sequence `!= 0xFFFFFFFF`); when every input is final, a non-zero `nLockTime` is silently ignored by validation. A "dead" locktime like this leaks an approximate creation height/time for zero actual benefit — a wallet fingerprint with no upside. |
 
-## Group C — type counts and positional signal (columns 92–114)
+## Type counts and positional signal (columns 92–114)
 
-Where the removed `input_has_*`/`output_has_*` presence booleans only said "does this
-tx touch script type X at all", these columns carry the real per-type multiset and the
-tx's positional layout, which is a stronger clustering/fingerprinting signal.
+The per-type multiset and positional layout of a tx's inputs and outputs, a stronger
+signal than per-type presence.
 
 | column | meaning |
 |---|---|
@@ -201,7 +199,7 @@ type — as opposed to the reverse or "both match"/"neither matches" cases.
 |---|---|
 | `outputs_type_grouped` | `1.0` iff same-typed outputs are contiguous — no type appears, is followed by a different type, and then reappears later. `0.0` means the outputs were interleaved by type, which is evidence they were *not* produced by a simple unshuffled payment+change construction (e.g. `[A, B, A]` is not grouped; `[A, A, B]` is). |
 
-## Positional type encoding (sub-project 3e) (columns 115–137)
+## Positional type encoding (columns 115–137)
 
 CSV-only, feature-matrix-only columns — none of these enter the sparsity joint vector
 or `axis_value`. Every type index here uses the same encoding as `first_output_type_index`
@@ -341,10 +339,9 @@ name/amount, etc.).
 **Not covered.** Older token/asset protocols that also piggyback on ordinary Bitcoin
 outputs — Counterparty and Omni/Mastercoin, among others — have no column here. Detecting
 them follows the same presence-detection pattern (a fixed marker/prefix check on an
-`OP_RETURN` or similar output) and is a straightforward extension of this section, not
-implemented in this sub-project.
+`OP_RETURN` or similar output) and is a straightforward extension of this section.
 
-## Feerate, appended (columns 163–164)
+## Feerate by weight (columns 163–164)
 
 Appended after the protocol markers (append-only column order), the "by weight" analogues
 of `fee_is_multiple_of_vsize` in the Feerate section above. `1.0` / `0.0`.
@@ -354,10 +351,9 @@ of `fee_is_multiple_of_vsize` in the Feerate section above. `1.0` / `0.0`.
 | `fee_is_multiple_of_kwu` | `1.0` iff `fee_sat * 1000` is an exact integer multiple of `weight` — i.e. the sat/kwu rate (`feerate_sat_per_kwu`) is a whole number with no remainder, the weight-unit parallel to `fee_is_multiple_of_vsize`. Present alongside the vsize version precisely so a wallet that rounds cleanly in one unit convention but not the other is distinguishable (see `feerate_sat_per_kwu`). The `* 1000` is computed in `u128` to avoid overflow on large fees. |
 | `fee_is_multiple_of_weight` | `1.0` iff `fee_sat` is an exact integer multiple of `weight` — i.e. the sat/wu rate is a whole number with no remainder. Exact integer sat/wu; stricter than the sat/kwu flag (implies it): any tx whose fee is an exact multiple of `weight` is automatically an exact multiple of `weight / 1000`'s scaled form too, so `fee_is_multiple_of_weight` implies `fee_is_multiple_of_kwu` but not vice versa. A wallet targeting exact sat/wu sets both columns; a wallet only hitting a clean sat/kwu rate may set only the kwu column. Plain `u64` modulo (no `* 1000` scaling, so no overflow risk). |
 
-## Multisig & output-value structure (sub-project 3f) (columns 165–169)
+## Multisig & output-value structure (columns 165–169)
 
-Feature-matrix only — none of these 5 columns change the sparsity joint vector
-(`CORE_AXES`/`EXTENDED_AXES`/`axis_value` in `vector.rs` are untouched). Multisig config
+Feature-matrix only, not part of the sparsity joint vector. Multisig config
 is read from the **spending inputs**, not the outputs: for each input, the prevout script
 itself (bare multisig), else the P2SH redeem script (the last scriptSig push), else the
 P2WSH witness script (the last witness item) — mirroring the navigation
@@ -367,8 +363,7 @@ contributes nothing.
 For a P2TR input spent via script-path, the revealed tapscript is also decoded when it is
 a canonical BIP-342 CHECKSIGADD threshold multisig (`multi_a`:
 `<pk1> OP_CHECKSIG (<pk_i> OP_CHECKSIGADD)* <m> OP_NUMEQUAL[VERIFY]`, each key 32 bytes
-x-only) — so `multisig_m`/`multisig_n` are now populated for taproot multisig inputs where
-they were previously `0`/`0`. Thresholds above 16, which must be pushed as data rather than
+x-only), so `multisig_m`/`multisig_n` cover taproot multisig inputs too. Thresholds above 16, which must be pushed as data rather than
 an `OP_PUSHNUM`, are not decoded (`None`, same as an unrecognized shape).
 
 | column | meaning |
@@ -379,11 +374,10 @@ an `OP_PUSHNUM`, are not decoded (`None`, same as an unrecognized shape).
 | `distinct_output_value_count` | the number of distinct output values (in satoshis) among this tx's outputs — low values suggest denomination (e.g. equal-value CoinJoin outputs); the max possible is `output_count`. |
 | `max_equal_value_output_count` | the size of the largest group of outputs sharing the same value — the classic CoinJoin/denomination signal (e.g. `3` when 3-of-4 outputs share one value). |
 
-## Two more fingerprints (sub-project 3g) (columns 170–171)
+## nLockTime opt-in and taproot key-spend sighash (columns 170–171)
 
-Feature-matrix only — these 2 columns do not change the sparsity joint vector
-(`CORE_AXES`/`EXTENDED_AXES`/`axis_value` in `vector.rs` are untouched). Both are computed
-by the `lumen-fingerprints-lib` classifiers directly, not by new logic in the core crate.
+Feature-matrix only, not part of the sparsity joint vector. Both come from the
+`lumen-fingerprints-lib` classifiers.
 
 | column | meaning |
 |---|---|

@@ -96,10 +96,7 @@ def run_scan(server, mode):
 
         send("phase", {"phase": "connecting"})
 
-        # The scanner owns the "just works" defaults now (bin/lumen.rs): with no --peer it
-        # dials Davidson's utreexo peers so it never stalls at 0 peers (override via
-        # LUMEN_SCAN_PEERS), and --fresh wipes the datadir + epochs and scans from the floor
-        # in one faithful pass -- so the dashboard and a bare CLI scan behave identically.
+        # Peer and --fresh defaults live in the scanner, so a dashboard scan matches a CLI scan.
         cmd = survey_bin.split() + ["scan", "--datadir", datadir, "--out", epochs_path]
         if mode == "fresh":
             cmd.append("--fresh")

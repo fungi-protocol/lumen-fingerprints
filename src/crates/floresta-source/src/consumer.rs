@@ -6,11 +6,8 @@ use floresta_chain::{BlockConsumer, UtxoData};
 use lumen_primitives::traits::SourcedBlock;
 use lumen_primitives::traits::block_source::SpentOutput;
 
-/// Bridges Floresta's async node to our synchronous block stream.
-///
-/// `on_block` is called by the node on every connected block, including during
-/// catch-up sync. Sending on a full bounded channel blocks the node — that is the
-/// intended backpressure, keeping memory flat when analysis lags download.
+/// A full bounded channel blocks the node: intended backpressure that keeps memory flat
+/// when analysis lags download.
 pub(crate) struct SurveyConsumer {
     sender: SyncSender<SourcedBlock>,
     start_height: u32,
@@ -51,8 +48,6 @@ impl BlockConsumer for SurveyConsumer {
             return;
         }
 
-        // Keep creation_height: it is what makes coin age and same-block parent
-        // spends observable downstream. Floresta gives it to us for free.
         let prevouts = spent_utxos
             .map(|map| {
                 map.iter()
@@ -75,7 +70,7 @@ impl BlockConsumer for SurveyConsumer {
             prevouts,
         };
 
-        // A closed receiver means the survey stopped; dropping is correct, not fatal.
+        // A closed receiver means the survey stopped; not fatal.
         let _ = self.sender.send(sourced);
     }
 }
@@ -109,9 +104,7 @@ mod tests {
             },
         );
 
-        // Below the window: dropped.
         consumer.on_block(&genesis(), 99, Some(&prevouts));
-        // In the window: forwarded as a SpentOutput, creation_height preserved.
         consumer.on_block(&genesis(), 100, Some(&prevouts));
 
         let got = rx.try_recv().expect("one block forwarded");
@@ -133,16 +126,12 @@ mod tests {
         let (tx, rx) = sync_channel(10);
         let consumer = SurveyConsumer::new(tx, 100, Some(102));
 
-        // Below start: dropped.
         consumer.on_block(&genesis(), 99, Some(&HashMap::new()));
-        // Within window: forwarded.
         consumer.on_block(&genesis(), 100, Some(&HashMap::new()));
         consumer.on_block(&genesis(), 101, Some(&HashMap::new()));
         consumer.on_block(&genesis(), 102, Some(&HashMap::new()));
-        // Above stop: dropped.
         consumer.on_block(&genesis(), 103, Some(&HashMap::new()));
 
-        // Verify exactly the window blocks arrived.
         assert_eq!(rx.try_recv().unwrap().height, 100);
         assert_eq!(rx.try_recv().unwrap().height, 101);
         assert_eq!(rx.try_recv().unwrap().height, 102);

@@ -6,24 +6,15 @@ use serde::Deserialize;
 
 use crate::vector::{CORE_AXES, EXTENDED_AXES, FingerprintVector, HEURISTIC_AXES};
 
-/// Every axis a template may constrain. Anything else in the TOML is an error, so a
-/// typo in a wallet's entry fails loudly instead of silently matching everything.
-/// Derived from the vector's own axis sets, so adding an axis to `FingerprintVector`
-/// automatically makes it constrainable in a template — they cannot drift apart.
-///
-/// Includes `HEURISTIC_AXES`: `change_position`/`change_type` are excluded from both
-/// joint-vector keys (see that constant's doc comment), but they are still real,
-/// still-computed axes reachable through `axis_value`, so a template is still allowed
-/// to constrain on them — only the sparsity-measuring joint key excludes them.
+/// Unknown keys are errors so a typo fails loudly instead of matching everything.
+/// Heuristic axes stay out of joint keys but templates may still constrain them.
 fn is_known_axis(axis: &str) -> bool {
     CORE_AXES.contains(&axis) || EXTENDED_AXES.contains(&axis) || HEURISTIC_AXES.contains(&axis)
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Confidence {
-    /// Decoded from a real on-chain transaction.
     ChainProven,
-    /// Read from the wallet's source, not yet observed on-chain.
     CodePredicted,
 }
 
@@ -46,31 +37,20 @@ impl std::fmt::Display for TemplateError {
 
 impl std::error::Error for TemplateError {}
 
-/// A wallet's expected fingerprint values over one version interval (an "era").
-/// Axes absent from `axes` are wildcards. Multiple entries may share a `name`;
-/// each is an independent template. Version strings are opaque labels — nothing
-/// in code orders or compares them; interval semantics are `[from, until)`.
+/// Absent axes are wildcards. Versions are opaque labels, never compared; the
+/// interval is `[from, until)`.
 #[derive(Debug, Clone)]
 pub struct WalletTemplate {
     pub name: String,
     pub confidence: Confidence,
-    /// Which codebase the version bounds refer to (e.g. "cake_wallet",
-    /// "bitcoin_base"). Required whenever either bound is present.
+    /// Required when either version bound is set.
     pub software: Option<String>,
-    /// First version (inclusive) producing this era's fingerprint.
     pub from_version: Option<String>,
-    /// First version (exclusive) that no longer produces it.
     pub until_version: Option<String>,
-    /// Each axis maps to the SET of values consistent with it. A single-valued TOML entry
-    /// (`nsequence = "Rbf"`) is a one-element set; a list (`input_types = ["A", "B"]`) pins
-    /// the axis to any of several values, for wallets that vary within a bounded range on
-    /// that axis (e.g. Core spends any common input type but never NonStandard/P2pk).
+    /// A set per axis: a wallet may vary within a bounded range on one axis.
     pub axes: BTreeMap<String, Vec<String>>,
 }
 
-/// A TOML axis value is either a single string or a list of strings; both collapse to the
-/// `Vec<String>` set `axes` stores. Metadata fields (name, confidence, …) are always
-/// single strings and reject a list.
 #[derive(Deserialize)]
 #[serde(untagged)]
 enum RawValue {
@@ -83,7 +63,6 @@ struct RawFile {
     wallet: Vec<BTreeMap<String, RawValue>>,
 }
 
-/// Remove a metadata field that must be a single string, erroring if it was given as a list.
 fn take_single(
     entry: &mut BTreeMap<String, RawValue>,
     key: &str,
@@ -166,9 +145,6 @@ pub fn parse_templates(text: &str) -> Result<Vec<WalletTemplate>, TemplateError>
 }
 
 impl WalletTemplate {
-    /// Display / series key for this era. Unversioned templates keep their bare
-    /// `name`, so every existing `template_series` consumer is unaffected until a
-    /// wallet actually grows a second era.
     pub fn era_label(&self) -> String {
         let Some(software) = &self.software else {
             return self.name.clone();
@@ -181,50 +157,27 @@ impl WalletTemplate {
         }
     }
 
-    /// The one place the no-signal / consistent-with semantics live. Both public entry
-    /// points (`matches` and `matches_axes`) delegate here rather than each
-    /// re-implementing the rule, so the two can never quietly diverge — this codebase
-    /// has already been bitten twice by exactly that class of duplication bug.
-    ///
-    /// `lookup` maps an axis name to its observed value, however that value happens to
-    /// be stored (a `FingerprintVector`'s typed fields, or a parsed `axis=value` map).
-    /// An axis whose observed value is `Indeterminate` / `Unknown` / `Na` carries no
-    /// signal and therefore cannot contradict anything — this is Ishaana's
-    /// "consistent-with" semantics, and it is why anonymity sets measured here are
-    /// upper bounds on distinguishability.
-    ///
-    /// `lookup` returns `Cow` rather than `String` so that neither caller needs to
-    /// allocate just to answer a lookup: `matches` forwards `FingerprintVector::axis_value`'s
-    /// own `Cow` straight through, and `matches_axes` borrows out of its `BTreeMap<String,
-    /// String>` instead of cloning.
+    /// `Indeterminate`/`Unknown`/`Na` cannot contradict a template, so anonymity sets
+    /// measured here are upper bounds.
     fn matches_by<'a, F: Fn(&str) -> Option<Cow<'a, str>>>(&self, lookup: F) -> bool {
         self.axes.iter().all(|(axis, expected)| {
             let Some(actual) = lookup(axis) else {
                 return true;
             };
-            // No signal on this axis: cannot contradict.
             if actual.as_ref() == "Indeterminate"
                 || actual.as_ref() == "Unknown"
                 || actual.as_ref() == "Na"
             {
                 return true;
             }
-            // An axis pins a SET of accepted values (a one-element set in the common case);
-            // the observed value is consistent-with the template if it is any of them.
             expected.iter().any(|allowed| allowed == actual.as_ref())
         })
     }
 
-    /// True when no constrained axis contradicts the observed vector. Used at scan
-    /// time, where a `FingerprintVector` is in hand.
     pub fn matches(&self, vector: &FingerprintVector) -> bool {
         self.matches_by(|axis| vector.axis_value(axis))
     }
 
-    /// True when no constrained axis contradicts an axis map parsed back out of a
-    /// `vectors_extended` key (see `vector::parse_key`). Used at report time, where
-    /// only the joint-vector histogram survives on disk — no `FingerprintVector` exists
-    /// to call `matches` on.
     pub fn matches_axes(&self, axes: &BTreeMap<String, String>) -> bool {
         self.matches_by(|axis| axes.get(axis).map(|s| Cow::Borrowed(s.as_str())))
     }
@@ -313,8 +266,7 @@ mod tests {
     #[test]
     fn indeterminate_axis_matches_any_expectation() {
         let mut axes = BTreeMap::new();
-        // The Cake fixture is pure-ECDSA, so uncompressed_pubkey resolves to No, not
-        // Indeterminate. input_order on a 1-input tx is what we want to exercise here.
+        // The pure-ECDSA fixture never yields an indeterminate uncompressed_pubkey.
         axes.insert("input_order".to_string(), vec!["Other".to_string()]);
         let template = WalletTemplate {
             name: "t".into(),
@@ -339,17 +291,11 @@ mod tests {
 
     #[test]
     fn core_input_types_allow_set_excludes_nonstandard_and_p2pk() {
-        // Core leaves no single value on input_types (it spends whatever the wallet
-        // holds), but it never spends bare P2PK or NonStandard scripts. The template
-        // pins input_types to the SET of types Core can produce. A tx is consistent-with
-        // Core only if its input_types is one of those, or carries no signal. This is what
-        // stops NonStandard/P2pk txs (which contradict Core) from inflating its set.
         let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("templates/wallets.toml");
         let templates = load_templates(&path).unwrap();
         let core = templates.iter().find(|t| t.name == "Bitcoin Core").unwrap();
 
-        // The six axes Core pins besides input_types, set to values Core produces so the
-        // only axis under test is input_types.
+        // Core's other pinned axes at Core values, so only input_types varies.
         let base = || {
             let mut m = BTreeMap::new();
             m.insert("version".to_string(), "2".to_string());
@@ -382,7 +328,6 @@ mod tests {
             !core.matches_axes(&with("Uniform(P2pk)")),
             "Core never spends bare P2PK inputs"
         );
-        // A no-signal input_types still cannot contradict.
         assert!(
             core.matches_axes(&with("Unknown")),
             "no-signal input_types matches"
@@ -406,9 +351,6 @@ mod tests {
 
     #[test]
     fn no_signal_feerate_bucket_cannot_contradict_template() {
-        // Build a template that constrains feerate_bucket to a specific value.
-        // A transaction with no-signal feerate (cannot compute the value) should
-        // still match, because no-signal axes cannot contradict templates.
         let mut axes = BTreeMap::new();
         axes.insert("feerate_bucket".to_string(), vec!["5".to_string()]);
         let template = WalletTemplate {
@@ -420,8 +362,6 @@ mod tests {
             axes,
         };
 
-        // Construct a vector with feerate_bucket set to "Unknown" (the no-signal sentinel).
-        // This simulates a transaction where the feerate cannot be computed.
         let vector = FingerprintVector {
             version: 2,
             nsequence: lumen_fingerprints_lib::NSequenceType::MixedOther,
@@ -455,9 +395,6 @@ mod tests {
 
     #[test]
     fn matches_axes_agrees_with_matches_on_the_same_vector() {
-        // The whole point of `matches_by` is that `matches` and `matches_axes` cannot
-        // diverge. Exercise every shipped template against the same vector through
-        // both entry points and require identical verdicts.
         let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("templates/wallets.toml");
         let templates = load_templates(&path).unwrap();
         let v = cake_vector();

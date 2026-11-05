@@ -10,8 +10,6 @@ series*.csv
 /docs/book
 /result
 /out
-/docs/superpowers/
-/.superpowers/
 __pycache__/
 *.pyc
 

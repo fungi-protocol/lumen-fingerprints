@@ -3,12 +3,10 @@ use bitcoin::ecdsa::Signature as EcdsaSignature;
 use bitcoin::script::Instruction;
 use lumen_primitives::OutputType;
 
-/// Classify a scriptPubKey by type from raw bytes.
 pub fn classify_script_pubkey(spk: &[u8]) -> OutputType {
     lumen_primitives::classify_script_pubkey(spk)
 }
 
-/// Extract ECDSA signature byte vectors from scriptSig bytes.
 pub fn extract_signatures_from_script_sig(script_sig_bytes: &[u8]) -> Vec<Vec<u8>> {
     let script = Script::from_bytes(script_sig_bytes);
     script
@@ -21,7 +19,6 @@ pub fn extract_signatures_from_script_sig(script_sig_bytes: &[u8]) -> Vec<Vec<u8
         .collect()
 }
 
-/// Extract ECDSA signature byte vectors from witness items.
 pub fn extract_signatures_from_witness(witness_items: &[Vec<u8>]) -> Vec<Vec<u8>> {
     witness_items
         .iter()
@@ -30,7 +27,6 @@ pub fn extract_signatures_from_witness(witness_items: &[Vec<u8>]) -> Vec<Vec<u8>
         .collect()
 }
 
-/// Check if an ECDSA signature has low-R (R value's high bit is unset).
 pub fn has_low_r_signature(sig: &EcdsaSignature) -> bool {
     sig.signature.serialize_compact()[0] < 0x80
 }

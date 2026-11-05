@@ -12,23 +12,14 @@ pub struct AuxFlags {
     pub round_fee: bool,
     pub round_payment: bool,
     pub uih1: bool,
-    /// UIH2: an input is smaller than the smallest output — the "unnecessary input"
-    /// artifact a payjoin receiver's contribution creates (#1597 comment 05).
+    /// An input smaller than the smallest output, as a payjoin receiver's contribution leaves.
     pub uih2: bool,
     pub address_reuse: bool,
     pub same_block_parent: bool,
-    /// Fewer than 2 outputs: a plausible changeless transaction — there is
-    /// nowhere for change to go (#1597 comment 40, coin-selection).
     pub changeless: bool,
 }
 
 pub fn aux_flags(tx: &Transaction, block: &SourcedBlock) -> AuxFlags {
-    // The resolved prevouts, collected once: `round_fee` and `address_reuse` both read
-    // the same set. An input whose prevout does not resolve is simply absent here,
-    // exactly as it was absent from the previous `filter_map` sums. (The library's
-    // `round_fee` sums the input values itself, so there is no separate `input_sum`
-    // binding to keep here — unlike the pre-refactor code, nothing else in this
-    // function needs the input-side total.)
     let input_txouts: Vec<bitcoin::TxOut> = tx
         .input
         .iter()
@@ -42,7 +33,6 @@ pub fn aux_flags(tx: &Transaction, block: &SourcedBlock) -> AuxFlags {
         .iter()
         .any(|o| o.value.to_sat() > 0 && o.value.to_sat() % 100_000 == 0);
 
-    // UIH1: with >=2 inputs, one input alone already covers the largest output.
     let uih1 = tx.input.len() >= 2
         && match (
             tx.input
@@ -56,8 +46,7 @@ pub fn aux_flags(tx: &Transaction, block: &SourcedBlock) -> AuxFlags {
             _ => false,
         };
 
-    // UIH2: some input is smaller than the smallest output. Distinct from UIH1 and
-    // not closeable by making wallets uniform — it is a property of the values.
+    // No uniform wallet behavior removes UIH2: it is a property of the values.
     let uih2 = match (
         tx.input
             .iter()
@@ -70,12 +59,9 @@ pub fn aux_flags(tx: &Transaction, block: &SourcedBlock) -> AuxFlags {
         _ => false,
     };
 
-    // A single-output spend has nowhere to put change.
     let changeless = tx.output.len() < 2;
     let address_reuse = fp_address_reuse(&tx.output, &input_txouts);
 
-    // Spends a coin created in this very block. Read from creation_height rather than
-    // by hashing every tx in the block: same answer, far cheaper at 200M transactions.
     let same_block_parent = tx
         .input
         .iter()
@@ -103,18 +89,11 @@ mod tests {
     use lumen_primitives::traits::block_source::SpentOutput;
     use std::collections::HashMap;
 
-    /// A script distinct from `p2wpkh_spk()`, for tests that need to tell "an output
-    /// paying back to an input's script" apart from "an output paying somewhere else".
     fn other_spk() -> ScriptBuf {
         ScriptBuf::from_hex(&format!("0014{}", "11".repeat(20))).unwrap()
     }
 
-    /// Build a transaction spending `inputs` (value, script, creation_height) and
-    /// producing `outputs`, plus the `SourcedBlock` resolving those prevouts at
-    /// `height`. `block_with` (from `vector::tests_support`) forces every input to
-    /// the same value/script/age, which cannot exercise flags whose definitions turn
-    /// on differences between inputs or outputs (uih1, uih2, address_reuse,
-    /// same_block_parent) — this gives full control where that is needed.
+    /// `input_specs` are (value, script, creation_height); unlike `block_with`, they may differ.
     fn custom_block(
         input_specs: &[(u64, ScriptBuf, u32)],
         outputs: Vec<TxOut>,
@@ -159,8 +138,6 @@ mod tests {
         )
     }
 
-    // --- uih1: with >=2 inputs, some single input alone covers the largest output ---
-
     #[test]
     fn uih1_true_when_one_input_alone_covers_the_largest_output() {
         let (tx, block) = custom_block(
@@ -192,8 +169,6 @@ mod tests {
         );
         assert!(!aux_flags(&tx, &block).uih1);
     }
-
-    // --- uih2: some input is smaller than the smallest output ---
 
     #[test]
     fn uih2_true_when_an_input_is_smaller_than_the_smallest_output() {
@@ -230,8 +205,6 @@ mod tests {
         assert!(!aux_flags(&tx, &block).uih2);
     }
 
-    // --- round_fee: fee > 0 and divisible by 1000 ---
-
     #[test]
     fn round_fee_true_for_a_fee_of_exactly_1000_sat() {
         let (tx, block) = custom_block(
@@ -247,13 +220,11 @@ mod tests {
 
     #[test]
     fn round_fee_false_when_the_fee_is_not_a_multiple_of_1000() {
-        // The Cake-shaped fixture pays a fee of 421_397 sat (not a multiple of 1000).
+        // The Cake-shaped fixture pays 421_397 sat.
         let block = block_with(cake_like_tx(), EPOCH_TEST_HEIGHT);
         let tx = cake_like_tx();
         assert!(!aux_flags(&tx, &block).round_fee);
     }
-
-    // --- round_payment: some output value > 0 and divisible by 100_000 ---
 
     #[test]
     fn round_payment_true_for_a_200_000_sat_output() {
@@ -276,12 +247,9 @@ mod tests {
         assert!(!aux_flags(&tx, &block).round_payment);
     }
 
-    // --- address_reuse: an output scriptPubKey equals one of the input prevout scripts ---
-
     #[test]
     fn address_reuse_true_when_an_output_pays_back_to_an_input_script() {
-        // block_with resolves every input's prevout to p2wpkh_spk(), and cake_like_tx's
-        // outputs also pay p2wpkh_spk() — an address-reuse shape by construction.
+        // block_with resolves every prevout to p2wpkh_spk(), which cake_like_tx's outputs pay.
         let block = block_with(cake_like_tx(), EPOCH_TEST_HEIGHT);
         let tx = cake_like_tx();
         assert!(aux_flags(&tx, &block).address_reuse);
@@ -299,8 +267,6 @@ mod tests {
         );
         assert!(!aux_flags(&tx, &block).address_reuse);
     }
-
-    // --- changeless: fewer than 2 outputs ---
 
     #[test]
     fn changeless_true_for_a_single_output() {
@@ -331,8 +297,6 @@ mod tests {
         assert!(!aux_flags(&tx, &block).changeless);
     }
 
-    // --- same_block_parent: spends a coin created in this same block ---
-
     #[test]
     fn same_block_parent_true_when_creation_height_equals_block_height() {
         let (tx, block) = custom_block(
@@ -354,16 +318,12 @@ mod tests {
         assert!(!aux_flags(&tx, &block).same_block_parent);
     }
 
-    // Regression guard: cake_like_block wraps cake_like_tx in a full SourcedBlock (with
-    // coinbase), exercising the same code path the accumulator uses end to end.
     #[test]
     fn cake_like_block_address_reuse_matches_direct_construction() {
         let block = cake_like_block(EPOCH_TEST_HEIGHT);
         let tx = &block.block.txdata[1];
         assert!(aux_flags(tx, &block).address_reuse);
     }
-
-    // --- Task 1 equivalence: round_fee/address_reuse now flow through the library ---
 
     #[test]
     fn round_fee_and_address_reuse_go_through_the_library() {
@@ -412,7 +372,7 @@ mod tests {
         };
 
         let aux = aux_flags(&tx, &block);
-        assert!(aux.round_fee); // fee 1000, %1000 == 0
-        assert!(aux.address_reuse); // output spk == prevout spk
+        assert!(aux.round_fee);
+        assert!(aux.address_reuse);
     }
 }

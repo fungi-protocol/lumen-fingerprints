@@ -1,44 +1,22 @@
 # Wallet fingerprint templates. An omitted axis matches anything.
 # confidence: "chain-proven" (decoded from a real txid) or "code-predicted" (read from source).
-# Wallet developers: correct your own entry by PR — that is the point of this file.
-#
-# Wallet names deliberately match the `name` strings used by
-# https://github.com/arminsabouri/walletfingerprints.info's fingerprints.json, so the two
-# datasets join by identity. Do not rename an entry here without renaming it there too.
-#
-# Sources: fingerprints.json (generated_at 2026-06-29) and the research thread it draws
-# from, payjoin/rust-payjoin#1597. Per-wallet comments cite the software version
-# fingerprints.json recorded for that entry. Where the two sources give irreconcilable
-# values for the same axis, the axis is left unset (never guessed) and the disagreement
-# is recorded in a CONFLICT comment on that entry.
-#
-# Era fields: `software` + `from_version`/`until_version` scope an entry to the
-# version interval [from, until) of that codebase; either bound may be omitted
-# (missing until = era still current). Version strings are opaque labels — code
-# never orders them. Multiple entries per wallet name = multiple eras.
+# Wallet developers: correct your own entry by PR.
+# Names match walletfingerprints.info's fingerprints.json so the datasets join; rename in both.
+# Era: `software` + `from_version`/`until_version` scope an entry to [from, until); either
+# bound may be omitted. Version strings are opaque labels, never ordered. One entry per era.
+# Where sources disagree irreconcilably, the axis is left unset (CONFLICT note).
 
 [[wallet]]
 name = "payjoin-cli"
 software = "payjoin-cli"
-from_version = "payjoin-cli-0.0.1-alpha"  # first tagged release; archaeology (Task 6)
-until_version = "payjoin-cli-1.0.0-rc.0"  # era cut: a0dd291a starts overriding locktime (below)
-# axes inherited from Bitcoin Core's walletcreatefundedpsbt — Core-side version
-# cuts live on the "Bitcoin Core" entry; this entry's interval only says which
-# payjoin-cli releases exist at all
+from_version = "payjoin-cli-0.0.1-alpha"  # first tagged release
+until_version = "payjoin-cli-1.0.0-rc.0"  # a0dd291a starts setting locktime
 confidence = "code-predicted"
-# fingerprints.json: payjoin 1.0.0-rc.3
 version = "2"
-nsequence = "Rbf"               # 0xFFFFFFFD via Core's walletcreatefundedpsbt (replaceable:
-                                  # None passed explicitly, never set by payjoin-cli itself);
-                                  # RBF default flip is Core's, see Core v24.0 (archaeology,
-                                  # Task 5); #1597 group A
-# nlocktime intentionally unset IN THIS ERA: pre-rc.0 payjoin-cli passed locktime: None, so
-# Core's own anti-fee-sniping ran — a DISTRIBUTIONAL behaviour (locktime == tip height ~90%
-# of the time, backdated up to 100 blocks the other ~10%) whose backdating tail crosses the
-# AntiFeeSnipe/Backdated class boundary by policy; a single axis value would fail on a share
-# of this wallet's own transactions. See `locktime_offset` for where the shape shows up.
-input_order = "Other"            # Core builds the shuffled input vector (GetShuffledInputVector)
-sighash = "All"                  # P2WPKH/ECDSA only; sighash_nonall=0 means always SIGHASH_ALL
+nsequence = "Rbf"               # Core walletcreatefundedpsbt default since v24.0
+# nlocktime unset: Core's randomized backdating crosses the AntiFeeSnipe/Backdated boundary
+input_order = "Other"            # Core GetShuffledInputVector
+sighash = "All"                  # P2WPKH/ECDSA only
 low_r = "Yes"
 uncompressed_pubkey = "No"
 op_return = "false"
@@ -47,23 +25,13 @@ op_return = "false"
 name = "payjoin-cli"
 software = "payjoin-cli"
 from_version = "payjoin-cli-1.0.0-rc.0"
-# Era cut: commit a0dd291a ("Add default current block height locktime for wallet
-# fingerprinting", merged 2026-03-26, first shipped payjoin-cli-1.0.0-rc.0, verbatim on
-# HEAD) replaces the `None // locktime` argument to walletcreatefundedpsbt with
-# Some(current block height) — payjoin-cli sets its own locktime, so Core's distributional
-# backdating never runs for this wallet from rc.0 on. Archaeology (Task 6, Step 2).
+# a0dd291a passes Some(tip height) as locktime, so Core's backdating never runs
 confidence = "code-predicted"
 version = "2"
-nsequence = "Rbf"               # unchanged: still Core's default via walletcreatefundedpsbt
-nlocktime = "AntiFeeSnipe"      # NOW CONSTRAINABLE: exact tip at creation is policy-deterministic,
-                                  # and an exact-tip locktime confirms at offset = confirmation
-                                  # delay, inside the (height-100, height] AntiFeeSnipe window.
-                                  # Caveat: a tx that waits >100 blocks to confirm classifies as
-                                  # Backdated and would not match — a delay property, not policy,
-                                  # unlike Core's own randomized backdating which crosses the
-                                  # boundary by design (why the pre-rc.0 era leaves this unset).
-input_order = "Other"            # Core builds the shuffled input vector (GetShuffledInputVector)
-sighash = "All"                  # P2WPKH/ECDSA only; sighash_nonall=0 means always SIGHASH_ALL
+nsequence = "Rbf"               # Core walletcreatefundedpsbt default
+nlocktime = "AntiFeeSnipe"      # exact tip; confirmations >100 blocks late read Backdated
+input_order = "Other"            # Core GetShuffledInputVector
+sighash = "All"                  # P2WPKH/ECDSA only
 low_r = "Yes"
 uncompressed_pubkey = "No"
 op_return = "false"
@@ -71,464 +39,135 @@ op_return = "false"
 [[wallet]]
 name = "ldk-node"
 software = "ldk-node"
-from_version = "v0.1-alpha"       # first tag; onchain bdk wallet present since the project's
-                                  # inception (b646a57/8bc5c40, 2022-2023). SINGLE OPEN ERA:
-                                  # every ldk-node version produces the same on-chain
-                                  # fingerprint (see nsequence/nlocktime). The earlier
-                                  # v0.1..v0.5.0-rc.1 split was reverted after verbatim source
-                                  # verification showed no behaviour change (Task 7, corrected).
+from_version = "v0.1-alpha"       # single era: no on-chain behaviour change across versions
 confidence = "code-predicted"
-# fingerprints.json: 0.8.0 / bdk_wallet 2.3.0
 version = "2"
-nsequence = "Rbf"                 # 0xFFFFFFFD (ENABLE_RBF_NO_LOCKTIME, RBF-signaling) across
-                                  # EVERY version. v0.1-alpha..v0.4.x call bdk `.enable_rbf()`
-                                  # explicitly on every on-chain build (send/drain/funding in
-                                  # src/wallet.rs at v0.1, src/wallet/mod.rs at v0.4) →
-                                  # params.rbf = Some(RbfValue::Default) → 0xFFFFFFFD; v0.5.0-rc.1
-                                  # sets nothing and inherits bdk_wallet 1.0.0's RBF-by-default
-                                  # ((None,None) => ENABLE_RBF_NO_LOCKTIME). #1597 group A.
-                                  # CORRECTION: was "Final" (0xFFFFFFFE) on the premise that
-                                  # ldk-node never calls .enable_rbf() and bdk took the
-                                  # `(None,None) if lock_time != ZERO` branch — both false:
-                                  # .enable_rbf() IS called through v0.4, and that bdk-0.x branch
-                                  # was removed in bdk_wallet 1.0.0. Verified per tag.
-nlocktime = "AntiFeeSnipe"        # bdk's no-locktime default sets nLockTime to the current chain
-                                  # tip (exact-tip anti-fee-sniping, NO randomization) for a
-                                  # synced wallet (bdk 0.28/0.29 sync-tip, bdk 1.x chain tip);
-                                  # funding sets the tip explicitly from v0.4 (event.rs,
-                                  # "discourage fee sniping"). Exact-tip confirms inside the
-                                  # (height-100, height] AntiFeeSnipe window. CORRECTION: was
-                                  # unset on a "~10% Core-style backdating" premise — bdk does
-                                  # NOT backdate (that is Core / bdk_wallet v3.x opt-in,
-                                  # postdating these versions). Edge cases: `Zero` for a
-                                  # never-synced wallet; like payjoin-cli, a tx confirming
-                                  # >100 blocks later reads Backdated.
-input_order = "Other"             # bdk TxOrdering::Shuffle default (bdk commit 0665c9e8, 2020),
-                                  # never overridden by ldk-node (Task 7)
-input_types = "Uniform(P2wpkh)"   # single Bip84 descriptor for both keychains since the first
-                                  # commit (8bc5c40); structurally never mixes
-sighash = "All"                   # bdk SIGHASH_ALL default (bdk commit 872d55cb, 2020)
-low_r = "Yes"                     # bdk allow_grinding default true (bdk commit 68dd6d20, 2022)
+nsequence = "Rbf"                 # .enable_rbf() through v0.4; bdk_wallet 1.0 RBF default after
+nlocktime = "AntiFeeSnipe"        # bdk sets exact chain tip, no backdating; Zero if never synced
+input_order = "Other"             # bdk TxOrdering::Shuffle default (0665c9e8)
+input_types = "Uniform(P2wpkh)"   # single Bip84 descriptor for both keychains (8bc5c40)
+sighash = "All"                   # bdk default (872d55cb)
+low_r = "Yes"                     # bdk allow_grinding default (68dd6d20)
 uncompressed_pubkey = "No"
 op_return = "false"
 
 [[wallet]]
 name = "Liana"
 software = "liana"
-from_version = "0.3rc1"          # latest of the per-axis cuts below; archaeology (Task 8)
+from_version = "0.3rc1"          # hot signer (low_r) first shipped
 confidence = "code-predicted"
-# fingerprints.json: 14.0.0
 version = "2"
-nsequence = "Rbf"                # 0xFFFFFFFD; #1597 group A (spend.rs:773). Present since
-                                  # commit dbf17681 ("commands: signal for opt-in RBF in Spend
-                                  # transactions", 2022-11-17), which predates and is included
-                                  # in the project's first tag, 0.0.1 (2022-12-18); still the
-                                  # default at v14.0 via cand.sequence.unwrap_or(...)
-                                  # (spend.rs:767-772). Traced all 5 call sites of the
-                                  # CandidateCoin constructor (coin_to_candidate,
-                                  # lianad/src/commands/mod.rs): regular spends and RBF-bump
-                                  # replacements (:697, :738, :1109, :1122) always pass
-                                  # sequence=None, so the RBF default applies; only the
-                                  # timelocked-recovery-path sweep (create_recovery, :1306)
-                                  # passes Some(Sequence::from_height(timelock)) instead, as
-                                  # required by the miniscript older() recovery fragment — this
-                                  # axis covers regular Liana spends, not recovery sweeps
-                                  # (archaeology, Task 8)
-# nlocktime intentionally unset: reimplements Core's anti-fee-sniping, which is a
-# DISTRIBUTIONAL behaviour (locktime == tip height ~90% of the time, backdated up to
-# 100 blocks the other ~10%) that a single `AntiFeeSnipe` axis value cannot capture per
-# transaction. Constraining nlocktime to one value would make the template fail on a
-# share of this wallet's own transactions; see `locktime_offset` for where this
-# behaviour actually shows up.
-input_order = "Other"            # coin-selection order: no sort, no shuffle. True since
-                                  # 0.0.1 (create_spend_tx pushed inputs in caller-supplied
-                                  # coins_outpoints order, no sort/shuffle) and still true at
-                                  # v14.0 (bdk_coin_select-driven `selected` order, again no
-                                  # post-hoc sort/shuffle); no BIP-69 or input-shuffle code
-                                  # ever found in the project's history (archaeology, Task 8)
-# input_types intentionally unset: a Liana input is ALWAYS wsh() or tr() miniscript, never
-# P2WPKH (from_multipath_descriptor rejects everything else, descriptors/analysis.rs:614) — a
-# real, deterministic, on-chain fingerprint. But the wsh-vs-tr choice is a per-wallet installer
-# config, NOT a version cut (both coexist since v5.0's Taproot support; pre-v5.0 is uniformly
-# wsh), and InputTypeClass is a single Uniform(T) slot with no way to express the {P2wsh, P2tr}
-# disjunction. Liana never mixes types within a tx, so no single value (nor Mixed) holds for
-# all Liana wallets — pinning either would false-non-match a share of Liana's own txs. Left a
-# wildcard rather than over-constrained (archaeology, Task 8).
-# output_order intentionally unset: fingerprints.json's change_position is "last
-# (deterministic)", but that only pins one output's position — for the common 2-output
-# case (single recipient + change) our OrderClass classifies by raw value comparison,
-# which is ALWAYS Ascending or Descending for two distinct amounts, never Other. Mapping
-# "last" to output_order="Other" would silently fail to match Liana's own most common
-# tx shape (a false non-match, i.e. an artificially small Liana anonymity set) — exactly
-# the over-constraining the brief warns against. Only map change_position -> output_order
-# where it genuinely constrains the whole ordering (Electrum's BIP-69, below).
-low_r = "Yes"                    # scoped to the hot signer: secp.sign_ecdsa_low_r in
-                                  # signer.rs's HotSigner::sign_p2wsh, added by commit
-                                  # f5e7632c ("signer: expose a method for signing a PSBT",
-                                  # 2023-01-26) — the hot signer module didn't exist at all
-                                  # before this (0.0.1-0.2rc1 shipped hardware-wallet signing
-                                  # only), first shipped 0.3rc1, still the call site at v14.0
-                                  # (signer.rs:273). CAVEAT: Liana also supports signing via
-                                  # hardware wallets (async-hwi crate, a GUI dependency since
-                                  # 0.0.1 and still present at v14.0) — for hardware-signed
-                                  # spends, low-R grinding is the external device's firmware
-                                  # behaviour, not Liana's own code, at every version
-                                  # (archaeology, Task 8)
+nsequence = "Rbf"                # spend.rs default since dbf17681; recovery sweeps use older()
+# nlocktime unset: Core-style randomized backdating crosses the AntiFeeSnipe/Backdated boundary
+input_order = "Other"            # coin-selection order, no sort or shuffle
+# input_types unset: wsh vs tr is a per-wallet choice and Uniform(T) can't express either-or
+# output_order unset: change-last doesn't fix order; 2-output txs classify by value
+low_r = "Yes"                    # HotSigner sign_ecdsa_low_r (f5e7632c); hardware signers vary
 uncompressed_pubkey = "No"
 op_return = "false"
 
 [[wallet]]
 name = "Boltz"
 software = "boltz-backend"
-until_version = "9af5faa3"       # open era, no from_version: covers every tagged release
-                                  # up to and including v3.13.0 (fingerprints.json's own
-                                  # pin, still boltz-backend's newest tag) — see the sibling
-                                  # entry below for why the cut is a commit, not a tag
+until_version = "9af5faa3"       # covers every tag through v3.13.0
 confidence = "code-predicted"
-# fingerprints.json: boltz-backend 3.13.0
 version = "2"
-# CONFLICT (nsequence): fingerprints.json gives "0xFFFFFFFF (MAX)", but #1597's opening
-# comment places Boltz in "group A - uniformly 0xFFFFFFFD", and its own follow-up EDIT
-# explains the old MAX reading was Boltz's *payjoin-contributed* input, which the lib
-# overwrites with the sender's sequence before it ever reaches chain
-# (receive/common/mod.rs:285-317) — Boltz's own (non-payjoin) txs use 0xFFFFFFFD. Two
-# irreconcilable values from the same research thread; left unset rather than guessed.
-# input_order intentionally unset: at the boltz-core 3.1.0 pin in place through v3.13.0,
-# constructClaimTransaction already takes `utxos: ClaimDetails[]` (plural — multi-input
-# claims pre-date the BIP-69 patch) and iterates with a plain `utxos.forEach(...)`, no
-# sort/shuffle call anywhere in Claim.ts (`git show v3.1.0:lib/swap/Claim.ts | grep -i
-# sort` — empty). But that only proves boltz-core's own code doesn't reorder; the actual
-# order is whatever boltz-backend's UTXO-selection code passes in, which was not traced
-# here (out of scope: lives in boltz-backend's own swap-claiming logic, not the boltz-core
-# dependency this task audited). Labelling it "Other" would assert a specific OrderClass
-# outcome for an upstream ordering this task didn't inspect — same over-constraint trap as
-# Liana's output_order (archaeology, Task 8) and Cake Wallet's output_order (Task 3), both
-# elsewhere in this file. archaeology (Task 9)
-output_structure = "Single"      # claim/refund: a single `tx.addOutput(destinationScript,
-                                  # ...)`, no change output — the only addOutput call in
-                                  # constructClaimTransaction, at this pin and at HEAD alike
-                                  # (true since boltz-core's first tag v0.0.1); spans both
-                                  # Boltz eras in this file. archaeology (Task 9)
-low_r = "No"                     # at the boltz-core 3.1.0 pin in place through v3.13.0,
-                                  # signing goes through bitcoinjs' `ecpair`
-                                  # (ECPairInterface.sign(sigHash), no second argument) —
-                                  # `ECPair.lowR` defaults false at construction
-                                  # (ts_src/ecpair.ts:195) and is never set true anywhere in
-                                  # boltz-core's or boltz-backend's history (`git log --all
-                                  # -S '.lowR'` and `-S 'lowR:'` both empty in both repos) —
-                                  # grinding was off. archaeology (Task 9)
-                                  # NOTE: low_r actually flipped to Yes at commit 1b93bc79
-                                  # (2026-05-19), three days before this era's cut at 9af5faa3
-                                  # (2026-05-22) — a master-tracking deployment in that untagged
-                                  # window is misdescribed on this axis; no tagged release lands there.
+# CONFLICT (nsequence): fingerprints.json says 0xFFFFFFFF, rust-payjoin#1597 says 0xFFFFFFFD; unset
+# input_order unset: boltz-core 3.1.0 doesn't reorder, but backend's UTXO order is untraced
+output_structure = "Single"      # claim/refund: single addOutput, no change
+low_r = "No"                     # bitcoinjs ecpair lowR defaults false; flips at 1b93bc79 (untagged)
 uncompressed_pubkey = "No"
 op_return = "false"
 
 [[wallet]]
 name = "Boltz"
 software = "boltz-backend"
-from_version = "9af5faa3"        # boltz-backend commit "chore: bump boltz-core to v5"
-                                  # (2026-05-22), the later of the two per-axis cuts below;
-                                  # NOT in any tagged boltz-backend release — v3.13.0
-                                  # (2026-05-08) is still the newest tag as of HEAD
-                                  # (4d131ef8, 2026-07-27, 64 commits past this one; `git
-                                  # tag --contains 9af5faa3` is empty). Used as from_version
-                                  # anyway because boltz-backend's package.json "version"
-                                  # field does not advance between releases — it reads
-                                  # "3.13.0" unchanged from the v3.13.0 tag all the way
-                                  # through HEAD (`git show v3.13.0:package.json | grep
-                                  # version` vs `git show HEAD:package.json | grep
-                                  # version`, both "3.13.0") — so a live/hosted deployment
-                                  # self-reporting "3.13.0" (fingerprints.json's comment
-                                  # below) is not distinguishable from one already running
-                                  # this or later commits; archaeology (Task 9)
+from_version = "9af5faa3"        # boltz-core v5 bump; untagged, package.json still says 3.13.0
 confidence = "code-predicted"
-# fingerprints.json: boltz-backend 3.13.0
 version = "2"
-# CONFLICT (nsequence): fingerprints.json gives "0xFFFFFFFF (MAX)", but #1597's opening
-# comment places Boltz in "group A - uniformly 0xFFFFFFFD", and its own follow-up EDIT
-# explains the old MAX reading was Boltz's *payjoin-contributed* input, which the lib
-# overwrites with the sender's sequence before it ever reaches chain
-# (receive/common/mod.rs:285-317) — Boltz's own (non-payjoin) txs use 0xFFFFFFFD. Two
-# irreconcilable values from the same research thread; left unset rather than guessed.
-input_order = "Bip69"            # boltz-core's compareInputs (lib/swap/Bip69.ts), wired
-                                  # into the claim path at Claim.ts:74-75 (`sortedUtxos =
-                                  # [...utxos].sort(compareInputs)`). Introduced boltz-core
-                                  # commit d561c8f "feat: BIP-69 order inputs and ouputs"
-                                  # (2026-05-13, first tag v5.0.0), reached by boltz-backend
-                                  # at 9af5faa3 above. Does not hold at the boltz-core pin
-                                  # in place through v3.13.0 (exact "3.1.0", no caret): no
-                                  # Bip69.ts file and no sort/order call anywhere in
-                                  # Claim.ts at that pin (`git show v3.1.0:lib/swap/Claim.ts
-                                  # | grep -i sort` — empty); archaeology (Task 9)
-output_structure = "Single"      # claim/refund: a single `tx.addOutput(destinationScript,
-                                  # ...)`, no change output — the only addOutput call in
-                                  # constructClaimTransaction. True from boltz-core's first
-                                  # tag v0.0.1 through HEAD; does not move this entry's
-                                  # from_version; archaeology (Task 9)
-low_r = "Yes"                    # boltz-core's signLegacy() calls @scure/btc-signer's
-                                  # signECDSA(hash, privateKey, true) — third positional
-                                  # arg is an explicit `lowR` flag (scure-btc-signer
-                                  # src/utils.ts:228, `function signECDSA(..., lowR =
-                                  # false)`). Introduced boltz-core commit 8affb59
-                                  # "refactor: use @scure/btc-signer" (2025-12-27, first
-                                  # tag v4.0.0), reached by boltz-backend at 1b93bc79
-                                  # "refactor: bump boltz-core to v4" (2026-05-19; also
-                                  # uncontained by any tag). Does not hold at the boltz-core
-                                  # pin in place through v3.13.0: signing there went through
-                                  # bitcoinjs' `ecpair` (ECPairInterface.sign), whose lowR
-                                  # defaults false at construction (ts_src/ecpair.ts:195)
-                                  # and is never set true anywhere in boltz-core's or
-                                  # boltz-backend's history (`git log --all -S '.lowR'` and
-                                  # `-S 'lowR:'` both empty in both repos) — grinding was
-                                  # off; archaeology (Task 9)
+# CONFLICT (nsequence): fingerprints.json says 0xFFFFFFFF, rust-payjoin#1597 says 0xFFFFFFFD; unset
+input_order = "Bip69"            # boltz-core compareInputs (d561c8f, v5.0.0)
+output_structure = "Single"      # claim/refund: single addOutput, no change
+low_r = "Yes"                    # @scure/btc-signer signECDSA lowR=true (boltz-core 8affb59, v4.0.0)
 uncompressed_pubkey = "No"
 op_return = "false"
 
 [[wallet]]
 name = "Bull Bitcoin"
 software = "bullbitcoin-mobile"
-from_version = "v5.0.0"          # latest of the per-axis cuts below, all four landing in
-                                  # the same tag (same April-2025 wallet-datasource refactor
-                                  # wave); archaeology (Task 10)
+from_version = "v5.0.0"          # wallet-datasource refactor; all axis cuts land here
 confidence = "code-predicted"
-# fingerprints.json: 6.11.1+186
 version = "2"
-# CONFLICT (nsequence): fingerprints.json gives "0xFFFFFFFF (MAX)", but #1597 places Bull
-# Bitcoin Mobile in "group A - uniformly 0xFFFFFFFD" (bdk_dart default; the old MAX
-# reading was its payjoin-contributed input, overwritten before reaching chain — its own
-# txs use 0xFFFFFFFD). This is the conflict flagged in review; left unset rather than guessed.
-nlocktime = "AntiFeeSnipe"       # bdk-dart inherits bdk_wallet 2.3.0's no-locktime default:
-                                  # nLockTime = current chain tip (exact-tip anti-fee-sniping,
-                                  # NO randomization) for a synced wallet — same bdk exact-tip
-                                  # evidence as the ldk-node entry (verified from bdk_wallet
-                                  # source; the ~10% Core-style backdate is Core / bdk_wallet
-                                  # v3.x opt-in, not 2.3.0). Confirms inside the (height-100,
-                                  # height] AntiFeeSnipe window; edge case `Zero` if unsynced.
-input_order = "Other"            # bdk_wallet TxOrdering::Shuffle default (bdk commit
-                                  # 0665c9e8, 2020 — see ldk-node archaeology, Task 7);
-                                  # bull_sdk's TxBuilder never calls .ordering(...), confirmed
-                                  # at both the fingerprints.json pin (v6.11.1) and HEAD.
-                                  # Holds across a dependency-fork swap this task found
-                                  # in-range (direct i5hi/bdk-dart pin @ bdk_wallet 2.3.0
-                                  # through v6.11.1, switched to the official bitcoindevkit
-                                  # bdk-dart via bull_sdk @ bdk_wallet 3.0.0 from v6.12.0) —
-                                  # both bdk_wallet versions postdate the shuffle default by
-                                  # years, so no flip; archaeology (Task 10)
-input_types = "Uniform(P2wpkh)"  # single ScriptType.bip84 hardcoded in
-                                  # create_default_wallets_usecase.dart (commit e0ebd698e,
-                                  # first tag v5.0.0) for the app's own default wallet;
-                                  # bip49/bip44 exist only for imported watch-only xpubs and
-                                  # a mnemonic-recovery dry-scan helper, never this wallet's
-                                  # own txs; unchanged at HEAD; archaeology (Task 10)
-sighash = "All"                  # explicit SignOptions.allowAllSighashes: false at every
-                                  # signPsbt call site (commit e30632b14, first tag v5.0.0),
-                                  # not merely an inherited bdk default; unchanged at HEAD;
-                                  # archaeology (Task 10)
-low_r = "Yes"                    # explicit SignOptions.allowGrinding: true, same call site
-                                  # and commit as sighash above; archaeology (Task 10)
+# CONFLICT (nsequence): fingerprints.json says 0xFFFFFFFF, rust-payjoin#1597 says 0xFFFFFFFD; unset
+nlocktime = "AntiFeeSnipe"       # bdk_wallet exact chain tip, no backdating; Zero if unsynced
+input_order = "Other"            # bdk TxOrdering::Shuffle default, never overridden
+input_types = "Uniform(P2wpkh)"  # bip84 default wallet (e0ebd698e)
+sighash = "All"                  # explicit allowAllSighashes: false (e30632b14)
+low_r = "Yes"                    # explicit allowGrinding: true (e30632b14)
 uncompressed_pubkey = "No"
 op_return = "false"
 
 [[wallet]]
 name = "BTCPay Server"
 software = "btcpayserver"
-from_version = "v1.13.0"         # later of the two per-axis cuts below (nsequence); archaeology (Task 11)
+from_version = "v1.13.0"         # a8fdc4798 removed randomized RBF
 confidence = "code-predicted"
-# fingerprints.json: btcpayserver v2.4.2 (8b71fb9) / NBXplorer v2.6.9 (f3da40c) — the
-# fingerprints.json pin was a commit, not a release; resolved via `git tag --contains`
-# against both repos (dgarage/NBXplorer 301-redirects to btcpayserver/NBXplorer).
-# Not one of the six integrations #1597 cross-examines directly, so only fingerprints.json
-# backs this entry. tx_version ("sampled (1 or 2)"), nlocktime ("sampled (anti-fee-sniping
-# or 0)"), and low_r ("sampled (on-chain rate)") are explicitly hedged there and omitted.
-# Tx construction is a 3-layer chain: btcpayserver only sets a request-level RBF bool on
-# NBXplorer's CreatePSBTRequest (UIWalletsController.PSBT.cs); NBXplorer's
-# MainController.PSBT.cs owns coin selection/sequence/locktime via NBitcoin's
-# TransactionBuilder, which is what actually shuffles inputs (Step 2, archaeology Task 11).
-nsequence = "Rbf"                # NBXplorer: txBuilder.OptInRBF = !(request.RBF is false)
-                                  # (MainController.PSBT.cs); btcpayserver sends an explicit
-                                  # RBF=true for RBF-supporting networks via `RBF =
-                                  # network.SupportRBF ? true : null` (UIWalletsController
-                                  # .PSBT.cs) — but this line is NOT the wallet's original
-                                  # behavior: before commit a8fdc4798 ("Remove randomize RBF
-                                  # from wallet UI advanced settings", 2024-01-31), the send
-                                  # screen's AllowFeeBump selector defaulted to ThreeStateBool
-                                  # .Maybe ("Randomize for higher privacy", enum value 0, never
-                                  # explicitly set on page load), which left the RBF request
-                                  # field null and fell through to NBXplorer's fingerprint-
-                                  # randomization subsystem instead of a fixed value — RBF was
-                                  # NOT deterministic before this commit. First tag containing
-                                  # a8fdc4798 (excl. non-mainline -rockstar- build tags): rc1
-                                  # v1.13.0-rc1 (2024-03-21), final v1.13.0 (2024-03-28).
-                                  # Setting from_version any earlier would make this axis
-                                  # untrue for BTCPay's own 2019-2024 randomized-RBF history —
-                                  # era-shape rule, archaeology (Task 11)
-input_order = "Other"            # shuffle; NBitcoin TransactionBuilder.ShuffleInputs default
-                                  # true, present since TransactionBuilder's first commit
-                                  # (3e118efeb, 2014-10-27) and never overridden by NBXplorer —
-                                  # confirmed both by `git grep` at HEAD (empty) and by a
-                                  # full-history `git log -S 'ShuffleInputs'|'ShuffleOutputs'
-                                  # --all` pickaxe across every branch (also empty; neither
-                                  # property has ever been added or removed in NBXplorer's
-                                  # history) — predates btcpayserver's own PSBT-send
-                                  # integration (03713f9bd, first tag v1.0.3.96, 2019-05-08) by
-                                  # 5 years, which in turn predates this entry's
-                                  # nsequence-driven from_version by another 5; does not move
-                                  # from_version. archaeology (Task 11)
+# tx_version, nlocktime, low_r unset: fingerprints.json marks them sampled
+nsequence = "Rbf"                # NBXplorer OptInRBF; btcpayserver sends RBF=true
+input_order = "Other"            # NBitcoin TransactionBuilder.ShuffleInputs default
 uncompressed_pubkey = "No"
 op_return = "false"
 
 [[wallet]]
 name = "Bitcoin Core"
 software = "bitcoin-core"
-from_version = "v24.0"           # latest of the per-axis cuts below; archaeology (Task 5)
+from_version = "v24.0"           # RBF default (PR #25610)
 confidence = "code-predicted"
-# fingerprints.json: v31.0
 version = "2"
-nsequence = "Rbf"                 # DEFAULT_WALLET_RBF flipped false->true in PR #25610
-                                  # ("wallet, rpc: Opt in to RBF by default"), merged
-                                  # 2022-08-01, first shipped v24.0 (commit c5ba1d92b6);
-                                  # still false through v23.0 — corrects the brief's
-                                  # v0.16.0 hypothesis (archaeology, Task 5)
-# nlocktime intentionally unset: Core's anti-fee-sniping is a DISTRIBUTIONAL behaviour
-# (locktime == tip height ~90% of the time, backdated up to 100 blocks the other ~10%)
-# that a single `AntiFeeSnipe` axis value cannot capture per transaction. Constraining
-# nlocktime to one value would make the template fail on a share of Core's own
-# transactions; see `locktime_offset` for where this behaviour actually shows up.
-input_order = "Other"            # GetShuffledInputVector; shuffle-before-signing landed
-                                  # PR #12699 ("Shuffle transaction inputs before signing"),
-                                  # merged 2018-03-26, first shipped v0.17.0 (commit
-                                  # 2fb9c1e668) — GetShuffledInputVector is a later (PR
-                                  # #22019) refactor of the same behaviour, not its origin
-                                  # (archaeology, Task 5)
-sighash = "All"                  # holds for the default addresstype (bech32/P2WPKH); Core
-                                  # can also sign taproot or mix input types under non-default
-                                  # config (fingerprints.json hedges single_type as "prefers
-                                  # single, mixes")
+nsequence = "Rbf"                 # DEFAULT_WALLET_RBF true since PR #25610 (v24.0)
+# nlocktime unset: randomized backdating crosses the AntiFeeSnipe/Backdated boundary
+input_order = "Other"             # inputs shuffled before signing (PR #12699, v0.17.0)
+sighash = "All"                  # default addresstype; taproot under non-default config
 input_types = ["Uniform(P2wpkh)", "Uniform(P2tr)", "Uniform(P2pkh)", "Uniform(P2sh)", "Uniform(P2wsh)", "Mixed"]
-                                  # Core spends whatever type the wallet holds, so this is a
-                                  # SET of accepted values, not a single one: it can NOT be
-                                  # pinned to one type without false-negating Core's own txs.
-                                  # But Core never spends bare P2PK or NonStandard inputs, so
-                                  # excluding those two removes txs that provably aren't Core
-                                  # from its anonymity set. No-signal (Unknown) still matches.
-low_r = "Yes"                    # PR #13666 ("Always create signatures with Low R values"),
-                                  # merged 2018-08-13, first shipped v0.17.0 (commit
-                                  # 18dfea0dd0) — confirms the brief's hypothesis
-                                  # (archaeology, Task 5)
+                                  # spends any held type, never bare P2PK or NonStandard
+low_r = "Yes"                    # PR #13666 (v0.17.0)
 uncompressed_pubkey = "No"
 
 [[wallet]]
 name = "Electrum"
 software = "electrum"
-from_version = "4.0.0b0"         # latest of the per-axis cuts below (low_r); archaeology (Task 12)
-confidence = "code-predicted"    # verified at 4.7.2 in payjoin#1597
-# fingerprints.json: electrum 4.7.2
+from_version = "4.0.0b0"         # low-R grinding (d16fd2783)
+confidence = "code-predicted"
 version = "2"
-nsequence = "Rbf"                 # 0xFFFFFFFD; wallet.py's nSequence = 0xffffffff - (2 if rbf
-                                  # else 1) with rbf: bool = True default, unchanged 3.1.0 through
-                                  # 4.7.2 and HEAD. NOT true further back: 2.7.0-2.7.18 shipped
-                                  # RBF opt-in with use_rbf defaulting False; 2.8.0-3.0.6 replaced
-                                  # that with an `rbf_policy` config (default 1, "if the fee is
-                                  # low") that made RBF-signalling a per-tx CONDITIONAL/sampled
-                                  # outcome depending on the chosen fee-rate (b = c in [-1, 25]) —
-                                  # not a fixed default, same shape as this entry's own nlocktime
-                                  # caveat below. Commits 96c86dac2 + 87cbe443a (both 2017-12-21,
-                                  # first tag 3.1.0) hardcoded use_rbf unconditionally True and
-                                  # retired rbf_policy — both eras predate the 4.7.2 observation by
-                                  # 7+ years and aren't otherwise observed in fingerprints.json, so
-                                  # per the era-shape rule they don't need their own entry here;
-                                  # archaeology (Task 12)
-# nlocktime intentionally unset: reimplements Core's anti-fee-sniping, which is a
-# DISTRIBUTIONAL behaviour (locktime == tip height ~90% of the time, backdated up to
-# 100 blocks the other ~10%) that a single `AntiFeeSnipe` axis value cannot capture per
-# transaction. Constraining nlocktime to one value would make the template fail on a
-# share of Electrum's own transactions; see `locktime_offset` for where this behaviour
-# actually shows up.
-input_order = "Bip69"            # BIP69_sort default True at every layer (transaction.py,
-                                  # coinchooser.py, wallet.py's make_unsigned_transaction).
-                                  # Introduced (under its pre-numbering name, BIP-LI01) by commit
-                                  # 98bea614d "Implement BIP-LI01." (2015-06-06, first tag 2.3.2),
-                                  # which in the same commit also replaced the prior random
-                                  # change-output placement with this deterministic sort; renamed
-                                  # BIP_LI01_sort -> BIP69_sort by 53fd6a2df (2018, pure rename,
-                                  # already unconditional). BOTH ends checked: only one call site
-                                  # in the whole tree ever passes BIP69_sort=False
-                                  # (txbatcher.py:560, TxBatcher._create_batch_tx, an LN
-                                  # sweep-batching path — not a regular send, same carve-out shape
-                                  # as Liana's recovery sweep and Boltz's out-of-scope claim path,
-                                  # both elsewhere in this file); no general drop found, confirmed
-                                  # unchanged at the 4.7.2 pin and at HEAD; archaeology (Task 12)
-output_order = "Bip69"           # change_position is "BIP-69" here too: BIP-69 fully orders
-                                  # the output vector, so (unlike Liana's "last") it genuinely
-                                  # constrains output_order, not just change position. Same
-                                  # BIP_LI01_sort commit (98bea614d, first tag 2.3.2) covers both
-                                  # inputs and outputs; same "never dropped" finding as input_order
-low_r = "Yes"                    # ECDSA grind-for-low-R, unconditional default. At HEAD, signing
-                                  # goes through the external electrum_ecc package
-                                  # (privkey.ecdsa_sign in transaction.py's txin-signing path;
-                                  # traced from keystore.py's sign_transaction), whose
-                                  # ENABLE_ECDSA_R_VALUE_GRINDING module constant defaults True.
-                                  # Grinding itself originates from commit d16fd2783 "Add
-                                  # signature Low R grinding to match with Bitcoin Core"
-                                  # (2019-12-05, first tag 4.0.0b0), added unconditionally against
-                                  # the then-current python-ecdsa backend; a later commit
-                                  # (a39bfba2d, 2021) added the ENABLE_ECDSA_R_VALUE_GRINDING flag
-                                  # purely as a test-only escape hatch, defaulting True from its
-                                  # own introduction. The signing backend itself moved python-ecdsa
-                                  # -> a direct libsecp256k1 binding (already the case by 2021) ->
-                                  # the standalone electrum_ecc package (2024, commit 3721f04ac,
-                                  # first tag 4.6.0) — pure backend swaps, grinding's default
-                                  # stayed unconditionally on throughout; no config/preference
-                                  # anywhere in the main repo exposes a way to disable it;
-                                  # confirmed unchanged at the 4.7.2 pin; archaeology (Task 12)
+nsequence = "Rbf"                 # wallet.py rbf=True default since 3.1.0
+# nlocktime unset: Core-style randomized backdating crosses the AntiFeeSnipe/Backdated boundary
+input_order = "Bip69"            # BIP69_sort default (98bea614d); only LN sweep batching opts out
+output_order = "Bip69"           # same sort orders the full output vector
+low_r = "Yes"                    # electrum_ecc ENABLE_ECDSA_R_VALUE_GRINDING default
 uncompressed_pubkey = "No"
 
 [[wallet]]
 name = "Cake Wallet"
 software = "cake_wallet"
 until_version = "v6.3.0"
-confidence = "chain-proven"      # nsequence/nlocktime decoded from prior 9ecd77ab (#1597),
-                                  # confirmed 2025-10-25 (block 920749) — predates PR #3379's
-                                  # 2026-07-14 merge, so chain-proven confidence anchors here
-                                  # (archaeology, Task 3)
-# fingerprints.json: bitcoin_base 4.7.0
+confidence = "chain-proven"      # decoded from 9ecd77ab (block 920749)
 version = "2"
 nsequence = "first 0x01 rest 0xffffffff"
 nlocktime = "Zero"
 low_r = "Yes"
 uncompressed_pubkey = "No"
-input_order = "Bip69"            # was a CONFLICT block: true UNTIL cake-tech/cake_wallet#3379
-                                  # ("Shuffle input order on bitcoin sends", merged 2026-07-14,
-                                  # first shipped v6.3.0) switched to shuffle — now a fact of
-                                  # this closed era (archaeology, Task 3)
-# output_order intentionally unset: was a CONFLICT block ("appends change last" vs. #1597's
-# struck-through shuffle claim). Archaeology (Task 3) resolved it directly from source: this
-# era built with `BitcoinOrdering.none` (construction order, change appended last in code),
-# NOT `BitcoinOrdering.bip69` — no BIP-69 sort of the non-change outputs ever ran. Setting
-# output_order = "Bip69" would assert a stronger, false claim. And for the common 2-output
-# case, OrderClass reads raw value order regardless, so "last" alone cannot map to any
-# OrderClass value here either — same reasoning as Liana's entry, above.
+input_order = "Bip69"            # until cake_wallet#3379 (v6.3.0)
+# output_order unset: change appended last, not BIP-69; 2-output txs classify by value
 
 [[wallet]]
 name = "Cake Wallet"
 software = "cake_wallet"
 from_version = "v6.3.0"
-confidence = "code-predicted"    # post-shuffle era not yet decoded from a real prior
+confidence = "code-predicted"
 version = "2"
-nsequence = "first 0x01 rest 0xffffffff"         # group-C bug persists across the cut: confirmed UNFIXED on
-                                  # both bitcoin_base `main` and the `cake-update-v11` branch
-                                  # cake_wallet's pubspec.yaml actually pins (archaeology,
-                                  # Task 3) — #3379/#3420/#3432 are ordering changes only, they
-                                  # never touch replaceByFeeSequence's inputs[0]-only logic
+nsequence = "first 0x01 rest 0xffffffff"         # bitcoin_base replaceByFeeSequence still sets inputs[0] only
 nlocktime = "Zero"
 low_r = "Yes"
 uncompressed_pubkey = "No"
-input_order = "Other"            # shuffle since cake-tech/cake_wallet#3379 (v6.3.0)
-# output_order intentionally unset: output shuffling completes over two releases —
-# cake-tech/cake_wallet#3420 (content lands v6.3.0, via an orphaned merge commit resolved by
-# content search) covers the software+RBF send paths, #3432 (v6.4.0) finishes hardware
-# wallet/Bitcoin Cash sends (archaeology, Task 3). Even fully shuffled, OrderClass reads raw
-# value order for the common 2-output case, so this axis stays unset across the whole
-# era rather than modeling a third, identically-unconstrained sub-era for v6.3.0–v6.4.0 —
-# same over-constraint trap as Liana's entry, above.
+input_order = "Other"            # shuffle since cake_wallet#3379 (v6.3.0)
+# output_order unset: shuffle completes in v6.4.0 (#3432); 2-output txs classify by value

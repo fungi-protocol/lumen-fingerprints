@@ -5,12 +5,10 @@ use crate::classify::{
     extract_signatures_from_script_sig, extract_signatures_from_witness, has_low_r_signature,
 };
 
-/// Returns true if the input signals RBF (sequence < 0xfffffffe).
 pub fn signals_rbf(input: &(impl HasSequence + ?Sized)) -> bool {
     input.sequence() < 0xfffffffe
 }
 
-/// Returns true if the input has at least one low-R ECDSA signature.
 pub fn low_r_grinding(input: &(impl HasWitness + HasScriptSig + ?Sized)) -> bool {
     let script_sig_bytes = input.script_sig_bytes();
     let witness_items = input.witness_items();
@@ -30,7 +28,6 @@ pub fn low_r_grinding(input: &(impl HasWitness + HasScriptSig + ?Sized)) -> bool
     })
 }
 
-/// Bundled trait for input-level fingerprints.
 pub trait HasInputFingerprints: HasSequence + HasWitness + HasScriptSig {
     fn signals_rbf(&self) -> bool {
         signals_rbf(self)

@@ -2,7 +2,6 @@ use bitcoin::Amount;
 
 use crate::{OutputType, ScriptPubkeyHash, classify_script_pubkey};
 
-// Should be implemented by any type that is contained within a transaction.
 pub trait TxConstituent {
     type Handle: AbstractTransaction;
     fn containing_tx(&self) -> Self::Handle;
@@ -27,43 +26,31 @@ pub trait EnumerateInputValueInArbitraryOrder: AbstractTransaction {
     fn input_values(&self) -> impl Iterator<Item = Amount>;
 }
 
-/// Trait for transaction inputs
 pub trait AbstractTxIn: HasSequence + HasWitness + HasScriptSig + HasPrevOutpoint {}
 
-/// Trait for transaction outputs
 pub trait AbstractTxOut: HasScriptPubkey + HasValue {}
 
-/// Trait for transaction looking things. Generic over the ids as they can be either loose or dense.
 pub trait AbstractTransaction: HasNLockTime + HasVersion {
-    /// Returns an iterator over transaction inputs
     fn inputs(&self) -> Box<dyn Iterator<Item = Box<dyn AbstractTxIn + '_>> + '_>;
-    /// Returns an iterator over transaction outputs
     fn outputs(&self) -> Box<dyn Iterator<Item = Box<dyn AbstractTxOut + '_>> + '_>;
-    /// Returns the number of inputs
     fn input_len(&self) -> usize;
-    /// Returns the number of outputs
     fn output_len(&self) -> usize;
-    /// Returns the output at the given index, if it exists
     fn output_at(&self, index: usize) -> Option<Box<dyn AbstractTxOut + '_>>;
     fn is_coinbase(&self) -> bool;
 }
 
-/// Transaction nlocktime value
 pub trait HasNLockTime {
     fn locktime(&self) -> u32;
 }
 
-/// Transaction version
 pub trait HasVersion {
     fn version(&self) -> i32;
 }
 
-/// Sequence number of a transaction input
 pub trait HasSequence {
     fn sequence(&self) -> u32;
 }
 
-/// Witness and scriptSig data for a transaction input
 pub trait HasWitness {
     fn witness_items(&self) -> Vec<Vec<u8>>;
 }
@@ -72,7 +59,6 @@ pub trait HasScriptSig {
     fn script_sig_bytes(&self) -> Vec<u8>;
 }
 
-/// Full scriptPubKey bytes for a transaction output
 pub trait HasScriptPubkey {
     fn script_pubkey_bytes(&self) -> Vec<u8>;
 
@@ -90,20 +76,16 @@ pub trait HasScriptPubkey {
     }
 }
 
-/// Value (amount) of a transaction output
 pub trait HasValue {
     fn value(&self) -> Amount;
 }
 
-/// Raw outpoint reference carried by every transaction input.
 /// Coinbase inputs carry the null outpoint (all-zero txid, vout = u32::MAX).
 pub trait HasPrevOutpoint {
-    /// Txid bytes in internal (wire) order
+    /// Internal (wire) byte order.
     fn prev_outpoint_txid_bytes(&self) -> [u8; 32];
     fn prev_outpoint_vout(&self) -> u32;
 }
-
-// --- bitcoin type impls ---
 
 impl AbstractTxIn for bitcoin::TxIn {}
 
