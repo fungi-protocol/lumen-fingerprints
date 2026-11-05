@@ -192,7 +192,10 @@ fn cmd_report(args: &[String]) {
         .map(PathBuf::from)
         .unwrap_or_else(default_templates_path);
 
-    let templates = load_templates(&templates_path).expect("loading templates");
+    let templates = load_templates(&templates_path).unwrap_or_else(|e| {
+        eprintln!("{}: {e}", templates_path.display());
+        std::process::exit(1);
+    });
     println!(
         "matching against {} wallet templates from {}",
         templates.len(),
