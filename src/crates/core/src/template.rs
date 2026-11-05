@@ -4,12 +4,11 @@ use std::path::Path;
 
 use serde::Deserialize;
 
-use crate::vector::{CORE_AXES, EXTENDED_AXES, FingerprintVector, HEURISTIC_AXES};
+use crate::vector::{CORE_AXES, EXTENDED_AXES, FingerprintVector};
 
-/// Unknown keys are errors so a typo fails loudly instead of matching everything.
-/// Heuristic axes stay out of joint keys but templates may still constrain them.
+/// Matching runs on joint keys, so an axis outside them would silently match everything.
 fn is_known_axis(axis: &str) -> bool {
-    CORE_AXES.contains(&axis) || EXTENDED_AXES.contains(&axis) || HEURISTIC_AXES.contains(&axis)
+    CORE_AXES.contains(&axis) || EXTENDED_AXES.contains(&axis)
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -22,7 +21,7 @@ pub enum Confidence {
 pub enum TemplateError {
     Io(std::io::Error),
     Parse(String),
-    UnknownAxis(String),
+    UnknownAxis { wallet: String, axis: String },
 }
 
 impl std::fmt::Display for TemplateError {
@@ -30,7 +29,9 @@ impl std::fmt::Display for TemplateError {
         match self {
             Self::Io(e) => write!(f, "reading templates: {e}"),
             Self::Parse(msg) => write!(f, "parsing templates: {msg}"),
-            Self::UnknownAxis(axis) => write!(f, "unknown axis in template: {axis}"),
+            Self::UnknownAxis { wallet, axis } => {
+                write!(f, "wallet {wallet}: {axis} is not an axis of the joint key")
+            }
         }
     }
 }
@@ -108,7 +109,7 @@ pub fn parse_templates(text: &str) -> Result<Vec<WalletTemplate>, TemplateError>
             let mut axes = BTreeMap::new();
             for (axis, value) in entry {
                 if !is_known_axis(&axis) {
-                    return Err(TemplateError::UnknownAxis(axis));
+                    return Err(TemplateError::UnknownAxis { wallet: name, axis });
                 }
                 let values = match value {
                     RawValue::One(s) => vec![s],
@@ -161,6 +162,7 @@ impl WalletTemplate {
     /// measured here are upper bounds.
     fn matches_by<'a, F: Fn(&str) -> Option<Cow<'a, str>>>(&self, lookup: F) -> bool {
         self.axes.iter().all(|(axis, expected)| {
+            // A key written before this axis existed never observed it: no signal.
             let Some(actual) = lookup(axis) else {
                 return true;
             };
@@ -335,6 +337,17 @@ mod tests {
     }
 
     #[test]
+    fn heuristic_axis_is_an_error() {
+        for axis in crate::vector::HEURISTIC_AXES {
+            let toml = format!("[[wallet]]\nname = \"h\"\n{axis} = \"Last\"\n");
+            assert!(matches!(
+                parse_templates(&toml),
+                Err(TemplateError::UnknownAxis { axis: a, .. }) if a == *axis
+            ));
+        }
+    }
+
+    #[test]
     fn unknown_axis_name_is_an_error() {
         let toml = r#"
             [[wallet]]
@@ -399,12 +412,7 @@ mod tests {
         let templates = load_templates(&path).unwrap();
         let v = cake_vector();
 
-        let all_axes: Vec<&str> = CORE_AXES
-            .iter()
-            .chain(EXTENDED_AXES.iter())
-            .chain(HEURISTIC_AXES.iter())
-            .copied()
-            .collect();
+        let all_axes: Vec<&str> = CORE_AXES.iter().chain(EXTENDED_AXES).copied().collect();
         let axes = crate::vector::parse_key(&v.key_for(&all_axes));
 
         for template in &templates {
