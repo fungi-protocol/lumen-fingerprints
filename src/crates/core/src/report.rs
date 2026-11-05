@@ -7,7 +7,9 @@ use std::path::Path;
 use serde::Serialize;
 
 use crate::epoch::EpochRow;
-use crate::features::{COLUMN_KINDS, COLUMN_NAMES, ColumnKind, FieldAgg, merge_field};
+use crate::features::{
+    COLUMN_KINDS, COLUMN_NAMES, COLUMN_SECTIONS, ColumnKind, FieldAgg, merge_field,
+};
 use crate::template::WalletTemplate;
 use crate::vector::{CORE_AXES, EXTENDED_AXES, HEURISTIC_AXES, parse_key};
 
@@ -597,208 +599,21 @@ fn conditional_anonymity(
         .collect()
 }
 
-/// `COLUMN_NAMES[2..]` and `COLUMN_KINDS` are index-aligned.
-fn column_kind_for(name: &str) -> Option<&'static ColumnKind> {
-    COLUMN_NAMES[2..]
-        .iter()
-        .zip(COLUMN_KINDS.iter())
-        .find(|(n, _)| **n == name)
-        .map(|(_, k)| k)
+fn column_index(name: &str) -> Option<usize> {
+    COLUMN_NAMES[2..].iter().position(|n| *n == name)
 }
 
-/// Must follow the grouping of `COLUMN_NAMES` and `FEATURES.md`; panics rather than
-/// mis-file an unmapped column.
+fn column_kind_for(name: &str) -> Option<&'static ColumnKind> {
+    column_index(name).map(|i| &COLUMN_KINDS[i])
+}
+
+/// Panics rather than mis-file a column missing from the table.
 fn section_for(name: &str) -> &'static str {
     match name {
         "txid" | "block_height" => "00",
-
-        "op_return"
-        | "round_feerate"
-        | "low_s_yes"
-        | "round_fee"
-        | "round_payment"
-        | "uih1"
-        | "uih2"
-        | "address_reuse"
-        | "same_block_parent"
-        | "changeless"
-        | "low_r_yes"
-        | "low_r_indeterminate"
-        | "uncompressed_pubkey_yes"
-        | "uncompressed_pubkey_indeterminate" => "01",
-
-        "version_1"
-        | "version_2"
-        | "version_3"
-        | "version_other"
-        | "nsequence_cake_group_c"
-        | "nsequence_lone_0x01"
-        | "nsequence_rbf"
-        | "nsequence_final"
-        | "nsequence_max"
-        | "nsequence_mixed_other"
-        | "nlocktime_zero"
-        | "nlocktime_anti_fee_snipe"
-        | "nlocktime_backdated"
-        | "nlocktime_future"
-        | "nlocktime_timestamp"
-        | "input_order_bip69"
-        | "input_order_value_ascending"
-        | "input_order_value_descending"
-        | "input_order_age_ascending"
-        | "input_order_other"
-        | "input_order_indeterminate"
-        | "output_order_bip69"
-        | "output_order_value_ascending"
-        | "output_order_value_descending"
-        | "output_order_age_ascending"
-        | "output_order_other"
-        | "output_order_indeterminate"
-        | "input_subtype_p2sh_p2wpkh"
-        | "input_subtype_p2sh_multisig"
-        | "input_subtype_p2sh_other"
-        | "input_subtype_p2wsh_multisig"
-        | "input_subtype_p2wsh_other"
-        | "input_subtype_taproot_key_path"
-        | "input_subtype_taproot_script_path"
-        | "input_subtype_bare"
-        | "input_subtype_mixed"
-        | "input_subtype_indeterminate"
-        | "sighash_taproot_default"
-        | "sighash_taproot_explicit"
-        | "sighash_all"
-        | "sighash_none"
-        | "sighash_single"
-        | "sighash_acp_all"
-        | "sighash_acp_none"
-        | "sighash_acp_single"
-        | "sighash_other"
-        | "sighash_mixed"
-        | "sighash_na"
-        | "input_types_uniform_p2pkh"
-        | "input_types_uniform_p2sh"
-        | "input_types_uniform_p2wpkh"
-        | "input_types_uniform_p2wsh"
-        | "input_types_uniform_p2tr"
-        | "input_types_uniform_op_return"
-        | "input_types_uniform_nonstandard"
-        | "input_types_uniform_p2pk"
-        | "input_types_mixed"
-        | "input_types_unknown" => "02",
-
-        "ecdsa_sigs_index"
-        | "input_age_index"
-        | "output_structure_index"
-        | "feerate_bucket_index"
-        | "locktime_offset_index"
-        | "locktime_offset_not_applicable" => "03",
-
-        "change_position_first"
-        | "change_position_last"
-        | "change_position_middle"
-        | "change_position_indeterminate"
-        | "change_type_present"
-        | "change_detected_by_round_number"
-        | "change_heuristics_agree" => "04",
-
-        "bip125_rbf"
-        | "all_inputs_final"
-        | "bip68_active"
-        | "bip68_type_time"
-        | "nsequence_reserved_bits_set"
-        | "bip68_relative_value_max"
-        | "nlocktime_dead"
-        | "nlocktime_optin_without_use" => "05",
-
-        "input_count"
-        | "output_count"
-        | "input_count_p2pkh"
-        | "input_count_p2sh"
-        | "input_count_p2wpkh"
-        | "input_count_p2wsh"
-        | "input_count_p2tr"
-        | "input_count_op_return"
-        | "input_count_nonstandard"
-        | "input_count_p2pk"
-        | "output_count_p2pkh"
-        | "output_count_p2sh"
-        | "output_count_p2wpkh"
-        | "output_count_p2wsh"
-        | "output_count_p2tr"
-        | "output_count_op_return"
-        | "output_count_nonstandard"
-        | "output_count_p2pk"
-        | "first_output_type_index"
-        | "last_output_type_index"
-        | "first_output_matches_input_type"
-        | "last_output_matches_input_type"
-        | "outputs_type_grouped"
-        | "first_input_type_index"
-        | "last_input_type_index"
-        | "inputs_type_grouped"
-        | "input_type_at_pos_0"
-        | "input_type_at_pos_1"
-        | "input_type_at_pos_2"
-        | "input_type_at_pos_3"
-        | "input_type_at_pos_4"
-        | "input_type_at_pos_5"
-        | "input_type_at_pos_6"
-        | "input_type_at_pos_7"
-        | "input_type_at_pos_8"
-        | "input_type_at_pos_9"
-        | "output_type_at_pos_0"
-        | "output_type_at_pos_1"
-        | "output_type_at_pos_2"
-        | "output_type_at_pos_3"
-        | "output_type_at_pos_4"
-        | "output_type_at_pos_5"
-        | "output_type_at_pos_6"
-        | "output_type_at_pos_7"
-        | "output_type_at_pos_8"
-        | "output_type_at_pos_9"
-        | "multisig_m"
-        | "multisig_n"
-        | "multisig_mixed"
-        | "sigop_count" => "06",
-
-        "fee_sat"
-        | "vsize"
-        | "weight"
-        | "feerate_sat_per_vb"
-        | "feerate_sat_per_kwu"
-        | "fee_is_multiple_of_vsize"
-        | "feerate_over_block_min"
-        | "feerate_over_prev_block_min"
-        | "fee_is_multiple_of_kwu"
-        | "fee_is_multiple_of_weight" => "07",
-
-        "max_output_value_sat"
-        | "hamming_decimal"
-        | "hamming_base2"
-        | "hamming_base3"
-        | "decimal_sig_fig_span"
-        | "hamming_decimal_min_over_outputs"
-        | "distinct_output_value_count"
-        | "max_equal_value_output_count" => "08",
-
-        "taproot_max_merkle_depth"
-        | "taproot_script_path_input_count"
-        | "taproot_keyspend_non_default_sighash" => "09",
-
-        "is_standard"
-        | "nonstd_version"
-        | "nonstd_weight"
-        | "nonstd_output_type"
-        | "nonstd_dust"
-        | "nonstd_multi_op_return"
-        | "nonstd_bare_multisig" => "10",
-
-        "has_inscription_envelope" | "has_runestone" => "11",
-
-        other => unreachable!(
-            "column {other:?} has no section_for mapping — add one when a new feature \
-             column is introduced"
-        ),
+        _ => column_index(name)
+            .map(|i| COLUMN_SECTIONS[i])
+            .unwrap_or_else(|| panic!("column {name:?} is not in COLUMN_NAMES")),
     }
 }
 

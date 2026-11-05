@@ -416,188 +416,6 @@ pub struct FeatureRow {
     pub values: Vec<f64>,
 }
 
-/// Append-only. `feature_row` must push values in this order after the two identity
-/// columns; `row_width_matches_column_count` guards the width.
-pub const COLUMN_NAMES: &[&str] = &[
-    "txid",
-    "block_height",
-    "op_return",
-    "round_feerate",
-    "low_s_yes",
-    "round_fee",
-    "round_payment",
-    "uih1",
-    "uih2",
-    "address_reuse",
-    "same_block_parent",
-    "changeless",
-    "low_r_yes",
-    "low_r_indeterminate",
-    "uncompressed_pubkey_yes",
-    "uncompressed_pubkey_indeterminate",
-    "version_1",
-    "version_2",
-    "version_3",
-    "version_other",
-    "nsequence_cake_group_c",
-    "nsequence_lone_0x01",
-    "nsequence_rbf",
-    "nsequence_final",
-    "nsequence_max",
-    "nsequence_mixed_other",
-    "nlocktime_zero",
-    "nlocktime_anti_fee_snipe",
-    "nlocktime_backdated",
-    "nlocktime_future",
-    "nlocktime_timestamp",
-    "input_order_bip69",
-    "input_order_value_ascending",
-    "input_order_value_descending",
-    "input_order_age_ascending",
-    "input_order_other",
-    "input_order_indeterminate",
-    "output_order_bip69",
-    "output_order_value_ascending",
-    "output_order_value_descending",
-    "output_order_age_ascending",
-    "output_order_other",
-    "output_order_indeterminate",
-    "input_subtype_p2sh_p2wpkh",
-    "input_subtype_p2sh_multisig",
-    "input_subtype_p2sh_other",
-    "input_subtype_p2wsh_multisig",
-    "input_subtype_p2wsh_other",
-    "input_subtype_taproot_key_path",
-    "input_subtype_taproot_script_path",
-    "input_subtype_bare",
-    "input_subtype_mixed",
-    "input_subtype_indeterminate",
-    "sighash_taproot_default",
-    "sighash_taproot_explicit",
-    "sighash_all",
-    "sighash_none",
-    "sighash_single",
-    "sighash_acp_all",
-    "sighash_acp_none",
-    "sighash_acp_single",
-    "sighash_other",
-    "sighash_mixed",
-    "sighash_na",
-    "input_types_uniform_p2pkh",
-    "input_types_uniform_p2sh",
-    "input_types_uniform_p2wpkh",
-    "input_types_uniform_p2wsh",
-    "input_types_uniform_p2tr",
-    "input_types_uniform_op_return",
-    "input_types_uniform_nonstandard",
-    "input_types_uniform_p2pk",
-    "input_types_mixed",
-    "input_types_unknown",
-    // ordinal: larger index = larger bucket
-    "ecdsa_sigs_index",       // None=0, One=1, Few=2, Many=3
-    "input_age_index",        // SameBlock=0, Within6=1, Within144=2, Older=3, Indeterminate=4
-    "output_structure_index", // Single=0, Double=1, Multi=2, Unknown=3
-    "feerate_bucket_index",   // feerate_rank's sparse lower-bound rank
-    "locktime_offset_index",  // NotApplicable→0 with the flag below set
-    "locktime_offset_not_applicable",
-    // heuristic-derived: CSV only, never in the joint key
-    "change_position_first",
-    "change_position_last",
-    "change_position_middle",
-    "change_position_indeterminate",
-    "change_type_present",
-    "bip125_rbf",
-    "all_inputs_final",
-    "bip68_active",
-    "bip68_type_time",
-    "nsequence_reserved_bits_set",
-    "bip68_relative_value_max",
-    "nlocktime_dead",
-    "input_count",
-    "output_count",
-    "input_count_p2pkh",
-    "input_count_p2sh",
-    "input_count_p2wpkh",
-    "input_count_p2wsh",
-    "input_count_p2tr",
-    "input_count_op_return",
-    "input_count_nonstandard",
-    "input_count_p2pk",
-    "output_count_p2pkh",
-    "output_count_p2sh",
-    "output_count_p2wpkh",
-    "output_count_p2wsh",
-    "output_count_p2tr",
-    "output_count_op_return",
-    "output_count_nonstandard",
-    "output_count_p2pk",
-    "first_output_type_index",
-    "last_output_type_index",
-    "first_output_matches_input_type",
-    "last_output_matches_input_type",
-    "outputs_type_grouped",
-    "first_input_type_index",
-    "last_input_type_index",
-    "inputs_type_grouped",
-    "input_type_at_pos_0",
-    "input_type_at_pos_1",
-    "input_type_at_pos_2",
-    "input_type_at_pos_3",
-    "input_type_at_pos_4",
-    "input_type_at_pos_5",
-    "input_type_at_pos_6",
-    "input_type_at_pos_7",
-    "input_type_at_pos_8",
-    "input_type_at_pos_9",
-    "output_type_at_pos_0",
-    "output_type_at_pos_1",
-    "output_type_at_pos_2",
-    "output_type_at_pos_3",
-    "output_type_at_pos_4",
-    "output_type_at_pos_5",
-    "output_type_at_pos_6",
-    "output_type_at_pos_7",
-    "output_type_at_pos_8",
-    "output_type_at_pos_9",
-    "fee_sat",
-    "vsize",
-    "weight",
-    "feerate_sat_per_vb",
-    "feerate_sat_per_kwu",
-    "fee_is_multiple_of_vsize",
-    "feerate_over_block_min",
-    "feerate_over_prev_block_min",
-    "max_output_value_sat",
-    "hamming_decimal",
-    "hamming_base2",
-    "hamming_base3",
-    "decimal_sig_fig_span",
-    "hamming_decimal_min_over_outputs",
-    "taproot_max_merkle_depth",
-    "taproot_script_path_input_count",
-    "is_standard",
-    "nonstd_version",
-    "nonstd_weight",
-    "nonstd_output_type",
-    "nonstd_dust",
-    "nonstd_multi_op_return",
-    "nonstd_bare_multisig",
-    "has_inscription_envelope",
-    "has_runestone",
-    "fee_is_multiple_of_kwu",
-    "fee_is_multiple_of_weight",
-    "multisig_m",
-    "multisig_n",
-    "multisig_mixed",
-    "distinct_output_value_count",
-    "max_equal_value_output_count",
-    "nlocktime_optin_without_use",
-    "taproot_keyspend_non_default_sighash",
-    "sigop_count",
-    "change_detected_by_round_number",
-    "change_heuristics_agree",
-];
-
 /// How a feature column's raw `f64` values fold into a dashboard aggregate.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum ColumnKind {
@@ -652,408 +470,240 @@ const LABELS_TYPE_INDEX: &[&str] = &[
     "p2pk",
 ];
 
-/// `COLUMN_KINDS[i]` describes `COLUMN_NAMES[i + 2]`.
-pub const COLUMN_KINDS: &[ColumnKind] = &[
-    ColumnKind::Bool,                         // op_return
-    ColumnKind::Bool,                         // round_feerate
-    ColumnKind::Bool,                         // low_s_yes
-    ColumnKind::Bool,                         // round_fee
-    ColumnKind::Bool,                         // round_payment
-    ColumnKind::Bool,                         // uih1
-    ColumnKind::Bool,                         // uih2
-    ColumnKind::Bool,                         // address_reuse
-    ColumnKind::Bool,                         // same_block_parent
-    ColumnKind::Bool,                         // changeless
-    ColumnKind::Bool,                         // low_r_yes
-    ColumnKind::Bool,                         // low_r_indeterminate
-    ColumnKind::Bool,                         // uncompressed_pubkey_yes
-    ColumnKind::Bool,                         // uncompressed_pubkey_indeterminate
-    ColumnKind::OneHot { group: "version_" }, // version_1
-    ColumnKind::OneHot { group: "version_" }, // version_2
-    ColumnKind::OneHot { group: "version_" }, // version_3
-    ColumnKind::OneHot { group: "version_" }, // version_other
-    ColumnKind::OneHot {
-        group: "nsequence_",
-    }, // nsequence_cake_group_c
-    ColumnKind::OneHot {
-        group: "nsequence_",
-    }, // nsequence_lone_0x01
-    ColumnKind::OneHot {
-        group: "nsequence_",
-    }, // nsequence_rbf
-    ColumnKind::OneHot {
-        group: "nsequence_",
-    }, // nsequence_final
-    ColumnKind::OneHot {
-        group: "nsequence_",
-    }, // nsequence_max
-    ColumnKind::OneHot {
-        group: "nsequence_",
-    }, // nsequence_mixed_other
-    ColumnKind::OneHot {
-        group: "nlocktime_",
-    }, // nlocktime_zero
-    ColumnKind::OneHot {
-        group: "nlocktime_",
-    }, // nlocktime_anti_fee_snipe
-    ColumnKind::OneHot {
-        group: "nlocktime_",
-    }, // nlocktime_backdated
-    ColumnKind::OneHot {
-        group: "nlocktime_",
-    }, // nlocktime_future
-    ColumnKind::OneHot {
-        group: "nlocktime_",
-    }, // nlocktime_timestamp
-    ColumnKind::OneHot {
-        group: "input_order_",
-    }, // input_order_bip69
-    ColumnKind::OneHot {
-        group: "input_order_",
-    }, // input_order_value_ascending
-    ColumnKind::OneHot {
-        group: "input_order_",
-    }, // input_order_value_descending
-    ColumnKind::OneHot {
-        group: "input_order_",
-    }, // input_order_age_ascending
-    ColumnKind::OneHot {
-        group: "input_order_",
-    }, // input_order_other
-    ColumnKind::OneHot {
-        group: "input_order_",
-    }, // input_order_indeterminate
-    ColumnKind::OneHot {
-        group: "output_order_",
-    }, // output_order_bip69
-    ColumnKind::OneHot {
-        group: "output_order_",
-    }, // output_order_value_ascending
-    ColumnKind::OneHot {
-        group: "output_order_",
-    }, // output_order_value_descending
-    ColumnKind::OneHot {
-        group: "output_order_",
-    }, // output_order_age_ascending
-    ColumnKind::OneHot {
-        group: "output_order_",
-    }, // output_order_other
-    ColumnKind::OneHot {
-        group: "output_order_",
-    }, // output_order_indeterminate
-    ColumnKind::OneHot {
-        group: "input_subtype_",
-    }, // input_subtype_p2sh_p2wpkh
-    ColumnKind::OneHot {
-        group: "input_subtype_",
-    }, // input_subtype_p2sh_multisig
-    ColumnKind::OneHot {
-        group: "input_subtype_",
-    }, // input_subtype_p2sh_other
-    ColumnKind::OneHot {
-        group: "input_subtype_",
-    }, // input_subtype_p2wsh_multisig
-    ColumnKind::OneHot {
-        group: "input_subtype_",
-    }, // input_subtype_p2wsh_other
-    ColumnKind::OneHot {
-        group: "input_subtype_",
-    }, // input_subtype_taproot_key_path
-    ColumnKind::OneHot {
-        group: "input_subtype_",
-    }, // input_subtype_taproot_script_path
-    ColumnKind::OneHot {
-        group: "input_subtype_",
-    }, // input_subtype_bare
-    ColumnKind::OneHot {
-        group: "input_subtype_",
-    }, // input_subtype_mixed
-    ColumnKind::OneHot {
-        group: "input_subtype_",
-    }, // input_subtype_indeterminate
-    ColumnKind::OneHot { group: "sighash_" }, // sighash_taproot_default
-    ColumnKind::OneHot { group: "sighash_" }, // sighash_taproot_explicit
-    ColumnKind::OneHot { group: "sighash_" }, // sighash_all
-    ColumnKind::OneHot { group: "sighash_" }, // sighash_none
-    ColumnKind::OneHot { group: "sighash_" }, // sighash_single
-    ColumnKind::OneHot { group: "sighash_" }, // sighash_acp_all
-    ColumnKind::OneHot { group: "sighash_" }, // sighash_acp_none
-    ColumnKind::OneHot { group: "sighash_" }, // sighash_acp_single
-    ColumnKind::OneHot { group: "sighash_" }, // sighash_other
-    ColumnKind::OneHot { group: "sighash_" }, // sighash_mixed
-    ColumnKind::OneHot { group: "sighash_" }, // sighash_na
-    ColumnKind::OneHot {
-        group: "input_types_",
-    }, // input_types_uniform_p2pkh
-    ColumnKind::OneHot {
-        group: "input_types_",
-    }, // input_types_uniform_p2sh
-    ColumnKind::OneHot {
-        group: "input_types_",
-    }, // input_types_uniform_p2wpkh
-    ColumnKind::OneHot {
-        group: "input_types_",
-    }, // input_types_uniform_p2wsh
-    ColumnKind::OneHot {
-        group: "input_types_",
-    }, // input_types_uniform_p2tr
-    ColumnKind::OneHot {
-        group: "input_types_",
-    }, // input_types_uniform_op_return
-    ColumnKind::OneHot {
-        group: "input_types_",
-    }, // input_types_uniform_nonstandard
-    ColumnKind::OneHot {
-        group: "input_types_",
-    }, // input_types_uniform_p2pk
-    ColumnKind::OneHot {
-        group: "input_types_",
-    }, // input_types_mixed
-    ColumnKind::OneHot {
-        group: "input_types_",
-    }, // input_types_unknown
-    ColumnKind::Ordinal {
-        labels: LABELS_ECDSA_SIGS,
-    }, // ecdsa_sigs_index
-    ColumnKind::Ordinal {
-        labels: LABELS_INPUT_AGE,
-    }, // input_age_index
-    ColumnKind::Ordinal {
-        labels: LABELS_OUTPUT_STRUCTURE,
-    }, // output_structure_index
-    ColumnKind::Ordinal {
-        labels: LABELS_FEERATE_BUCKET,
-    }, // feerate_bucket_index
-    ColumnKind::Ordinal {
-        labels: LABELS_LOCKTIME_OFFSET,
-    }, // locktime_offset_index
-    ColumnKind::Bool,                         // locktime_offset_not_applicable
-    ColumnKind::OneHot {
-        group: "change_position_",
-    }, // change_position_first
-    ColumnKind::OneHot {
-        group: "change_position_",
-    }, // change_position_last
-    ColumnKind::OneHot {
-        group: "change_position_",
-    }, // change_position_middle
-    ColumnKind::OneHot {
-        group: "change_position_",
-    }, // change_position_indeterminate
-    ColumnKind::Bool,                         // change_type_present
-    ColumnKind::Bool,                         // bip125_rbf
-    ColumnKind::Bool,                         // all_inputs_final
-    ColumnKind::Bool,                         // bip68_active
-    ColumnKind::Bool,                         // bip68_type_time
-    ColumnKind::Bool,                         // nsequence_reserved_bits_set
-    ColumnKind::Numeric {
-        edges: EDGES_BIP68_RELATIVE_VALUE,
-    }, // bip68_relative_value_max
-    ColumnKind::Bool,                         // nlocktime_dead
-    ColumnKind::Numeric {
-        edges: EDGES_IO_COUNT,
-    }, // input_count
-    ColumnKind::Numeric {
-        edges: EDGES_IO_COUNT,
-    }, // output_count
-    ColumnKind::Numeric {
-        edges: EDGES_IO_TYPE_COUNT,
-    }, // input_count_p2pkh
-    ColumnKind::Numeric {
-        edges: EDGES_IO_TYPE_COUNT,
-    }, // input_count_p2sh
-    ColumnKind::Numeric {
-        edges: EDGES_IO_TYPE_COUNT,
-    }, // input_count_p2wpkh
-    ColumnKind::Numeric {
-        edges: EDGES_IO_TYPE_COUNT,
-    }, // input_count_p2wsh
-    ColumnKind::Numeric {
-        edges: EDGES_IO_TYPE_COUNT,
-    }, // input_count_p2tr
-    ColumnKind::Numeric {
-        edges: EDGES_IO_TYPE_COUNT,
-    }, // input_count_op_return
-    ColumnKind::Numeric {
-        edges: EDGES_IO_TYPE_COUNT,
-    }, // input_count_nonstandard
-    ColumnKind::Numeric {
-        edges: EDGES_IO_TYPE_COUNT,
-    }, // input_count_p2pk
-    ColumnKind::Numeric {
-        edges: EDGES_IO_TYPE_COUNT,
-    }, // output_count_p2pkh
-    ColumnKind::Numeric {
-        edges: EDGES_IO_TYPE_COUNT,
-    }, // output_count_p2sh
-    ColumnKind::Numeric {
-        edges: EDGES_IO_TYPE_COUNT,
-    }, // output_count_p2wpkh
-    ColumnKind::Numeric {
-        edges: EDGES_IO_TYPE_COUNT,
-    }, // output_count_p2wsh
-    ColumnKind::Numeric {
-        edges: EDGES_IO_TYPE_COUNT,
-    }, // output_count_p2tr
-    ColumnKind::Numeric {
-        edges: EDGES_IO_TYPE_COUNT,
-    }, // output_count_op_return
-    ColumnKind::Numeric {
-        edges: EDGES_IO_TYPE_COUNT,
-    }, // output_count_nonstandard
-    ColumnKind::Numeric {
-        edges: EDGES_IO_TYPE_COUNT,
-    }, // output_count_p2pk
-    ColumnKind::Ordinal {
-        labels: LABELS_TYPE_INDEX,
-    }, // first_output_type_index
-    ColumnKind::Ordinal {
-        labels: LABELS_TYPE_INDEX,
-    }, // last_output_type_index
-    ColumnKind::Bool,                         // first_output_matches_input_type
-    ColumnKind::Bool,                         // last_output_matches_input_type
-    ColumnKind::Bool,                         // outputs_type_grouped
-    ColumnKind::Ordinal {
-        labels: LABELS_TYPE_INDEX,
-    }, // first_input_type_index
-    ColumnKind::Ordinal {
-        labels: LABELS_TYPE_INDEX,
-    }, // last_input_type_index
-    ColumnKind::Bool,                         // inputs_type_grouped
-    ColumnKind::Ordinal {
-        labels: LABELS_TYPE_INDEX,
-    }, // input_type_at_pos_0
-    ColumnKind::Ordinal {
-        labels: LABELS_TYPE_INDEX,
-    }, // input_type_at_pos_1
-    ColumnKind::Ordinal {
-        labels: LABELS_TYPE_INDEX,
-    }, // input_type_at_pos_2
-    ColumnKind::Ordinal {
-        labels: LABELS_TYPE_INDEX,
-    }, // input_type_at_pos_3
-    ColumnKind::Ordinal {
-        labels: LABELS_TYPE_INDEX,
-    }, // input_type_at_pos_4
-    ColumnKind::Ordinal {
-        labels: LABELS_TYPE_INDEX,
-    }, // input_type_at_pos_5
-    ColumnKind::Ordinal {
-        labels: LABELS_TYPE_INDEX,
-    }, // input_type_at_pos_6
-    ColumnKind::Ordinal {
-        labels: LABELS_TYPE_INDEX,
-    }, // input_type_at_pos_7
-    ColumnKind::Ordinal {
-        labels: LABELS_TYPE_INDEX,
-    }, // input_type_at_pos_8
-    ColumnKind::Ordinal {
-        labels: LABELS_TYPE_INDEX,
-    }, // input_type_at_pos_9
-    ColumnKind::Ordinal {
-        labels: LABELS_TYPE_INDEX,
-    }, // output_type_at_pos_0
-    ColumnKind::Ordinal {
-        labels: LABELS_TYPE_INDEX,
-    }, // output_type_at_pos_1
-    ColumnKind::Ordinal {
-        labels: LABELS_TYPE_INDEX,
-    }, // output_type_at_pos_2
-    ColumnKind::Ordinal {
-        labels: LABELS_TYPE_INDEX,
-    }, // output_type_at_pos_3
-    ColumnKind::Ordinal {
-        labels: LABELS_TYPE_INDEX,
-    }, // output_type_at_pos_4
-    ColumnKind::Ordinal {
-        labels: LABELS_TYPE_INDEX,
-    }, // output_type_at_pos_5
-    ColumnKind::Ordinal {
-        labels: LABELS_TYPE_INDEX,
-    }, // output_type_at_pos_6
-    ColumnKind::Ordinal {
-        labels: LABELS_TYPE_INDEX,
-    }, // output_type_at_pos_7
-    ColumnKind::Ordinal {
-        labels: LABELS_TYPE_INDEX,
-    }, // output_type_at_pos_8
-    ColumnKind::Ordinal {
-        labels: LABELS_TYPE_INDEX,
-    }, // output_type_at_pos_9
-    ColumnKind::Numeric {
-        edges: EDGES_FEE_SAT,
-    }, // fee_sat
-    ColumnKind::Numeric { edges: EDGES_VSIZE }, // vsize
-    ColumnKind::Numeric {
-        edges: EDGES_WEIGHT,
-    }, // weight
-    ColumnKind::Numeric {
-        edges: EDGES_FEERATE,
-    }, // feerate_sat_per_vb
-    ColumnKind::Numeric {
-        edges: EDGES_FEERATE,
-    }, // feerate_sat_per_kwu
-    ColumnKind::Bool,                         // fee_is_multiple_of_vsize
-    ColumnKind::Numeric {
-        edges: EDGES_FEERATE_RATIO,
-    }, // feerate_over_block_min
-    ColumnKind::Numeric {
-        edges: EDGES_FEERATE_RATIO,
-    }, // feerate_over_prev_block_min
-    ColumnKind::Numeric {
-        edges: EDGES_AMOUNT,
-    }, // max_output_value_sat
-    ColumnKind::Numeric {
-        edges: EDGES_HAMMING,
-    }, // hamming_decimal
-    ColumnKind::Numeric {
-        edges: EDGES_HAMMING,
-    }, // hamming_base2
-    ColumnKind::Numeric {
-        edges: EDGES_HAMMING,
-    }, // hamming_base3
-    ColumnKind::Numeric {
-        edges: EDGES_HAMMING,
-    }, // decimal_sig_fig_span
-    ColumnKind::Numeric {
-        edges: EDGES_AMOUNT,
-    }, // hamming_decimal_min_over_outputs
-    ColumnKind::Numeric {
-        edges: EDGES_TAPROOT_DEPTH,
-    }, // taproot_max_merkle_depth
-    ColumnKind::Numeric {
-        edges: EDGES_TAPROOT_DEPTH,
-    }, // taproot_script_path_input_count
-    ColumnKind::Bool,                         // is_standard
-    ColumnKind::Bool,                         // nonstd_version
-    ColumnKind::Bool,                         // nonstd_weight
-    ColumnKind::Bool,                         // nonstd_output_type
-    ColumnKind::Bool,                         // nonstd_dust
-    ColumnKind::Bool,                         // nonstd_multi_op_return
-    ColumnKind::Bool,                         // nonstd_bare_multisig
-    ColumnKind::Bool,                         // has_inscription_envelope
-    ColumnKind::Bool,                         // has_runestone
-    ColumnKind::Bool,                         // fee_is_multiple_of_kwu
-    ColumnKind::Bool,                         // fee_is_multiple_of_weight
-    ColumnKind::Numeric {
-        edges: EDGES_MULTISIG,
-    }, // multisig_m
-    ColumnKind::Numeric {
-        edges: EDGES_MULTISIG,
-    }, // multisig_n
-    ColumnKind::Bool,                         // multisig_mixed
-    ColumnKind::Numeric {
-        edges: EDGES_OUTPUT_VALUE_COUNT,
-    }, // distinct_output_value_count
-    ColumnKind::Numeric {
-        edges: EDGES_OUTPUT_VALUE_COUNT,
-    }, // max_equal_value_output_count
-    ColumnKind::Bool,                         // nlocktime_optin_without_use
-    ColumnKind::Bool,                         // taproot_keyspend_non_default_sighash
-    ColumnKind::Numeric { edges: EDGES_SIGOP }, // sigop_count
-    ColumnKind::Bool,                         // change_detected_by_round_number
-    ColumnKind::Bool,                         // change_heuristics_agree
-];
+/// Declares every feature column once, generating the index-aligned `COLUMN_NAMES`
+/// (after the two identity columns), `COLUMN_KINDS` and `COLUMN_SECTIONS`.
+macro_rules! columns {
+    ($($section:literal: [$($name:literal => $kind:expr),* $(,)?]),* $(,)?) => {
+        pub const COLUMN_NAMES: &[&str] = &["txid", "block_height", $($($name),*),*];
+        pub const COLUMN_KINDS: &[ColumnKind] = &[$($({
+            use ColumnKind::*;
+            $kind
+        }),*),*];
+        pub(crate) const COLUMN_SECTIONS: &[&str] = &[$($(second!($name, $section)),*),*];
+    };
+}
+
+// Repeats `$section` once per `$name`: macro_rules can't repeat it at that depth alone.
+macro_rules! second {
+    ($_first:expr, $second:expr) => {
+        $second
+    };
+}
+
+// Append-only: new columns go at the end, under their catalog section.
+columns! {
+    "01": [
+        "op_return" => Bool,
+        "round_feerate" => Bool,
+        "low_s_yes" => Bool,
+        "round_fee" => Bool,
+        "round_payment" => Bool,
+        "uih1" => Bool,
+        "uih2" => Bool,
+        "address_reuse" => Bool,
+        "same_block_parent" => Bool,
+        "changeless" => Bool,
+        "low_r_yes" => Bool,
+        "low_r_indeterminate" => Bool,
+        "uncompressed_pubkey_yes" => Bool,
+        "uncompressed_pubkey_indeterminate" => Bool,
+    ],
+    "02": [
+        "version_1" => OneHot { group: "version_" },
+        "version_2" => OneHot { group: "version_" },
+        "version_3" => OneHot { group: "version_" },
+        "version_other" => OneHot { group: "version_" },
+        "nsequence_cake_group_c" => OneHot { group: "nsequence_" },
+        "nsequence_lone_0x01" => OneHot { group: "nsequence_" },
+        "nsequence_rbf" => OneHot { group: "nsequence_" },
+        "nsequence_final" => OneHot { group: "nsequence_" },
+        "nsequence_max" => OneHot { group: "nsequence_" },
+        "nsequence_mixed_other" => OneHot { group: "nsequence_" },
+        "nlocktime_zero" => OneHot { group: "nlocktime_" },
+        "nlocktime_anti_fee_snipe" => OneHot { group: "nlocktime_" },
+        "nlocktime_backdated" => OneHot { group: "nlocktime_" },
+        "nlocktime_future" => OneHot { group: "nlocktime_" },
+        "nlocktime_timestamp" => OneHot { group: "nlocktime_" },
+        "input_order_bip69" => OneHot { group: "input_order_" },
+        "input_order_value_ascending" => OneHot { group: "input_order_" },
+        "input_order_value_descending" => OneHot { group: "input_order_" },
+        "input_order_age_ascending" => OneHot { group: "input_order_" },
+        "input_order_other" => OneHot { group: "input_order_" },
+        "input_order_indeterminate" => OneHot { group: "input_order_" },
+        "output_order_bip69" => OneHot { group: "output_order_" },
+        "output_order_value_ascending" => OneHot { group: "output_order_" },
+        "output_order_value_descending" => OneHot { group: "output_order_" },
+        "output_order_age_ascending" => OneHot { group: "output_order_" },
+        "output_order_other" => OneHot { group: "output_order_" },
+        "output_order_indeterminate" => OneHot { group: "output_order_" },
+        "input_subtype_p2sh_p2wpkh" => OneHot { group: "input_subtype_" },
+        "input_subtype_p2sh_multisig" => OneHot { group: "input_subtype_" },
+        "input_subtype_p2sh_other" => OneHot { group: "input_subtype_" },
+        "input_subtype_p2wsh_multisig" => OneHot { group: "input_subtype_" },
+        "input_subtype_p2wsh_other" => OneHot { group: "input_subtype_" },
+        "input_subtype_taproot_key_path" => OneHot { group: "input_subtype_" },
+        "input_subtype_taproot_script_path" => OneHot { group: "input_subtype_" },
+        "input_subtype_bare" => OneHot { group: "input_subtype_" },
+        "input_subtype_mixed" => OneHot { group: "input_subtype_" },
+        "input_subtype_indeterminate" => OneHot { group: "input_subtype_" },
+        "sighash_taproot_default" => OneHot { group: "sighash_" },
+        "sighash_taproot_explicit" => OneHot { group: "sighash_" },
+        "sighash_all" => OneHot { group: "sighash_" },
+        "sighash_none" => OneHot { group: "sighash_" },
+        "sighash_single" => OneHot { group: "sighash_" },
+        "sighash_acp_all" => OneHot { group: "sighash_" },
+        "sighash_acp_none" => OneHot { group: "sighash_" },
+        "sighash_acp_single" => OneHot { group: "sighash_" },
+        "sighash_other" => OneHot { group: "sighash_" },
+        "sighash_mixed" => OneHot { group: "sighash_" },
+        "sighash_na" => OneHot { group: "sighash_" },
+        "input_types_uniform_p2pkh" => OneHot { group: "input_types_" },
+        "input_types_uniform_p2sh" => OneHot { group: "input_types_" },
+        "input_types_uniform_p2wpkh" => OneHot { group: "input_types_" },
+        "input_types_uniform_p2wsh" => OneHot { group: "input_types_" },
+        "input_types_uniform_p2tr" => OneHot { group: "input_types_" },
+        "input_types_uniform_op_return" => OneHot { group: "input_types_" },
+        "input_types_uniform_nonstandard" => OneHot { group: "input_types_" },
+        "input_types_uniform_p2pk" => OneHot { group: "input_types_" },
+        "input_types_mixed" => OneHot { group: "input_types_" },
+        "input_types_unknown" => OneHot { group: "input_types_" },
+    ],
+    "03": [
+        // ordinal: larger index = larger bucket
+        "ecdsa_sigs_index" => Ordinal { labels: LABELS_ECDSA_SIGS },
+        "input_age_index" => Ordinal { labels: LABELS_INPUT_AGE },
+        "output_structure_index" => Ordinal { labels: LABELS_OUTPUT_STRUCTURE },
+        "feerate_bucket_index" => Ordinal { labels: LABELS_FEERATE_BUCKET },
+        "locktime_offset_index" => Ordinal { labels: LABELS_LOCKTIME_OFFSET },
+        "locktime_offset_not_applicable" => Bool,
+    ],
+    "04": [
+        // heuristic-derived: CSV only, never in the joint key
+        "change_position_first" => OneHot { group: "change_position_" },
+        "change_position_last" => OneHot { group: "change_position_" },
+        "change_position_middle" => OneHot { group: "change_position_" },
+        "change_position_indeterminate" => OneHot { group: "change_position_" },
+        "change_type_present" => Bool,
+    ],
+    "05": [
+        "bip125_rbf" => Bool,
+        "all_inputs_final" => Bool,
+        "bip68_active" => Bool,
+        "bip68_type_time" => Bool,
+        "nsequence_reserved_bits_set" => Bool,
+        "bip68_relative_value_max" => Numeric { edges: EDGES_BIP68_RELATIVE_VALUE },
+        "nlocktime_dead" => Bool,
+    ],
+    "06": [
+        "input_count" => Numeric { edges: EDGES_IO_COUNT },
+        "output_count" => Numeric { edges: EDGES_IO_COUNT },
+        "input_count_p2pkh" => Numeric { edges: EDGES_IO_TYPE_COUNT },
+        "input_count_p2sh" => Numeric { edges: EDGES_IO_TYPE_COUNT },
+        "input_count_p2wpkh" => Numeric { edges: EDGES_IO_TYPE_COUNT },
+        "input_count_p2wsh" => Numeric { edges: EDGES_IO_TYPE_COUNT },
+        "input_count_p2tr" => Numeric { edges: EDGES_IO_TYPE_COUNT },
+        "input_count_op_return" => Numeric { edges: EDGES_IO_TYPE_COUNT },
+        "input_count_nonstandard" => Numeric { edges: EDGES_IO_TYPE_COUNT },
+        "input_count_p2pk" => Numeric { edges: EDGES_IO_TYPE_COUNT },
+        "output_count_p2pkh" => Numeric { edges: EDGES_IO_TYPE_COUNT },
+        "output_count_p2sh" => Numeric { edges: EDGES_IO_TYPE_COUNT },
+        "output_count_p2wpkh" => Numeric { edges: EDGES_IO_TYPE_COUNT },
+        "output_count_p2wsh" => Numeric { edges: EDGES_IO_TYPE_COUNT },
+        "output_count_p2tr" => Numeric { edges: EDGES_IO_TYPE_COUNT },
+        "output_count_op_return" => Numeric { edges: EDGES_IO_TYPE_COUNT },
+        "output_count_nonstandard" => Numeric { edges: EDGES_IO_TYPE_COUNT },
+        "output_count_p2pk" => Numeric { edges: EDGES_IO_TYPE_COUNT },
+        "first_output_type_index" => Ordinal { labels: LABELS_TYPE_INDEX },
+        "last_output_type_index" => Ordinal { labels: LABELS_TYPE_INDEX },
+        "first_output_matches_input_type" => Bool,
+        "last_output_matches_input_type" => Bool,
+        "outputs_type_grouped" => Bool,
+        "first_input_type_index" => Ordinal { labels: LABELS_TYPE_INDEX },
+        "last_input_type_index" => Ordinal { labels: LABELS_TYPE_INDEX },
+        "inputs_type_grouped" => Bool,
+        "input_type_at_pos_0" => Ordinal { labels: LABELS_TYPE_INDEX },
+        "input_type_at_pos_1" => Ordinal { labels: LABELS_TYPE_INDEX },
+        "input_type_at_pos_2" => Ordinal { labels: LABELS_TYPE_INDEX },
+        "input_type_at_pos_3" => Ordinal { labels: LABELS_TYPE_INDEX },
+        "input_type_at_pos_4" => Ordinal { labels: LABELS_TYPE_INDEX },
+        "input_type_at_pos_5" => Ordinal { labels: LABELS_TYPE_INDEX },
+        "input_type_at_pos_6" => Ordinal { labels: LABELS_TYPE_INDEX },
+        "input_type_at_pos_7" => Ordinal { labels: LABELS_TYPE_INDEX },
+        "input_type_at_pos_8" => Ordinal { labels: LABELS_TYPE_INDEX },
+        "input_type_at_pos_9" => Ordinal { labels: LABELS_TYPE_INDEX },
+        "output_type_at_pos_0" => Ordinal { labels: LABELS_TYPE_INDEX },
+        "output_type_at_pos_1" => Ordinal { labels: LABELS_TYPE_INDEX },
+        "output_type_at_pos_2" => Ordinal { labels: LABELS_TYPE_INDEX },
+        "output_type_at_pos_3" => Ordinal { labels: LABELS_TYPE_INDEX },
+        "output_type_at_pos_4" => Ordinal { labels: LABELS_TYPE_INDEX },
+        "output_type_at_pos_5" => Ordinal { labels: LABELS_TYPE_INDEX },
+        "output_type_at_pos_6" => Ordinal { labels: LABELS_TYPE_INDEX },
+        "output_type_at_pos_7" => Ordinal { labels: LABELS_TYPE_INDEX },
+        "output_type_at_pos_8" => Ordinal { labels: LABELS_TYPE_INDEX },
+        "output_type_at_pos_9" => Ordinal { labels: LABELS_TYPE_INDEX },
+    ],
+    "07": [
+        "fee_sat" => Numeric { edges: EDGES_FEE_SAT },
+        "vsize" => Numeric { edges: EDGES_VSIZE },
+        "weight" => Numeric { edges: EDGES_WEIGHT },
+        "feerate_sat_per_vb" => Numeric { edges: EDGES_FEERATE },
+        "feerate_sat_per_kwu" => Numeric { edges: EDGES_FEERATE },
+        "fee_is_multiple_of_vsize" => Bool,
+        "feerate_over_block_min" => Numeric { edges: EDGES_FEERATE_RATIO },
+        "feerate_over_prev_block_min" => Numeric { edges: EDGES_FEERATE_RATIO },
+    ],
+    "08": [
+        "max_output_value_sat" => Numeric { edges: EDGES_AMOUNT },
+        "hamming_decimal" => Numeric { edges: EDGES_HAMMING },
+        "hamming_base2" => Numeric { edges: EDGES_HAMMING },
+        "hamming_base3" => Numeric { edges: EDGES_HAMMING },
+        "decimal_sig_fig_span" => Numeric { edges: EDGES_HAMMING },
+        "hamming_decimal_min_over_outputs" => Numeric { edges: EDGES_AMOUNT },
+    ],
+    "09": [
+        "taproot_max_merkle_depth" => Numeric { edges: EDGES_TAPROOT_DEPTH },
+        "taproot_script_path_input_count" => Numeric { edges: EDGES_TAPROOT_DEPTH },
+    ],
+    "10": [
+        "is_standard" => Bool,
+        "nonstd_version" => Bool,
+        "nonstd_weight" => Bool,
+        "nonstd_output_type" => Bool,
+        "nonstd_dust" => Bool,
+        "nonstd_multi_op_return" => Bool,
+        "nonstd_bare_multisig" => Bool,
+    ],
+    "11": [
+        "has_inscription_envelope" => Bool,
+        "has_runestone" => Bool,
+    ],
+    "07": [
+        "fee_is_multiple_of_kwu" => Bool,
+        "fee_is_multiple_of_weight" => Bool,
+    ],
+    "06": [
+        "multisig_m" => Numeric { edges: EDGES_MULTISIG },
+        "multisig_n" => Numeric { edges: EDGES_MULTISIG },
+        "multisig_mixed" => Bool,
+    ],
+    "08": [
+        "distinct_output_value_count" => Numeric { edges: EDGES_OUTPUT_VALUE_COUNT },
+        "max_equal_value_output_count" => Numeric { edges: EDGES_OUTPUT_VALUE_COUNT },
+    ],
+    "05": [
+        "nlocktime_optin_without_use" => Bool,
+    ],
+    "09": [
+        "taproot_keyspend_non_default_sighash" => Bool,
+    ],
+    "06": [
+        "sigop_count" => Numeric { edges: EDGES_SIGOP },
+    ],
+    "04": [
+        "change_detected_by_round_number" => Bool,
+        "change_heuristics_agree" => Bool,
+    ],
+}
 
 /// Mergeable across shards and epochs, so `Numeric` keeps sums rather than means.
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -1084,7 +734,7 @@ pub fn new_field_agg(kind: &ColumnKind) -> FieldAgg {
 }
 
 /// Categorical keys are the raw integer, not `labels[value]`: `-1` (absent) and sparse
-/// feerate ranks are mapped to labels only at display time.
+/// feerate ranks don't index `labels`, so the explorer labels them.
 pub fn fold_field(agg: &mut FieldAgg, kind: &ColumnKind, value: f64) {
     match (agg, kind) {
         (FieldAgg::Categorical(m), ColumnKind::Bool | ColumnKind::OneHot { .. }) => {
@@ -3314,6 +2964,14 @@ mod tests {
             std::collections::BTreeSet::from(["op_return", "round_feerate"]),
             "the only names shared between the feature matrix and the sparsity axes must be the intentional duals; any other overlap breaks the two-objectives separation"
         );
+    }
+
+    #[test]
+    fn column_names_are_unique() {
+        let mut seen = std::collections::BTreeSet::new();
+        for name in COLUMN_NAMES {
+            assert!(seen.insert(name), "duplicate column {name}");
+        }
     }
 
     #[test]
