@@ -2966,6 +2966,14 @@ mod tests {
         );
     }
 
+    /// The published header, so reordering, renaming or removing a column fails here;
+    /// appending one means adding it to the file too, keeping FEATURES.md honest.
+    #[test]
+    fn columns_match_the_published_header() {
+        let published: Vec<&str> = include_str!("../feature_columns.txt").lines().collect();
+        assert_eq!(COLUMN_NAMES, published.as_slice());
+    }
+
     #[test]
     fn column_names_are_unique() {
         let mut seen = std::collections::BTreeSet::new();

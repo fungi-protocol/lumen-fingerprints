@@ -20,6 +20,8 @@ this file does not describe).
   against column *names* keeps working across versions; a script relying on column
   *position* is safe for existing columns but must tolerate new trailing columns
   appearing.
+- `src/crates/core/feature_columns.txt` is the published header; a test fails unless
+  `COLUMN_NAMES` equals it, so a new column is appended to both.
 - Every value in the CSV is numeric (`f64`); there are no string-valued feature
   columns other than the two identity columns.
 
