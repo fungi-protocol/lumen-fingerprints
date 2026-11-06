@@ -28,36 +28,18 @@ pub struct Totals {
 pub struct TemplatePoint {
     pub start_height: u32,
     pub matches: u64,
-    /// Fraction of the epoch's transactions consistent with this template — the
-    /// measured anonymity set, as a share of the population.
+    /// The template's anonymity set as a share of the epoch's transactions.
     pub share: f64,
 }
 
-/// One epoch's share for a single (axis, value) pair a template constrains — the
-/// per-epoch trajectory the Explorer draws when the wallet-eras view is narrowed to one
-/// fingerprint axis. `share` is that value's marginal on the axis for the epoch (txs
-/// carrying it / epoch txs), 0.0 for an epoch that classified transactions but never saw
-/// the value, matching `template_series`'s per-epoch semantics. Leaner than
-/// `TemplatePoint` (no `matches`) because the axis view only ever plots the trajectory.
+/// 0.0 when the epoch never saw the value.
 #[derive(Debug, Serialize)]
 pub struct AxisSharePoint {
     pub start_height: u32,
     pub share: f64,
 }
 
-/// One observed value on an axis, wallet-agnostic: the share of *all* classified
-/// transactions carrying this value, irrespective of what any other axis of the same
-/// transaction reads. This is the number a wallet developer needs when choosing a
-/// value for a single axis — "if I emit this, I blend with `share` of the chain."
-///
-/// `share` is the aggregate over the whole window — a single number that can hide
-/// enormous swings from epoch to epoch. `min_epoch_share` / `max_epoch_share` are the
-/// smallest and largest per-epoch share this value ever took across the window, so a
-/// reader can see whether `share` is a stable point estimate or the midpoint of a wide
-/// range. Computed only over epochs with `txs > 0`; an epoch this value was never
-/// observed in (but which did classify at least one transaction) contributes a 0.0 to
-/// that epoch's share — see `build_report`'s bounds pass for why absence is treated as
-/// a real 0% observation rather than skipped.
+/// Epoch bounds skip `txs == 0` epochs; absence from any other epoch counts as 0.0.
 #[derive(Debug, Serialize)]
 pub struct AxisValueShare {
     pub value: String,
@@ -67,31 +49,16 @@ pub struct AxisValueShare {
     pub max_epoch_share: f64,
 }
 
-/// The wallet-agnostic summary of one fingerprint axis: every value it was observed
-/// to take, plus the derived numbers ("best blend" / "worst blend" / how concentrated
-/// the axis is) that make the value table actionable without a wallet in the picture.
 #[derive(Debug, Serialize)]
 pub struct AxisSummary {
-    /// Every observed value, sorted by share descending (ties broken by value name for
-    /// reproducibility). A developer needs to see every option on the axis, not only
-    /// the extremes, since the choice is among all of them.
+    /// Sorted by share descending, ties by value name.
     pub values: Vec<AxisValueShare>,
     pub distinct_values: u64,
-    /// The value with the largest anonymity set on this axis — the "best blend" choice.
     pub largest_value: String,
     pub largest_share: f64,
-    /// The value with the smallest anonymity set on this axis — the choice that stands
-    /// out the most.
     pub smallest_value: String,
     pub smallest_share: f64,
-    /// Stability indicator: the amplitude (max − min, in share units) of the *dominant*
-    /// value's (`largest_value`'s) per-epoch share across the window. A large amplitude
-    /// means the aggregate `largest_share` above is not a stable point — the axis's
-    /// composition swings substantially between epochs, typically because it tracks the
-    /// share of some traffic population (e.g. an OP_RETURN-tagging service) that itself
-    /// varies day to day. A small amplitude means the aggregate is close to what every
-    /// individual epoch actually looked like — a property of the population being
-    /// measured, not an artifact of which epochs happened to be sampled.
+    /// Per-epoch spread of `largest_value`: how far `largest_share` is from a stable point.
     pub dominant_amplitude: f64,
 }
 
@@ -100,64 +67,25 @@ pub struct Report {
     pub window: Window,
     pub totals: Totals,
     pub axis_marginals: BTreeMap<String, BTreeMap<String, u64>>,
-    /// Wallet-agnostic per-axis anonymity sets: for every axis, every observed value's
-    /// share of the population plus the derived largest/smallest numbers. This
-    /// is the primary output of the survey — it answers "what anon set do I get on
-    /// axis Y if I choose value X," with no notion of a wallet's full vector at all.
     pub axis_summaries: BTreeMap<String, AxisSummary>,
-    /// Per CORE axis, per value: the conditional anonymity-set distribution (see
-    /// `ConditionalAnon`). Answers "if my wallet uses value X on axis Y, how small is
-    /// the anonymity set I land in?" — the dashboard's headline identifiability number.
+    /// CORE axis -> value -> anonymity-set distribution of the txs using it.
     pub conditional_anonymity: BTreeMap<String, BTreeMap<String, ConditionalAnon>>,
-    /// The change-identification heuristic's own abstention rate: the `Indeterminate`
-    /// share of `change_position` (see `HEURISTIC_AXES`). Surfaced at the top level,
-    /// not buried inside `axis_summaries`, because abstention is a property of the
-    /// heuristic's method, not of the chain it measures.
+    /// `Indeterminate` share of `change_position`.
     pub change_heuristic_abstention_rate: f64,
-    /// Illustrative appendix only: given a wallet's *full* fingerprint vector, what
-    /// share of the population is consistent with it. A narrower, wallet-shaped
-    /// question than `axis_summaries` above, which is why it is no longer the
-    /// headline.
     pub template_series: BTreeMap<String, Vec<TemplatePoint>>,
-    /// Per-axis, per-value per-epoch share trajectory, populated ONLY for the (axis,
-    /// value) pairs some template constrains — the wallet-eras view narrowed to a single
-    /// fingerprint axis. Keyed `axis -> value -> [per-epoch points]`. A wallet that pins
-    /// axis `A` to value `v` reads its trajectory straight off `axis_value_series[A][v]`;
-    /// restricting to template-constrained pairs (a few dozen, not every observed
-    /// axis-value) keeps this small. Empty when no template constrains any current axis.
+    /// Only pairs some template constrains.
     pub axis_value_series: BTreeMap<String, BTreeMap<String, Vec<AxisSharePoint>>>,
-    /// Which axes each wallet era constrains and to what value: `era_label -> {axis ->
-    /// value}`, restricted to current axes. Lets the Explorer decide, for the selected
-    /// axis, which eras have a claim to plot (and look up which of `axis_value_series`'s
-    /// value trajectories is theirs) without re-parsing `wallets.toml` in the browser. An
-    /// era with no current-axis constraints maps to an empty inner map.
+    /// Current axes only.
     pub template_axes: BTreeMap<String, BTreeMap<String, Vec<String>>>,
-    /// Per-transaction boolean signals (`EpochRow::aux_counts`), aggregated the same
-    /// way as `axis_marginals` — flag name -> share of all classified transactions
-    /// where it holds. These are NOT axes: a transaction carries all, some, or none of
-    /// them simultaneously, so shares here do not sum to 1.0 and should not be read
-    /// alongside the per-axis-value tables above as if they were another axis.
+    /// Flags co-occur, so shares do not sum to 1.0.
     pub aux_flags: BTreeMap<String, AuxShare>,
-    /// Derived from the SAME `output_types` value counts as the `output_types` row in
-    /// `axis_summaries` — never recomputed from anything else, so this can never
-    /// disagree with that table. Not mutually exclusive (a transaction paying to both a
-    /// base58 and a bech32m output counts in both), so the three family shares can sum
-    /// to more than 1.0.
+    /// Families overlap, so shares can sum past 1.0.
     pub encoding_families: EncodingFamilies,
-    /// One entry per feature column ever observed in `EpochRow::field_aggs` across the
-    /// window (see `features.rs`'s ~173-column catalog), each column's `FieldAgg`
-    /// merged across every epoch via `merge_field`. Empty when no epoch in the window
-    /// carried `field_aggs` at all (older `epochs.jsonl` written before that field
-    /// existed) — never an error, since a field-less report is still a valid report of
-    /// everything else above.
+    /// Empty when no epoch carries `field_aggs` (rows written before that field).
     pub fields: Vec<FieldReport>,
 }
 
-/// One categorical value's share within its field's `FieldReport::values` — the same
-/// shape as `AxisValueShare` but scoped to one column's own tallies (raw accumulator
-/// keys, e.g. `"0"`/`"1"` for a `Bool`/`OneHot` column, or the signed integer string a
-/// `Ordinal` column's index was folded under — see `fold_field`'s doc comment in
-/// `features.rs`). Labels are applied later, at display time; this stays unlabelled.
+/// `value` is the raw, unlabelled accumulator key (e.g. `"0"`/`"1"` or an `Ordinal` index).
 #[derive(Debug, Serialize)]
 pub struct FieldValueShare {
     pub value: String,
@@ -165,10 +93,7 @@ pub struct FieldValueShare {
     pub share: f64,
 }
 
-/// Distributional summary of one `Numeric`-kind field, derived from its merged
-/// `count`/`sum`/`min`/`max`/`hist` (see `numeric_stats_from_hist`). `median`/`p90` are
-/// estimated by linear interpolation within the histogram bucket containing the
-/// respective rank; `min`/`max` are the exact running reductions, not estimates.
+/// `median`/`p90` are interpolated from the histogram; `min`/`max`/`mean` are exact.
 #[derive(Debug, Serialize, Clone, PartialEq)]
 pub struct Stats {
     pub min: f64,
@@ -179,11 +104,8 @@ pub struct Stats {
     pub count: u64,
 }
 
-/// One histogram bucket of a `Numeric`-kind field, in the same bucket order as
-/// `FieldAgg::Numeric::hist`. `lo`/`hi` are the bucket's edges (see the module-level
-/// bucket semantics: bucket 0 is `(-inf, edges[0])`, the last bucket is
-/// `[edges[last], +inf)` — both open ends serialize as JSON `null` via `f64::INFINITY`/
-/// `NEG_INFINITY`, since serde_json renders non-finite floats that way).
+/// Bucket 0 is `(-inf, edges[0])`, the last is `[edges[last], +inf)`; the infinite
+/// ends serialize as JSON `null`.
 #[derive(Debug, Serialize)]
 pub struct HistBucket {
     pub lo: f64,
@@ -192,16 +114,11 @@ pub struct HistBucket {
     pub share: f64,
 }
 
-/// One feature column's window-level rollup: every epoch's `FieldAgg` for this column
-/// merged via `merge_field`, then rendered per its `ColumnKind`. Exactly one of
-/// `values`/(`stats`+`hist`) is populated, matching whether the column is categorical
-/// (`Bool`/`OneHot`/`Ordinal`) or `Numeric`.
+/// Categorical columns fill `values`; `Numeric` ones fill `stats` and `hist`.
 #[derive(Debug, Serialize)]
 pub struct FieldReport {
     pub name: String,
-    /// Catalog section id (`"00"`..`"11"`) the column belongs to — see `section_for`.
     pub section: &'static str,
-    /// `"bool"` | `"onehot"` | `"ordinal"` | `"numeric"`, derived from `ColumnKind`.
     pub kind: &'static str,
     pub total: u64,
     pub values: Vec<FieldValueShare>,
@@ -209,16 +126,13 @@ pub struct FieldReport {
     pub hist: Option<Vec<HistBucket>>,
 }
 
-/// One aggregated auxiliary flag: how many (and what share of) all classified
-/// transactions had it set.
 #[derive(Debug, Serialize)]
 pub struct AuxShare {
     pub count: u64,
     pub share: f64,
 }
 
-/// One address-encoding family's share of all classified transactions having at least
-/// one output belonging to it.
+/// Classified txs with at least one output in this family.
 #[derive(Debug, Serialize)]
 pub struct EncodingFamilyShare {
     pub family: String,
@@ -226,29 +140,17 @@ pub struct EncodingFamilyShare {
     pub share: f64,
 }
 
-/// The three address-encoding families derived from `output_types`, plus the remainder
-/// that belongs to none of them (`OpReturn`, `NonStandard`, and any other output type
-/// with no standard address encoding). `families` are not mutually exclusive; `families`
-/// plus `none` together account for every classified transaction exactly once in the
-/// sense that every transaction contributes to `none` XOR to at least one family.
+/// Every transaction lands in `none` XOR in at least one family.
 #[derive(Debug, Serialize)]
 pub struct EncodingFamilies {
-    /// base58, bech32, bech32m — in that order.
+    /// base58, bech32, bech32m, in that order.
     pub families: Vec<EncodingFamilyShare>,
     pub none_count: u64,
     pub none_share: f64,
     pub total: u64,
 }
 
-/// True for any axis defined under the CURRENT `CORE_AXES` / `EXTENDED_AXES` /
-/// `HEURISTIC_AXES` sets. Used to filter `EpochRow::axis_counts` at aggregation time,
-/// so a row written under a since-retired axis set (e.g. `change_type_matches_inputs`,
-/// deleted entirely — see
-/// `docs/superpowers/specs/2026-07-29-remove-heuristic-axes-from-sparsity-design.md`)
-/// does not resurrect that axis's marginal/summary in a report regenerated from
-/// already-scanned data. This is the per-axis-marginal counterpart to
-/// `vector::strip_retired_axes`, which does the equivalent filtering for joint-vector
-/// keys.
+/// Stored rows may carry retired axes; reports skip them, like `vector::strip_retired_axes`.
 fn is_current_axis(axis: &str) -> bool {
     CORE_AXES.contains(&axis) || EXTENDED_AXES.contains(&axis) || HEURISTIC_AXES.contains(&axis)
 }
@@ -270,17 +172,7 @@ impl std::fmt::Display for ReportError {
 
 impl std::error::Error for ReportError {}
 
-/// Turns one axis's raw value -> count map into its wallet-agnostic summary: every
-/// value's share of the axis total, sorted descending, plus the largest/smallest
-/// derived numbers. Returns `None` only for an axis with no observed values at
-/// all (which cannot occur for any axis present in `axis_marginals`, since every key
-/// there was inserted alongside at least one value/count pair).
-///
-/// `bounds` supplies each value's (min, max) per-epoch share across the window (see
-/// `init_value_share_bounds`/`fold_value_share_bounds_row`), keyed the same as `values`. A value present in
-/// `values` but absent from `bounds` (should not happen — the bounds pass
-/// is seeded from the same marginal — but defended against here rather than assumed)
-/// falls back to `(0.0, 0.0)` rather than propagating an `Option`/panic into the report.
+/// A value missing from `bounds` falls back to `(0.0, 0.0)`.
 fn axis_summary(
     values: &BTreeMap<String, u64>,
     bounds: &BTreeMap<String, (f64, f64)>,
@@ -307,7 +199,7 @@ fn axis_summary(
             }
         })
         .collect();
-    // Largest share first; ties broken by value name so the report is byte-reproducible.
+    // Ties broken by value name so the report is byte-reproducible.
     shares.sort_by(|a, b| {
         b.share
             .partial_cmp(&a.share)
@@ -332,25 +224,7 @@ fn axis_summary(
     })
 }
 
-/// For every axis, for every value ever observed on it, the minimum and maximum share
-/// (count / epoch txs) that value took in any single epoch across the whole window.
-///
-/// Computed in a pass separate from the marginal-aggregation loop in `build_report`,
-/// because a value's full set of *possible* epochs to bound against (every axis/value
-/// pair that appears anywhere in `axis_marginals`) is only known once every row has
-/// been aggregated — a single forward pass would leave a value that first appears in a
-/// later epoch with no bound contribution from earlier epochs it was legitimately
-/// absent from. See `fold_value_share_bounds_row` for the two deliberate policy choices
-/// governing what "minimum" and "maximum" mean here.
-///
-/// Seeds the bounds accumulator: every axis/value pair that appears anywhere in
-/// `axis_marginals`, each starting at `(+inf, -inf)` so the first real observation
-/// always wins the initial min/max comparison. Split out from the fold below (see
-/// `fold_value_share_bounds_row`) so both `build_report` (one in-memory slice) and
-/// `build_report_from_path` (a second streamed pass over disk) can seed once, fold row
-/// by row, then finalize — without either needing the full row set materialized at the
-/// point this bounds pass runs, only `axis_marginals`, which the FIRST pass already
-/// produced in full.
+/// A separate pass: a value first seen late must still record 0% for earlier epochs.
 fn init_value_share_bounds(
     axis_marginals: &BTreeMap<String, BTreeMap<String, u64>>,
 ) -> BTreeMap<String, BTreeMap<String, (f64, f64)>> {
@@ -366,26 +240,8 @@ fn init_value_share_bounds(
         .collect()
 }
 
-/// Folds one `EpochRow` into an in-progress bounds accumulator (see
-/// `init_value_share_bounds` for how it's seeded). This is the per-row body of what
-/// used to be a single function, `per_epoch_value_share_bounds`, taking `&[EpochRow]`
-/// directly; factored out so `build_report_from_path` can drive it one row at a time
-/// off a second streamed pass over disk instead of an in-memory slice.
-///
-/// Two deliberate policy choices, both load-bearing for what the resulting min/max
-/// actually mean:
-///
-/// - Epochs with `txs == 0` are excluded entirely (no division by zero, and — just as
-///   important — they must NOT be folded in as a 0% observation, since a day with no
-///   classified transactions carries no information about this axis at all; treating
-///   it as 0% would artificially drag every value's minimum down to 0 for a day that
-///   simply produced no data).
-/// - Within an epoch that DID classify transactions (`txs > 0`), a value with no entry
-///   in that epoch's `axis_counts` for this axis is treated as a genuine 0% observation
-///   for that epoch, not as a missing measurement — the axis was measured that epoch
-///   (`txs > 0`), and this value simply did not occur in it. This is what lets the
-///   minimum surface "a value that vanishes on some days" as the volatility finding it
-///   is, rather than hiding it by skipping those epochs.
+/// `txs == 0` epochs carry no information and are skipped; in any other epoch an absent
+/// value is a real 0% observation.
 fn fold_value_share_bounds_row(
     bounds: &mut BTreeMap<String, BTreeMap<String, (f64, f64)>>,
     row: &EpochRow,
@@ -411,14 +267,7 @@ fn fold_value_share_bounds_row(
     }
 }
 
-/// A value whose count in `axis_marginals` is non-zero must have been contributed by
-/// at least one txs > 0 epoch (counts only ever come from classified transactions, and
-/// a classified transaction implies its epoch's txs > 0), so in practice every pair
-/// gets a finite bound from `fold_value_share_bounds_row`. This guards the theoretical
-/// remainder (e.g. a value with a zero count surviving into the marginal from a
-/// hand-built test fixture) so `f64::INFINITY` / `NEG_INFINITY` never reach
-/// `report.json`, where they would serialize as `null` and violate the "always a
-/// number" contract every other share in this report upholds.
+/// No infinity may reach `report.json`, where it would serialize as `null`.
 fn finalize_value_share_bounds(
     mut bounds: BTreeMap<String, BTreeMap<String, (f64, f64)>>,
 ) -> BTreeMap<String, BTreeMap<String, (f64, f64)>> {
@@ -435,12 +284,7 @@ fn finalize_value_share_bounds(
     bounds
 }
 
-/// Tokenizes an `output_types` axis value string — the `Debug` formatting of a sorted,
-/// deduplicated `Vec<OutputType>` produced by `FingerprintVector::axis_value`, e.g.
-/// `"[P2wpkh, OpReturn]"` or `"[P2pkh]"` — into its individual type names. Splits on the
-/// literal separator `Debug` uses for a `Vec` rather than matching substrings, so a
-/// variant name that happens to be a textual prefix of another (`P2pk` / `P2pkh`) cannot
-/// cause a false match.
+/// Exact tokens of `"[P2wpkh, OpReturn]"`, not substrings, so `P2pk` never matches `P2pkh`.
 fn output_type_tokens(debug_repr: &str) -> Vec<&str> {
     debug_repr
         .trim_start_matches('[')
@@ -454,14 +298,7 @@ const BASE58_TYPES: &[&str] = &["P2pkh", "P2sh"];
 const BECH32_TYPES: &[&str] = &["P2wpkh", "P2wsh"];
 const BECH32M_TYPES: &[&str] = &["P2tr"];
 
-/// Derives the three address-encoding families from the SAME `output_types` value ->
-/// count map that feeds the `output_types` row of `axis_summaries`, so this can never
-/// disagree with the table printed above it in the Markdown report. Each family counts a
-/// transaction if ANY of its (possibly several) outputs belongs to that family — so a
-/// transaction paying to both a P2PKH and a P2TR output is counted in both `base58` and
-/// `bech32m`, and the three shares can sum to more than 1.0. `OpReturn`, `NonStandard`,
-/// and any other output type with no standard address encoding belong to none of the
-/// three families; such transactions are counted in `none` instead.
+/// A tx with no address-encoded output (e.g. only `OpReturn`) counts toward `none`.
 fn encoding_families(output_types_marginal: &BTreeMap<String, u64>) -> EncodingFamilies {
     let total: u64 = output_types_marginal.values().sum();
     let mut base58 = 0u64;
@@ -520,39 +357,19 @@ fn encoding_families(output_types_marginal: &BTreeMap<String, u64>) -> EncodingF
     }
 }
 
-/// Everything one streaming pass over the epoch rows folds into. Filled in one row at
-/// a time by `fold_row`, so at most one `EpochRow` needs to be resident regardless of
-/// how large the file behind it is — see `build_report_from_path`, which drives this
-/// straight off disk. `build_report` drives the exact same fold off an in-memory
-/// slice, so the two never disagree.
+/// One `EpochRow` resident at a time.
 struct Aggregates {
     totals: Totals,
     axis_marginals: BTreeMap<String, BTreeMap<String, u64>>,
-    /// Chain-wide CORE joint-vector key -> transaction count, accumulated across epochs.
-    /// Each key's count IS the anonymity set its transactions share; this feeds
-    /// `conditional_anonymity` (the per-value "how identifying" number the dashboard leads
-    /// with). No re-scan: it is rebuilt from the per-epoch `vectors` already on disk.
+    /// CORE joint keys; each count is the anonymity set its txs share.
     vectors: BTreeMap<String, u64>,
     aux_counts: BTreeMap<String, u64>,
-    /// Every supplied template gets exactly one `TemplatePoint` per row, defaulting to
-    /// zero matches — a template that matches nothing anywhere must show up as an
-    /// explicit 0 / 0.0% in every epoch, not be silently absent (that absence is
-    /// indistinguishable from a typo in the template's axis name, and is itself the
-    /// most alarming finding the tool can produce: a wallet with no anonymity set).
+    /// One point per template per row, zero when nothing matches: an absent series
+    /// would be indistinguishable from a typo in the template.
     template_series: BTreeMap<String, Vec<TemplatePoint>>,
-    /// Pre-seeded (in `new`) with an empty `Vec` for every (axis, value) pair any
-    /// template constrains, so `fold_row` can append one per-epoch point per pair without
-    /// re-deriving the pair set each row. Same pre-population discipline as
-    /// `template_series`: a constrained value that never occurs must still surface as an
-    /// explicit all-zeros trajectory, not vanish. Becomes `Report::axis_value_series`.
+    /// Pre-seeded so a value that never occurs still yields an all-zeros series.
     axis_value_series: BTreeMap<String, BTreeMap<String, Vec<AxisSharePoint>>>,
-    /// Built once in `new` from the templates (no per-row folding); moved verbatim into
-    /// `Report::template_axes`.
     template_axes: BTreeMap<String, BTreeMap<String, Vec<String>>>,
-    /// Column name -> its `FieldAgg` merged (via `merge_field`) across every epoch seen
-    /// so far. Stays empty if no epoch's `field_aggs` has ever been non-empty, which is
-    /// exactly what makes `Report::fields` come out `[]` for a legacy scan — see
-    /// `build_field_reports`.
     field_aggs: BTreeMap<String, FieldAgg>,
     start_height: Option<u32>,
     end_height: u32,
@@ -576,15 +393,9 @@ impl Aggregates {
         for t in templates {
             let mut constrained = BTreeMap::new();
             for (axis, values) in &t.axes {
-                // Mirror `fold_row`/`assemble_report`'s current-axis filter: a template
-                // may name a since-retired axis, and pre-seeding it here would create an
-                // `axis_value_series` entry the marginals never fill.
                 if !is_current_axis(axis) {
                     continue;
                 }
-                // An axis may pin a SET of accepted values (see `WalletTemplate::axes`);
-                // seed each so every value gets its own share series, and carry the whole
-                // set through to `template_axes` for the explorer + the cross CSV.
                 for v in values {
                     axis_value_series
                         .entry(axis.clone())
@@ -612,19 +423,8 @@ impl Aggregates {
     }
 }
 
-/// Folds one `EpochRow` into `acc`. This is the whole per-row body `build_report` used
-/// to run inline over a `Vec<EpochRow>` it held in full — factored out here so the
-/// identical logic can be driven either by an in-memory slice (`build_report`) or by
-/// rows read and dropped one at a time as they stream off disk
-/// (`build_report_from_path`), with no behavioural difference between the two.
-///
-/// Template matching is recomputed HERE, at report time, from each row's
-/// `vectors_extended` histogram — not read from `EpochRow::template_matches` (see that
-/// field's doc comment in epoch.rs for why it is legacy). `vectors_extended`'s keys
-/// carry every one of the 17 axes (core + extended; see `FingerprintVector::key_for`
-/// and `all_axes` in epoch.rs), so any template is matchable purely from data already
-/// on disk. This is what makes a `wallets.toml` correction take effect in seconds
-/// instead of requiring a multi-hour rescan.
+/// Matches templates against `vectors_extended`, not the scan-time `template_matches`,
+/// so editing `wallets.toml` needs no rescan.
 fn fold_row(acc: &mut Aggregates, row: &EpochRow, templates: &[WalletTemplate]) {
     acc.totals.txs += row.txs;
     acc.totals.defects += row.defects;
@@ -635,12 +435,6 @@ fn fold_row(acc: &mut Aggregates, row: &EpochRow, templates: &[WalletTemplate]) 
     acc.end_height = row.end_height;
 
     for (axis, values) in &row.axis_counts {
-        // Compatibility filter: a row scanned under a since-retired axis set (e.g.
-        // `change_type_matches_inputs`, deleted entirely) may still carry that axis's
-        // marginal on disk. Skipping it here — rather than only in `epoch.rs`'s
-        // `ingest`, which only governs FUTURE scans — keeps a report regenerated
-        // against already-scanned data free of axes that no longer exist in code. See
-        // `is_current_axis`.
         if !is_current_axis(axis) {
             continue;
         }
@@ -653,11 +447,8 @@ fn fold_row(acc: &mut Aggregates, row: &EpochRow, templates: &[WalletTemplate]) 
         *acc.aux_counts.entry(name.clone()).or_insert(0) += count;
     }
 
-    // Per-epoch trajectory for each template-constrained (axis, value) pair. Same 0%
-    // semantics as `fold_value_share_bounds_row`: a value absent from a txs > 0 epoch is
-    // a real 0% observation for that epoch, so the series stays aligned one point per
-    // epoch (mirroring `template_series`), and an all-zero trajectory truthfully shows a
-    // constrained value that never occurs.
+    // One point per epoch per constrained pair, so series stay aligned with
+    // `template_series`.
     for (axis, per_value) in acc.axis_value_series.iter_mut() {
         let counts_this_epoch = row.axis_counts.get(axis);
         for (value, series) in per_value.iter_mut() {
@@ -676,16 +467,10 @@ fn fold_row(acc: &mut Aggregates, row: &EpochRow, templates: &[WalletTemplate]) 
         }
     }
 
-    // Chain-wide CORE joint-vector counts, for `conditional_anonymity`.
     for (key, count) in &row.vectors {
         *acc.vectors.entry(key.clone()).or_insert(0) += count;
     }
 
-    // Per-field rollup (Task 4): merge this row's `field_aggs` into the running
-    // window-level aggregate, one column at a time. A column seen for the first time
-    // is cloned in wholesale rather than merged against a freshly-`new_field_agg`
-    // zero value — cheaper, and avoids needing this function to know each column's
-    // `ColumnKind` just to seed an identity element `merge_field` would fold away anyway.
     for (name, agg) in &row.field_aggs {
         match acc.field_aggs.get_mut(name) {
             Some(existing) => merge_field(existing, agg),
@@ -695,9 +480,7 @@ fn fold_row(acc: &mut Aggregates, row: &EpochRow, templates: &[WalletTemplate]) 
         }
     }
 
-    // Parse each distinct joint-vector key once per row and test it against every
-    // template, rather than re-parsing per template. Indexed positionally: two eras
-    // of the same wallet share a `name`, so names cannot key this map.
+    // Indexed positionally: two eras of one wallet share a `name`.
     let mut matches_this_row = vec![0u64; templates.len()];
     for (key, count) in &row.vectors_extended {
         let axes = parse_key(key);
@@ -724,13 +507,7 @@ fn fold_row(acc: &mut Aggregates, row: &EpochRow, templates: &[WalletTemplate]) 
     }
 }
 
-/// Turns a completed `Aggregates` fold plus its bounds pass into the final `Report`.
-/// Shared tail of `build_report` and `build_report_from_path` — the only difference
-/// between the two is how `acc` and `axis_value_bounds` were produced (in-memory slice
-/// vs. two streamed passes over disk).
-/// Anonymity-set bucket boundaries: `(lo, hi, label)`, contiguous and covering every
-/// non-negative count. Used by `conditional_anonymity` to bucket each joint vector's
-/// anonymity-set size.
+/// Contiguous over every count >= 1.
 const TAIL_MASS_BOUNDS: [(u64, u64, &str); 7] = [
     (1, 1, "exactly 1"),
     (2, 9, "2-9"),
@@ -741,12 +518,7 @@ const TAIL_MASS_BOUNDS: [(u64, u64, &str); 7] = [
     (100_000, u64::MAX, ">=100,000"),
 ];
 
-/// For one CORE axis value, the conditional distribution of CORE-joint anonymity-set
-/// sizes among the transactions that use it: `buckets` maps the `TAIL_MASS_BOUNDS`
-/// labels to the transaction count landing in each, and `share_lt10`/`share_lt100` are
-/// the fractions of those transactions in an anonymity set below 10 / 100 — the "how
-/// identifying is this value" signal. Computed from the aggregated joint-vector map, so
-/// no per-transaction data or re-scan is needed.
+/// CORE-joint anonymity-set sizes among txs using one CORE axis value.
 #[derive(Debug, Serialize)]
 pub struct ConditionalAnon {
     pub buckets: BTreeMap<String, u64>,
@@ -754,8 +526,6 @@ pub struct ConditionalAnon {
     pub share_lt100: f64,
 }
 
-/// The bucket label a given anonymity-set size falls in. Every non-negative count
-/// matches exactly one `TAIL_MASS_BOUNDS` bound.
 fn bucket_label_for(count: u64) -> &'static str {
     TAIL_MASS_BOUNDS
         .iter()
@@ -764,14 +534,11 @@ fn bucket_label_for(count: u64) -> &'static str {
         .unwrap_or("")
 }
 
-/// For every CORE axis value, the conditional anonymity-set distribution among the
-/// transactions using it. Each joint vector's own count IS the anonymity set its
-/// transactions share; that count is added, weighted by itself (the tx count), into the
-/// bucket of every CORE axis value the vector carries.
+/// A joint vector's count is both its anonymity-set size and the number of txs in it,
+/// so it is added into the bucket of every CORE value the vector carries.
 fn conditional_anonymity(
     vectors: &BTreeMap<String, u64>,
 ) -> BTreeMap<String, BTreeMap<String, ConditionalAnon>> {
-    // axis -> value -> (buckets, total, lt10, lt100)
     struct Acc {
         buckets: BTreeMap<String, u64>,
         total: u64,
@@ -830,11 +597,7 @@ fn conditional_anonymity(
         .collect()
 }
 
-/// Looks up a feature column's `ColumnKind` by name. `COLUMN_NAMES[2..]` and
-/// `COLUMN_KINDS` are index-aligned (see both const docs in `features.rs`), so this is
-/// a linear search over the ~173-entry catalog rather than a per-transaction hot path —
-/// called once per distinct column name when building `Report::fields`, never inside
-/// the epoch fold.
+/// `COLUMN_NAMES[2..]` and `COLUMN_KINDS` are index-aligned.
 fn column_kind_for(name: &str) -> Option<&'static ColumnKind> {
     COLUMN_NAMES[2..]
         .iter()
@@ -843,19 +606,12 @@ fn column_kind_for(name: &str) -> Option<&'static ColumnKind> {
         .map(|(_, k)| k)
 }
 
-/// The catalog section id (`"00"`..`"11"`) a feature column belongs to, following the
-/// grouping comments in `COLUMN_NAMES` (features.rs) and `FEATURES.md`. Every one of the
-/// 173 `COLUMN_NAMES[2..]` columns has an explicit arm; the two identity columns
-/// (`txid`/`block_height`, section `"00"`) never carry a `FieldAgg` and so never reach
-/// this function in practice, but are included for documentation of the full 00..11
-/// space. A name reaching the fallback arm indicates a column was added to
-/// `COLUMN_NAMES` without a section assignment here — panics loudly rather than
-/// silently mis-filing it, since `Report::fields` is the dashboard's own catalog view.
+/// Must follow the grouping of `COLUMN_NAMES` and `FEATURES.md`; panics rather than
+/// mis-file an unmapped column.
 fn section_for(name: &str) -> &'static str {
     match name {
         "txid" | "block_height" => "00",
 
-        // 01 — booleans + tri-state pairs
         "op_return"
         | "round_feerate"
         | "low_s_yes"
@@ -871,7 +627,6 @@ fn section_for(name: &str) -> &'static str {
         | "uncompressed_pubkey_yes"
         | "uncompressed_pubkey_indeterminate" => "01",
 
-        // 02 — nominal one-hot families (version/nsequence/nlocktime/order/subtype/sighash/input_types)
         "version_1"
         | "version_2"
         | "version_3"
@@ -931,7 +686,6 @@ fn section_for(name: &str) -> &'static str {
         | "input_types_mixed"
         | "input_types_unknown" => "02",
 
-        // 03 — ordinal index columns
         "ecdsa_sigs_index"
         | "input_age_index"
         | "output_structure_index"
@@ -939,7 +693,6 @@ fn section_for(name: &str) -> &'static str {
         | "locktime_offset_index"
         | "locktime_offset_not_applicable" => "03",
 
-        // 04 — change heuristic (position/type, plus the round-number agreement pair)
         "change_position_first"
         | "change_position_last"
         | "change_position_middle"
@@ -948,7 +701,6 @@ fn section_for(name: &str) -> &'static str {
         | "change_detected_by_round_number"
         | "change_heuristics_agree" => "04",
 
-        // 05 — nSequence/nLockTime bit-level aggregates (Groups A+B, plus the nlocktime opt-in fingerprint)
         "bip125_rbf"
         | "all_inputs_final"
         | "bip68_active"
@@ -958,7 +710,6 @@ fn section_for(name: &str) -> &'static str {
         | "nlocktime_dead"
         | "nlocktime_optin_without_use" => "05",
 
-        // 06 — counts and positional signal (Group C, positional type encoding, multisig config, sig-op cost)
         "input_count"
         | "output_count"
         | "input_count_p2pkh"
@@ -1010,7 +761,6 @@ fn section_for(name: &str) -> &'static str {
         | "multisig_mixed"
         | "sigop_count" => "06",
 
-        // 07 — feerate (raw + derived + the two appended weight-unit analogues)
         "fee_sat"
         | "vsize"
         | "weight"
@@ -1022,7 +772,6 @@ fn section_for(name: &str) -> &'static str {
         | "fee_is_multiple_of_kwu"
         | "fee_is_multiple_of_weight" => "07",
 
-        // 08 — amounts (digit-structure measures + output-value-structure columns)
         "max_output_value_sat"
         | "hamming_decimal"
         | "hamming_base2"
@@ -1032,12 +781,10 @@ fn section_for(name: &str) -> &'static str {
         | "distinct_output_value_count"
         | "max_equal_value_output_count" => "08",
 
-        // 09 — taproot
         "taproot_max_merkle_depth"
         | "taproot_script_path_input_count"
         | "taproot_keyspend_non_default_sighash" => "09",
 
-        // 10 — standardness
         "is_standard"
         | "nonstd_version"
         | "nonstd_weight"
@@ -1046,7 +793,6 @@ fn section_for(name: &str) -> &'static str {
         | "nonstd_multi_op_return"
         | "nonstd_bare_multisig" => "10",
 
-        // 11 — protocol markers
         "has_inscription_envelope" | "has_runestone" => "11",
 
         other => unreachable!(
@@ -1056,15 +802,8 @@ fn section_for(name: &str) -> &'static str {
     }
 }
 
-/// The value at rank `p` (0.0..=1.0) of a `Numeric` field's merged histogram, estimated
-/// by the standard grouped-data formula: find the bucket containing the
-/// `k = ceil(p * count)`-th smallest item (1-indexed), then linearly interpolate within
-/// that bucket assuming its items are evenly spread across its width. The two open-ended
-/// buckets (index 0 = underflow `(-inf, edges[0])`, index `edges.len()` = overflow
-/// `[edges[last], +inf)`) have no finite width to interpolate across, so a rank landing
-/// in either clamps to the field's exact `min`/`max` instead (per the task's resolved
-/// ambiguity). `count == 0` returns `0.0` — callers must not invoke this when there is no
-/// data (see `numeric_stats_from_hist`, which guards this case before calling in).
+/// The open-ended end buckets have no width, so ranks there clamp to the exact
+/// `min`/`max`.
 fn percentile_from_hist(
     edges: &[f64],
     count: u64,
@@ -1097,18 +836,11 @@ fn percentile_from_hist(
         }
         cumulative += h;
     }
-    // Every bucket accounted for and `k <= count`, so this is unreachable as long as
-    // `hist`'s buckets sum to `count` (an invariant `merge_field`/`fold_field` maintain).
+    // Unreachable while `hist` sums to `count`.
     max
 }
 
-/// Turns a `Numeric` field's merged `count`/`sum`/`min`/`max`/`hist` into its dashboard
-/// `Stats`: `mean` is exact (`sum/count`); `median`/`p90` are estimated via
-/// `percentile_from_hist`; `min`/`max` pass through unchanged, since those two are exact
-/// running reductions, not estimates. `count == 0` (a `Numeric` column that was created
-/// but never folded — e.g. a hand-built fixture) returns all-zero `Stats` rather than
-/// propagating `sum/0` `NaN` or the `f64::INFINITY`/`NEG_INFINITY` `new_field_agg` seeds
-/// `min`/`max` start at.
+/// `count == 0` yields all-zero `Stats`, not `NaN` or infinite seeds.
 pub fn numeric_stats_from_hist(
     edges: &[f64],
     count: u64,
@@ -1140,10 +872,6 @@ pub fn numeric_stats_from_hist(
     }
 }
 
-/// Renders one column's merged `FieldAgg` into its `FieldReport`, per `kind`'s variant.
-/// Categorical variants (`Bool`/`OneHot`/`Ordinal`) populate `values` (sorted by count
-/// descending, ties broken by value string for reproducibility) and leave
-/// `stats`/`hist` `None`; `Numeric` populates `stats`/`hist` and leaves `values` empty.
 fn field_report(name: &str, kind: &ColumnKind, agg: &FieldAgg) -> FieldReport {
     let section = section_for(name);
     match (kind, agg) {
@@ -1232,12 +960,6 @@ fn field_report(name: &str, kind: &ColumnKind, agg: &FieldAgg) -> FieldReport {
     }
 }
 
-/// Builds `Report::fields` from the window's merged `field_aggs` (see
-/// `Aggregates::field_aggs`, folded across every epoch by `merge_field` in `fold_row`).
-/// Empty when `field_aggs` is empty — i.e. no epoch in the window carried it at all,
-/// which is exactly the "old `epochs.jsonl`, no `field_aggs`" compatibility case the task
-/// requires: such a report must still succeed, just with `fields: []`. Sorted by column
-/// name (the map's natural `BTreeMap` order) for a reproducible `report.json`.
 fn build_field_reports(field_aggs: &BTreeMap<String, FieldAgg>) -> Vec<FieldReport> {
     field_aggs
         .iter()
@@ -1299,12 +1021,8 @@ fn assemble_report(
             .unwrap_or(&BTreeMap::new()),
     );
 
-    // The change-identification heuristic's own abstention rate: the `Indeterminate`
-    // share of `change_position` (equivalently `change_type`, which goes
-    // `Indeterminate` together with it whenever the heuristic itself is inconclusive —
-    // `change_position` additionally counts sub-2-output transactions as
-    // `Indeterminate`, which is why the doc comment and the design both name
-    // `change_position` specifically as the source of this number).
+    // `change_position`, not `change_type`: it also counts sub-2-output txs as
+    // `Indeterminate`.
     let change_heuristic_abstention_rate = axis_marginals
         .get("change_position")
         .map(|values| {
@@ -1353,16 +1071,7 @@ pub fn build_report(rows: &[EpochRow], templates: &[WalletTemplate]) -> Report {
     assemble_report(acc, axis_value_bounds)
 }
 
-/// The streaming counterpart to `build_report`: drives the identical `fold_row` /
-/// bounds-pass logic straight off disk via `epoch_rows`, so at most one `EpochRow` (a
-/// few hundred bytes to low tens of KB of raw JSON, versus the multi-GB `Vec<EpochRow>`
-/// `build_report` requires its caller to hold) is ever resident. Reads the file twice —
-/// once to fold totals/marginals/vectors, once more for the per-epoch min/max bounds
-/// pass, which genuinely needs `axis_marginals` (the first pass's output) before it can
-/// even initialize its accumulator (see `fold_value_share_bounds_row`'s doc comment on
-/// why a single forward pass cannot do this). Two sequential linear scans of the file
-/// are cheap next to holding the whole dataset in memory at once, which is the actual
-/// scaling problem this function exists to avoid.
+/// Reads the file twice: the bounds pass needs the complete `axis_marginals` first.
 fn build_report_from_path(
     epochs_path: &Path,
     templates: &[WalletTemplate],
@@ -1381,20 +1090,10 @@ fn build_report_from_path(
     Ok(assemble_report(acc, axis_value_bounds))
 }
 
-/// Streams every `EpochRow` out of a scan's JSONL output, in file order, one row at a
-/// time — the file is read with a `BufReader` and each line is parsed and yielded as it
-/// is read, so a caller that discards each row after using it (see
-/// `build_report_from_path` and `write_series_csv` in `bin/lumen.rs`) never holds more
-/// than one row's worth of the dataset in memory, however large the file on disk. The
-/// eager `read_epoch_rows` below is a thin `Vec`-collecting wrapper over this, kept for
-/// call sites (mainly tests) that genuinely want the whole dataset in memory at once.
 pub fn epoch_rows(
     epochs_path: &Path,
 ) -> Result<impl Iterator<Item = Result<EpochRow, ReportError>>, ReportError> {
     let file = std::fs::File::open(epochs_path).map_err(ReportError::Io)?;
-    // A `.zst` suffix means the finished epochs file was zstd-compressed for storage
-    // (a scan's JSONL is large and compresses heavily). Decompress transparently; the
-    // stream stays line-at-a-time either way, so memory is still one row at a time.
     let reader: Box<dyn BufRead> = if epochs_path.extension().is_some_and(|e| e == "zst") {
         Box::new(BufReader::new(
             zstd::stream::read::Decoder::new(file).map_err(ReportError::Io)?,
@@ -1409,16 +1108,11 @@ pub fn epoch_rows(
     }))
 }
 
-/// Read every `EpochRow` out of a scan's JSONL output, in file order, into memory at
-/// once. See `epoch_rows` for the streaming version this delegates to.
 pub fn read_epoch_rows(epochs_path: &Path) -> Result<Vec<EpochRow>, ReportError> {
     epoch_rows(epochs_path)?.collect()
 }
 
-/// Escape one CSV field per RFC 4180: quote (doubling embedded quotes) only when the
-/// field carries a character that would otherwise be ambiguous. An era label or an
-/// `output_types` value (`"[P2wpkh, OpReturn]"`) can contain a comma, so this is load-
-/// bearing, not decorative.
+/// RFC 4180 quoting; era labels and `output_types` values can contain commas.
 fn csv_field(s: &str) -> Cow<'_, str> {
     if s.contains([',', '"', '\n', '\r']) {
         Cow::Owned(format!("\"{}\"", s.replace('"', "\"\"")))
@@ -1427,14 +1121,8 @@ fn csv_field(s: &str) -> Cow<'_, str> {
     }
 }
 
-/// Writes the wallet×axis cross as CSV — the ML-facing twin of `axis_value_series` +
-/// `template_axes` + `conditional_anonymity`, all of which the report already holds, so
-/// this is a pure in-memory projection with no extra pass over the epochs file. One row
-/// per (epoch, wallet era, constrained axis): the era's pinned value, that value's share
-/// that epoch, and the value's window-level identifiability (`in_set_lt10`/`lt100`, blank
-/// for a non-CORE axis that carries no conditional-anonymity number). `end_height` is
-/// derived from the epoch sequence itself — the next epoch's `start_height` minus one,
-/// or the window end for the last epoch — so no per-point end needs storing.
+/// One row per (epoch, era, constrained axis value). `in_set_lt*` are blank for
+/// non-CORE axes; `end_height` is the next epoch's start minus one, or the window end.
 fn write_cross_csv(report: &Report, out: &Path) -> Result<(), ReportError> {
     let mut w = BufWriter::new(File::create(out).map_err(ReportError::Io)?);
     writeln!(
@@ -1443,8 +1131,6 @@ fn write_cross_csv(report: &Report, out: &Path) -> Result<(), ReportError> {
     )
     .map_err(ReportError::Io)?;
     for (era, axes) in &report.template_axes {
-        // An axis may pin a set of accepted values; emit one row per value, so each keeps
-        // its own share and identifiability (a single-valued axis is just one row).
         for (axis, value) in axes
             .iter()
             .flat_map(|(axis, vs)| vs.iter().map(move |v| (axis, v)))
@@ -1486,9 +1172,6 @@ fn write_cross_csv(report: &Report, out: &Path) -> Result<(), ReportError> {
     w.flush().map_err(ReportError::Io)
 }
 
-/// Build the report from a scan's JSONL output and serialise it: `report.json` (the full
-/// report) plus `wallet-axis-cross.csv` (the ML-facing wallet×axis cross). Both are
-/// projections of the same in-memory `Report`, so they can never disagree.
 pub fn write_report(
     epochs_path: &Path,
     out_dir: &Path,
@@ -1510,13 +1193,8 @@ mod tests {
     use crate::template::Confidence;
     use std::collections::BTreeMap;
 
-    /// Builds a row whose `vectors`/`vectors_extended` keys are real `axis=value`
-    /// pairs on the `nsequence` axis (e.g. `nsequence=Rbf`), so a `WalletTemplate`
-    /// constraining `nsequence` can actually be matched against them through
-    /// `parse_key` + `matches_axes`, exactly as `build_report` does against
-    /// production data. `template_matches` is populated only as the legacy
-    /// scan-time snapshot, for tests that specifically check report-time matching
-    /// against it — `build_report` itself never reads it.
+    /// Keys are real `nsequence=<value>` pairs so templates match them; `template_matches`
+    /// is never read.
     fn row(start: u32, vectors: &[(&str, u64)], template: (&str, u64)) -> EpochRow {
         let mut axis_counts = BTreeMap::new();
         let mut nseq = BTreeMap::new();
@@ -1545,8 +1223,6 @@ mod tests {
         }
     }
 
-    /// A template constraining `nsequence` to `expected` — matches whichever `row()`
-    /// buckets carry that value on the `nsequence` axis, and nothing else.
     fn nsequence_template(name: &str, expected: &str) -> WalletTemplate {
         WalletTemplate {
             name: name.to_string(),
@@ -1594,14 +1270,6 @@ mod tests {
 
     #[test]
     fn a_template_matching_nothing_anywhere_appears_as_zero_every_epoch_not_absent() {
-        // This is the finding that was previously unreportable entirely: a template
-        // that matches zero transactions in every epoch used to get no key at all in
-        // `EpochRow::template_matches` (the old scan-time-only mechanism), and
-        // therefore no entry anywhere in the report — indistinguishable from a typo in
-        // the template's axis name, and silently hiding the single most alarming
-        // result the tool can produce (a wallet with no measured anonymity set at
-        // all). Report-time matching against `vectors_extended` must instead emit an
-        // explicit zero for every epoch.
         let rows = vec![
             row(1000, &[("Rbf", 90), ("CakeGroupC", 10)], ("cake", 10)),
             row(1144, &[("Rbf", 100)], ("cake", 0)),
@@ -1662,29 +1330,23 @@ mod tests {
         let ghost = nsequence_template("ghost", "NeverObservedOnChain");
         let report = build_report(&rows, &[cake, ghost]);
 
-        // template_axes records exactly which axis each era pins, and to what.
         assert_eq!(report.template_axes["cake"]["nsequence"], ["CakeGroupC"]);
         assert_eq!(
             report.template_axes["ghost"]["nsequence"],
             ["NeverObservedOnChain"]
         );
 
-        // A constrained value that DOES occur carries its per-epoch marginal trajectory —
-        // the exact numbers the narrowed wallet-eras chart plots for that era.
         let cake_series = &report.axis_value_series["nsequence"]["CakeGroupC"];
         assert_eq!(cake_series.len(), 2);
         assert_eq!(cake_series[0].start_height, 1000);
         assert!((cake_series[0].share - 0.1).abs() < 1e-9);
         assert!((cake_series[1].share - 0.2).abs() < 1e-9);
 
-        // A constrained value that never occurs is an explicit all-zeros trajectory,
-        // present (not absent), so a wallet with no anonymity set on the axis still shows.
         let ghost_series = &report.axis_value_series["nsequence"]["NeverObservedOnChain"];
         assert_eq!(ghost_series.len(), 2);
         assert!(ghost_series.iter().all(|p| p.share == 0.0));
 
-        // Only template-constrained pairs are emitted: `Rbf` is observed but no template
-        // pins it, so it stays out of the (small) axis_value_series payload.
+        // Observed but unconstrained.
         assert!(!report.axis_value_series["nsequence"].contains_key("Rbf"));
     }
 
@@ -1707,64 +1369,39 @@ mod tests {
             lines[0],
             "start_height,end_height,wallet_version,axis,value,share,in_set_lt10,in_set_lt100"
         );
-        // one constrained pair (cake pins nsequence=CakeGroupC) × two epochs
         assert_eq!(lines.len(), 3);
         assert_eq!(lines[1].split(',').count(), 8);
         assert!(lines[1].starts_with("1000,"));
         assert!(lines[1].contains(",cake,nsequence,CakeGroupC,"));
         assert!(lines[1].contains(",0.1,"));
-        // end_height derived from the sequence: epoch 0 ends at next start − 1; the last
-        // epoch ends at the window end (1144 + 143).
         assert_eq!(lines[1].split(',').nth(1).unwrap(), "1143");
         assert_eq!(lines[2].split(',').nth(1).unwrap(), "1287");
     }
 
     #[test]
     fn report_time_matching_produces_expected_counts_for_a_known_composition() {
-        // Proves report-time matching (`parse_key` + `matches_axes`, driven purely by
-        // `EpochRow::vectors_extended`) is correct, not merely plausible: build a
-        // fixture whose exact composition is known by construction, accumulate it into
-        // a real `EpochRow` via `EpochAccumulator::ingest` (which no longer computes
-        // scan-time template matches at all — see `epoch.rs`), run it through
-        // `build_report`, and assert the recomputed counts against values derived
-        // directly from the fixture's construction, rather than against a second copy
-        // of the matching logic (there no longer is one to compare against).
-        //
-        // A block with only one non-coinbase transaction cannot exercise this: the
-        // epoch row would end up with a single distinct `vectors_extended` key, so
-        // every template trivially matches "all of 1" or "none of 1" — a bug that
-        // summed key COUNTS as if it were counting distinct KEYS would sail through
-        // unnoticed. This fixture instead carries four transactions across three
-        // distinct fingerprint shapes, with one shape duplicated (so one key carries
-        // count 2), forcing `build_report` to sum multiple distinct vectors within the
-        // same row.
+        // Four txs in three shapes, one duplicated, so a key carries count 2: with a
+        // single key, counting keys instead of summing counts would go unnoticed.
         use crate::epoch::EpochAccumulator;
         use crate::template::Confidence;
         use crate::vector::tests_support::{
             EPOCH_TEST_HEIGHT, block_with_many, cake_like_tx, legacy_p2pkh_tx,
         };
 
-        // Shape A, x2: the chain-proven Cake-shaped segwit tx (nsequence=CakeGroupC,
-        // nlocktime=Zero, low_r=Yes). Calling the fixture twice yields two independent
-        // `Transaction`s with identical fingerprint shape, so they collapse into ONE
-        // `vectors_extended` key with count 2.
+        // Shape A, x2: Cake-shaped segwit (nsequence=CakeGroupC, nlocktime=Zero).
         let cake_a = cake_like_tx();
         let cake_b = cake_like_tx();
 
-        // Shape B: a legacy P2PKH tx at the fixture's default sequence/locktime
-        // (nsequence=Max, nlocktime=Zero) — a single legacy input, unlike A's two
-        // segwit inputs, and a different nsequence class entirely.
+        // Shape B: legacy P2PKH, nsequence=Max, nlocktime=Zero.
         let mut pubkey = vec![0xab; 33];
         pubkey[0] = 0x02;
         let mut legacy_max = legacy_p2pkh_tx(pubkey.clone());
-        legacy_max.input[0].previous_output.vout = 100; // distinct prevout from A's
+        legacy_max.input[0].previous_output.vout = 100;
 
-        // Shape C: the same legacy shape, but RBF-signaling and anti-fee-snipe
-        // locktimed (nsequence=Rbf, nlocktime=AntiFeeSnipe since EPOCH_TEST_HEIGHT-1
-        // falls in (height-100, height]) — different from both A and B on two axes at
-        // once.
+        // Shape C: legacy, nsequence=Rbf, nlocktime=AntiFeeSnipe (height - 1 lies in
+        // (height - 100, height]).
         let mut legacy_rbf = legacy_p2pkh_tx(pubkey);
-        legacy_rbf.input[0].previous_output.vout = 200; // distinct prevout from A's and B's
+        legacy_rbf.input[0].previous_output.vout = 200;
         legacy_rbf.input[0].sequence = bitcoin::Sequence(0xffff_fffd);
         legacy_rbf.lock_time =
             bitcoin::absolute::LockTime::from_height(EPOCH_TEST_HEIGHT - 1).unwrap();
@@ -1778,10 +1415,6 @@ mod tests {
         acc.ingest(&block);
         let row = acc.flush(EPOCH_TEST_HEIGHT + 144);
 
-        // Sanity-check the fixture itself before trusting it to catch anything: it
-        // must actually produce multiple distinct keys with differing counts, or the
-        // rest of this test would be exercising the same all-or-nothing case flagged
-        // above.
         assert_eq!(
             row.txs, 4,
             "all four transactions must classify, not defect"
@@ -1800,11 +1433,7 @@ mod tests {
             row.vectors_extended
         );
 
-        // Three single-axis, hand-built templates that exhaustively and disjointly
-        // partition the fixture by `nsequence` class alone: every transaction above is
-        // exactly one of CakeGroupC (A), Max (B), or Rbf (C) by construction, so their
-        // expected match counts are known directly from the fixture, not from
-        // re-running the matcher a second way.
+        // These partition the fixture by nsequence class.
         let by_nsequence = |name: &str, expected: &str| WalletTemplate {
             name: name.to_string(),
             confidence: Confidence::CodePredicted,
@@ -1835,9 +1464,6 @@ mod tests {
             report.template_series["rbf-class"][0].matches, 1,
             "shape C (legacy, Rbf nsequence) is exactly 1 of the 4 transactions"
         );
-        // These three classes are exhaustive and mutually exclusive over this fixture
-        // (every transaction has exactly one nsequence class), so they must account for
-        // every transaction exactly once.
         let total: u64 = ["cake-class", "max-class", "rbf-class"]
             .iter()
             .map(|name| report.template_series[*name][0].matches)
@@ -1847,16 +1473,8 @@ mod tests {
             "every transaction must land in exactly one nsequence class"
         );
 
-        // Also pin the real shipped "Cake Wallet" template (which constrains more than
-        // just `nsequence`) to the same, independently-known count: only the two
-        // Cake-shaped transactions satisfy nsequence=CakeGroupC, nlocktime=Zero,
-        // low_r=Yes, and uncompressed_pubkey=No all at once — the Max/Rbf-sequenced
-        // legacy transactions already contradict it on `nsequence` alone.
-        //
-        // Cake Wallet ships as two eras (Task 4); this fixture's two inputs are in
-        // ascending-vout order on a shared txid with uniform prevout ages, which is
-        // BIP-69 order, so it matches the pre-shuffle era (`input_order = "Bip69"`,
-        // `until_version` set), not the current era (`input_order = "Other"`).
+        // The fixture's inputs are in BIP-69 order (ascending vout, shared txid), so
+        // only the pre-shuffle Cake Wallet era (`input_order = "Bip69"`) matches.
         let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("templates/wallets.toml");
         let shipped = crate::template::load_templates(&path).unwrap();
         let cake_wallet = shipped
@@ -1900,7 +1518,6 @@ mod tests {
 
         assert!(report.axis_summaries.is_empty());
 
-        // Gap 1 / Gap 2 additions must not panic or produce NaN on an empty scan either.
         assert!(report.aux_flags.is_empty());
         assert_eq!(report.encoding_families.total, 0);
         assert!(!report.encoding_families.none_share.is_nan());
@@ -1914,16 +1531,12 @@ mod tests {
             assert_eq!(family.share, 0.0);
         }
 
-        // Heuristic-abstention addition must not panic or produce NaN either.
         assert!(!report.change_heuristic_abstention_rate.is_nan());
         assert_eq!(report.change_heuristic_abstention_rate, 0.0);
     }
 
     #[test]
     fn axis_summary_identifies_largest_and_smallest_share_by_known_distribution() {
-        // 90/10 split, wallet-agnostic: build_report never sees a "wallet" at all here,
-        // only the nsequence axis's raw value counts, exactly as production data would
-        // supply them via EpochRow::axis_counts.
         let rows = vec![row(1000, &[("Rbf", 90), ("CakeGroupC", 10)], ("cake", 10))];
         let report = build_report(&rows, &[]);
 
@@ -1942,9 +1555,6 @@ mod tests {
         );
         assert_eq!(summary.distinct_values, 2);
 
-        // The value table itself must carry every observed value (not only the
-        // extremes), sorted by share descending, since a developer needs to see every
-        // option on the axis to make a choice among them.
         assert_eq!(summary.values.len(), 2);
         assert_eq!(summary.values[0].value, "Rbf");
         assert_eq!(summary.values[0].count, 90);
@@ -1982,15 +1592,8 @@ mod tests {
         );
     }
 
-    // ------------------------------------------------------------------------------
-    // Per-value min/max share across epochs (the stability measure this report adds).
-    // ------------------------------------------------------------------------------
-
     #[test]
     fn per_value_min_max_reflects_the_swing_between_epochs_without_changing_the_aggregate() {
-        // Epoch 1: Rbf at 90% (90/100). Epoch 2: Rbf at 50% (50/100). The aggregate
-        // over both epochs is (90+50)/(100+100) = 70%, a single number that would
-        // otherwise hide the fact that the real per-epoch share ranged from 50% to 90%.
         let rows = vec![
             row(1000, &[("Rbf", 90), ("CakeGroupC", 10)], ("cake", 10)),
             row(1144, &[("Rbf", 50), ("CakeGroupC", 50)], ("cake", 50)),
@@ -2016,8 +1619,6 @@ mod tests {
             rbf.max_epoch_share
         );
 
-        // The stability indicator on the axis (dominant value = Rbf, since 70% > 30%
-        // aggregate for CakeGroupC) must be exactly this same amplitude.
         assert!(
             (summary.dominant_amplitude - 0.4).abs() < 1e-9,
             "dominant_amplitude should be max - min = 0.9 - 0.5 = 0.4, got {}",
@@ -2027,11 +1628,6 @@ mod tests {
 
     #[test]
     fn a_zero_tx_epoch_does_not_panic_and_does_not_drag_the_minimum_down() {
-        // Two real epochs where Rbf never drops below 50%, plus a third epoch with no
-        // classified transactions at all. If the zero-tx epoch were folded in as a
-        // (wrongly computed, or worse, divide-by-zero) 0% observation, Rbf's minimum
-        // would incorrectly collapse to 0.0 even though Rbf was never actually observed
-        // at 0% in any epoch that classified a transaction.
         let rows = vec![
             row(1000, &[("Rbf", 90), ("CakeGroupC", 10)], ("cake", 10)),
             row(1144, &[("Rbf", 50), ("CakeGroupC", 50)], ("cake", 50)),
@@ -2056,16 +1652,6 @@ mod tests {
 
     #[test]
     fn a_value_absent_from_one_epoch_but_present_in_another_has_minimum_zero() {
-        // DECISION (see `fold_value_share_bounds_row`'s doc comment): within an epoch
-        // that DID classify transactions, a value's absence from that epoch's counts is
-        // treated as a genuine 0% observation for that epoch, not as a missing
-        // measurement to be skipped. This is deliberate: the whole point of this
-        // feature is to surface a value that disappears entirely on some days as
-        // instability, not to hide that disappearance by only ever averaging over
-        // epochs where the value happened to occur.
-        //
-        // Epoch 1: CakeGroupC present at 10/100 = 10%. Epoch 2: CakeGroupC entirely
-        // absent (only Rbf occurs), but the epoch still classified 100 transactions.
         let rows = vec![
             row(1000, &[("Rbf", 90), ("CakeGroupC", 10)], ("cake", 10)),
             row(1144, &[("Rbf", 100)], ("cake", 0)),
@@ -2093,10 +1679,6 @@ mod tests {
         );
     }
 
-    // ------------------------------------------------------------------------------
-    // Gap 1: auxiliary flags aggregated across epochs into `Report::aux_flags`.
-    // ------------------------------------------------------------------------------
-
     #[test]
     fn aux_flags_aggregate_across_epochs_into_shares() {
         let mut row1 = row(1000, &[("Rbf", 60), ("CakeGroupC", 40)], ("cake", 0));
@@ -2113,7 +1695,6 @@ mod tests {
 
         let report = build_report(&[row1, row2], &[]);
 
-        // 100 txs per row (see `row`'s txs = sum of vector counts), 200 total.
         assert_eq!(report.totals.txs, 200);
 
         assert_eq!(
@@ -2132,7 +1713,6 @@ mod tests {
         assert_eq!(report.aux_flags["uih1"].count, 5);
         assert!((report.aux_flags["uih1"].share - 0.025).abs() < 1e-9);
 
-        // A flag present in only one epoch must not silently vanish or double count.
         assert!(!report.aux_flags.contains_key("uih2"));
     }
 
@@ -2148,18 +1728,11 @@ mod tests {
         zero_row.aux_counts = [("address_reuse".to_string(), 0u64)].into_iter().collect();
         let report = build_report(&[zero_row], &[]);
 
-        // Nothing was ever set true, and there are no transactions at all, so the flag
-        // is present at count 0, and its share must be an explicit 0.0, not NaN from a
-        // 0/0 division.
         let flag = &report.aux_flags["address_reuse"];
         assert_eq!(flag.count, 0);
         assert_eq!(flag.share, 0.0);
         assert!(!flag.share.is_nan());
     }
-
-    // ------------------------------------------------------------------------------
-    // Gap 2: address-encoding families derived from the `output_types` marginal.
-    // ------------------------------------------------------------------------------
 
     #[test]
     fn encoding_families_from_a_hand_built_output_types_distribution() {
@@ -2167,10 +1740,7 @@ mod tests {
         marginal.insert("[P2pkh]".to_string(), 10);
         marginal.insert("[P2wpkh]".to_string(), 20);
         marginal.insert("[P2tr]".to_string(), 5);
-        // Overlap case: one set with both a base58 and a bech32m member must count
-        // toward BOTH families, proving the families are not mutually exclusive.
         marginal.insert("[P2pkh, P2tr]".to_string(), 3);
-        // OpReturn-only case: must contribute to no family at all.
         marginal.insert("[OpReturn]".to_string(), 7);
 
         let families = encoding_families(&marginal);
@@ -2212,9 +1782,6 @@ mod tests {
         );
         assert!((families.none_share - 7.0 / 45.0).abs() < 1e-9);
 
-        // Families overlap, so their shares are allowed to sum past 1.0 (13+20+8=41 of
-        // 45 counted transaction-slots, i.e. 0.911, still under 1.0 here, but the point
-        // is they are NOT required to sum to 1.0 the way axis_summary values are).
         let family_share_sum: f64 = families.families.iter().map(|f| f.share).sum();
         assert!(family_share_sum > 0.0 && !family_share_sum.is_nan());
     }
@@ -2237,9 +1804,6 @@ mod tests {
      {
         let mut output_types: BTreeMap<String, u64> = BTreeMap::new();
         output_types.insert("[P2wpkh]".to_string(), 30);
-        // A set that overlaps bech32m and carries an OpReturn member too — must still
-        // count toward bech32m (P2tr present) and NOT toward `none`, since it is not
-        // OpReturn-only.
         output_types.insert("[P2tr, OpReturn]".to_string(), 20);
 
         let mut axis_counts = BTreeMap::new();
@@ -2260,8 +1824,6 @@ mod tests {
 
         let report = build_report(std::slice::from_ref(&epoch_row), &[]);
 
-        // Must come from the exact same axis_marginals["output_types"] map that feeds
-        // the `output_types` row of axis_summaries — same total, by construction.
         assert_eq!(
             report.encoding_families.total,
             report.axis_marginals["output_types"].values().sum::<u64>()
@@ -2287,10 +1849,6 @@ mod tests {
         );
     }
 
-    // ------------------------------------------------------------------------------
-    // Compatibility shim: aggregating stored keys written under a retired axis set.
-    // ------------------------------------------------------------------------------
-
     #[test]
     fn is_current_axis_excludes_deleted_circular_axes_but_keeps_heuristic_axes() {
         assert!(!is_current_axis("change_type_matches_inputs"));
@@ -2302,8 +1860,6 @@ mod tests {
 
     #[test]
     fn build_report_drops_a_retired_axis_marginal_found_in_stale_data() {
-        // A row whose axis_counts still carries a retired axis (as `epochs-v2.jsonl`'s
-        // would) must not resurrect that axis anywhere in the regenerated report.
         let mut axis_counts = BTreeMap::new();
         axis_counts.insert(
             "change_type_matches_inputs".to_string(),
@@ -2387,31 +1943,20 @@ mod tests {
     #[test]
     fn conditional_anonymity_buckets_and_shares() {
         use std::collections::BTreeMap;
-        // Two CORE-shaped keys sharing sighash=All but differing on nsequence.
-        // vecA count 5 (anonymity set < 10), vecB count 500 (set 100-999).
         let mut vectors: BTreeMap<String, u64> = BTreeMap::new();
         vectors.insert("nsequence=Rbf|sighash=All".to_string(), 5);
         vectors.insert("nsequence=Final|sighash=All".to_string(), 500);
         let cond = super::conditional_anonymity(&vectors);
-        // sighash=All: 505 txs; 5 in a set <10, 5 in <100 (500 is in 100-999, not <100).
         let all = &cond["sighash"]["All"];
         assert!((all.share_lt10 - 5.0 / 505.0).abs() < 1e-9);
         assert!((all.share_lt100 - 5.0 / 505.0).abs() < 1e-9);
         assert_eq!(all.buckets["2-9"], 5);
         assert_eq!(all.buckets["100-999"], 500);
-        // nsequence=Rbf is only vecA: all 5 txs in a set <10.
         let rbf = &cond["nsequence"]["Rbf"];
         assert!((rbf.share_lt10 - 1.0).abs() < 1e-9);
         assert!((rbf.share_lt100 - 1.0).abs() < 1e-9);
     }
 
-    // ------------------------------------------------------------------------------
-    // Task 4: `Report::fields` — the per-field rollup of `EpochRow::field_aggs`.
-    // ------------------------------------------------------------------------------
-
-    /// Builds a minimal, otherwise-empty `EpochRow` carrying only the given
-    /// `field_aggs` — the rest of the row's maps are empty, since these tests exercise
-    /// only the `fields` rollup, not axis/template aggregation (already covered above).
     fn field_row(start: u32, txs: u64, field_aggs: BTreeMap<String, FieldAgg>) -> EpochRow {
         EpochRow {
             start_height: start,
@@ -2429,10 +1974,6 @@ mod tests {
 
     #[test]
     fn fields_is_empty_when_no_epoch_carries_field_aggs() {
-        // The compatibility case: a report built from an old `epochs.jsonl` written
-        // before `field_aggs` existed (every row's `field_aggs` is `{}`, exactly what
-        // `row()` above already produces) must still succeed, with `fields: []` rather
-        // than panicking or fabricating entries.
         let rows = vec![row(1000, &[("Rbf", 90), ("CakeGroupC", 10)], ("cake", 10))];
         let report = build_report(&rows, &[]);
         assert!(report.fields.is_empty());
@@ -2440,7 +1981,6 @@ mod tests {
 
     #[test]
     fn fields_rollup_merges_categorical_counts_and_numeric_hist_across_epochs() {
-        // A Bool-kind column ("op_return"): two epochs' raw "0"/"1" tallies must add.
         let mut fa1: BTreeMap<String, FieldAgg> = BTreeMap::new();
         fa1.insert(
             "op_return".to_string(),
@@ -2450,8 +1990,7 @@ mod tests {
                     .collect(),
             ),
         );
-        // A Numeric-kind column ("input_count", edges = EDGES_IO_COUNT, 10 edges -> 11
-        // buckets): count/sum/hist must add elementwise; min/max must reduce.
+        // `input_count` has 10 edges, so 11 buckets.
         fa1.insert(
             "input_count".to_string(),
             FieldAgg::Numeric {
@@ -2508,7 +2047,6 @@ mod tests {
         assert_eq!(v0.count, 11, "7 + 4 across the two epochs");
         assert_eq!(v1.count, 9, "3 + 6 across the two epochs");
         assert!((v0.share - 11.0 / 20.0).abs() < 1e-9);
-        // Sorted by count descending: "0" (11) before "1" (9).
         assert_eq!(op_return.values[0].value, "0");
         assert!(op_return.stats.is_none());
         assert!(op_return.hist.is_none());
@@ -2540,7 +2078,6 @@ mod tests {
             15,
             "hist buckets must add elementwise"
         );
-        // bucket 0 (underflow) = 2+1=3, bucket 1 = 3+0=3, bucket 2 = 5+0=5, bucket 3 = 0+4=4.
         assert_eq!(hist[0].count, 3);
         assert_eq!(hist[1].count, 3);
         assert_eq!(hist[2].count, 5);
@@ -2549,10 +2086,7 @@ mod tests {
 
     #[test]
     fn numeric_stats_from_hist_median_and_p90_land_within_one_bucket_width_of_the_true_value() {
-        // A known, evenly-spread distribution: 100 items all in the bucket [10, 20),
-        // (bucket width 10) built so the true median and 90th-percentile are both
-        // knowable by construction: values 10.0, 10.1, 10.2, ..., 19.9 (uniform steps of
-        // 0.1), so the true median is ~14.95 and the true p90 is ~18.91 (linear-spaced).
+        // 100 items 10.0, 10.1, ..., 19.9, all in bucket [10, 20).
         let edges = [0.0, 10.0, 20.0, 30.0];
         let hist = [0u64, 0, 100, 0, 0];
         let count = 100u64;
@@ -2586,17 +2120,12 @@ mod tests {
 
     #[test]
     fn numeric_stats_from_hist_clamps_open_ended_buckets_to_exact_min_max() {
-        // A rank landing in the underflow bucket (index 0) or the overflow bucket
-        // (index edges.len()) has no finite bucket width to interpolate across, so it
-        // must clamp to the field's exact min/max instead.
         let edges = [0.0, 10.0];
-        // Bucket 0 (underflow, < 0.0) holds every item: any rank lands there.
         let hist = [10u64, 0, 0];
         let stats = numeric_stats_from_hist(&edges, 10, -50.0, -10.0, -1.0, &hist);
         assert_eq!(stats.median, -10.0, "median must clamp to the exact min");
         assert_eq!(stats.p90, -10.0, "p90 must clamp to the exact min");
 
-        // Bucket 2 (overflow, >= 10.0) holds every item: any rank lands there.
         let hist_over = [0u64, 0, 10];
         let stats_over = numeric_stats_from_hist(&edges, 10, 500.0, 10.0, 90.0, &hist_over);
         assert_eq!(
@@ -2608,10 +2137,6 @@ mod tests {
 
     #[test]
     fn every_feature_column_has_a_section_and_a_recognised_kind() {
-        // Guards `section_for`'s exhaustiveness and `field_report`'s kind labels against
-        // COLUMN_NAMES/COLUMN_KINDS drifting out from under this file: every column in
-        // the ~173-entry catalog must resolve to one of the documented section ids and
-        // kind labels, with no panic.
         use crate::features::new_field_agg;
         for (name, kind) in COLUMN_NAMES[2..].iter().zip(COLUMN_KINDS.iter()) {
             let section = section_for(name);

@@ -1,7 +1,5 @@
 #!/usr/bin/env python3
-"""Local control server for the Fingerprint dashboard: serves the built book and
-exposes /api/status, /api/scan (SSE), /api/stop to run a Floresta-backed scan and
-stream progress. Localhost only. Python stdlib only."""
+"""Localhost control server for the Fingerprint dashboard; stdlib only."""
 import argparse, json, os, queue, shutil, subprocess, sys, threading, time
 import http.server
 import urllib.parse
@@ -31,7 +29,6 @@ def _count_epochs(epochs_path):
 def progress(epochs_path, start_height, target_height):
     row = _last_epoch(epochs_path)
     height = row["end_height"] if row else (start_height or 0)
-    # Before the live tip is known, report height/epoch only (no % / target).
     if start_height is None or target_height is None:
         return {"height": height, "epochs": _count_epochs(epochs_path),
                 "blocks_done": None, "blocks_target": None, "pct": None}
@@ -49,15 +46,12 @@ def should_reaggregate(now, last_ts, epochs_since, *, t=15.0, k=5):
     return (now - last_ts) >= t or epochs_since >= k
 
 def _pump_stdout(proc, line_queue):
-    """Runs on a dedicated daemon thread: reads the scanner's stdout line-by-line
-    and pushes each line onto line_queue. A blocking readline() here can never stall
-    the progress/throttle loop, which lives on the main thread and only ever does
-    non-blocking queue reads."""
+    """Own thread so a blocking readline() never stalls the progress loop."""
     try:
         for line in proc.stdout:
             line_queue.put(line)
     except (ValueError, OSError):
-        pass  # stdout closed out from under us during teardown; nothing left to read
+        pass  # stdout closed during teardown
     finally:
         try:
             proc.stdout.close()
@@ -65,12 +59,7 @@ def _pump_stdout(proc, line_queue):
             pass
 
 def run_scan(server, mode):
-    """Runs an entire scan to completion on a background thread, independent of
-    any HTTP request/response: spawns `lumen scan`, drives the progress/
-    reaggregate loop, and appends every event to server.state["events"] instead
-    of writing SSE directly. /api/scan requests are just followers that tail
-    this log (see DashboardHandler._handle_scan) -- so the scan survives page
-    navigation and any number of viewers can watch the same run."""
+    """Runs detached from any request so the scan survives page navigation."""
     state = server.state
 
     def send(event, data):
@@ -80,8 +69,7 @@ def run_scan(server, mode):
     try:
         epochs_path = server.epochs_path
         datadir = server.datadir
-        # floor/tip are read LIVE from the server (below) each time progress is
-        # computed, so a tip that lands mid-scan (async query) starts driving the %.
+        # floor/tip are read live so a tip that lands mid-scan starts driving the %.
 
         if mode == "fresh":
             try:
@@ -96,16 +84,11 @@ def run_scan(server, mode):
 
         send("phase", {"phase": "connecting"})
 
-        # The scanner owns the "just works" defaults now (bin/lumen.rs): with no --peer it
-        # dials Davidson's utreexo peers so it never stalls at 0 peers (override via
-        # LUMEN_SCAN_PEERS), and --fresh wipes the datadir + epochs and scans from the floor
-        # in one faithful pass -- so the dashboard and a bare CLI scan behave identically.
+        # Peer and --fresh defaults live in the scanner so dashboard and CLI scans match.
         cmd = survey_bin.split() + ["scan", "--datadir", datadir, "--out", epochs_path]
         if mode == "fresh":
             cmd.append("--fresh")
-            # A fresh full scan is also when we capture the per-transaction feature vectors
-            # -- the ML training corpus. It is large (one row per tx), so it goes to a
-            # gitignored file named by the scanned window, not into the committed tree.
+            # Vectors are one row per tx: too large to commit, so they go to a gitignored file.
             floor = getattr(server, "floor", None) or 939969
             tip = getattr(server, "tip", None) or "tip"
             os.makedirs("data/vectors", exist_ok=True)
@@ -131,12 +114,7 @@ def run_scan(server, mode):
             subprocess.run(
                 [sys.executable, dashboard_emit, report_json, emit_target],
                 check=True)
-            # The live emit (`emit_target`) drives the served book and is rewritten every
-            # reaggregate. The upstream copies are the committed `docs/src` artifacts (the
-            # Explorer's JSON and the ML-facing wallet×axis cross CSV `lumen report` writes
-            # next to report.json); they are written ONLY on the final reaggregate so a
-            # scan leaves the source tree with exactly the artifacts to commit, not files
-            # that churned on every throttle tick.
+            # Upstream copies only on the final pass, so the tree is not churned every tick.
             if final and emit_upstream:
                 shutil.copyfile(emit_target, emit_upstream)
                 send("log", {"line": f"upstream explorer-data.json updated: {emit_upstream}"})
@@ -150,12 +128,9 @@ def run_scan(server, mode):
         last_epoch_count = progress(epochs_path, server.floor, server.tip)["epochs"]
         scan_started = time.time()
         stall_warned = False
-        STALL_WARN_SECS = 120  # first epoch (144 blocks) should arrive within ~1-2 min
+        STALL_WARN_SECS = 120
 
-        # Stdout draining is decoupled onto its own daemon thread so a
-        # partial/unterminated line sitting in the pipe can never block this
-        # loop's progress/throttle work -- the loop below only ever does
-        # non-blocking queue reads plus a short sleep.
+        # Separate reader thread: a partial line in the pipe must never block this loop.
         log_queue = queue.Queue()
         stdout_thread = threading.Thread(
             target=_pump_stdout, args=(proc, log_queue), daemon=True)
@@ -187,9 +162,7 @@ def run_scan(server, mode):
                 last_epoch_count = pr["epochs"]
             send("progress", pr)
 
-            # No epoch after a couple of minutes almost always means the node can't
-            # reach a utreexo-serving peer (block download needs one; header sync does
-            # not). Say so once instead of leaving a silent 0%.
+            # No epoch yet almost always means no reachable utreexo peer (blocks need one).
             if not stall_warned and pr["epochs"] == 0 and (now - scan_started) > STALL_WARN_SECS:
                 stall_warned = True
                 send("phase", {"phase": "stalled"})
@@ -198,29 +171,22 @@ def run_scan(server, mode):
                              "utreexo network can be sparse or slow). It keeps trying; "
                              "Stop and retry, or run a local utreexod bridge for reliability."})
 
-            # Exit once the scanner has exited *and* the queue is fully
-            # drained (the stdout thread having died is what guarantees no
-            # further lines can appear after this check).
+            # Only a dead stdout thread guarantees no further lines after this check.
             exited = proc.poll() is not None
             drained = log_queue.empty() and not stdout_thread.is_alive()
             if exited and drained:
                 break
             time.sleep(0.5)
 
-        # stdout thread has (or is about to have) hit EOF; join it before
-        # touching the process/pipe further so teardown never races the reader.
+        # Join the reader before touching the pipe so teardown never races it.
         stdout_thread.join(timeout=5.0)
-        drain_log_queue()  # pick up anything queued in the join window
+        drain_log_queue()  # lines queued during the join
         proc.wait()
 
         if proc.returncode != 0:
             send("log", {"line": f"scan exited with status {proc.returncode}"})
 
-        # Final re-aggregation is best-effort: a failure here (e.g. the
-        # very last `report`/emit invocation) must not turn a successful
-        # scan into an `error` from the client's perspective -- it still
-        # gets `phase:done` + `done`, just possibly with stale aggregated
-        # output. Log the failure to stderr for visibility.
+        # Best-effort: a failed final reaggregate must not turn a good scan into an error.
         try:
             reaggregate(final=True)
         except Exception as e:
@@ -236,12 +202,9 @@ def run_scan(server, mode):
             state["proc"] = None
 
 class DashboardHandler(http.server.SimpleHTTPRequestHandler):
-    """Serves the built book as static files and answers /api/status.
-    Additional /api/* endpoints (scan, stop) are added in later tasks."""
 
     def end_headers(self):
-        # No browser caching: this is a local dev tool whose pages and data change on
-        # every scan/edit, and a stale cached page is exactly the confusion to avoid.
+        # No caching: pages and data change on every scan.
         self.send_header("Cache-Control", "no-store")
         super().end_headers()
 
@@ -250,8 +213,7 @@ class DashboardHandler(http.server.SimpleHTTPRequestHandler):
         if parsed.path == "/api/status":
             self._send_status()
         elif parsed.path == "/api/scan":
-            # EventSource (the dashboard's SSE client) is GET-only, so /api/scan is
-            # served on GET as well as POST.
+            # EventSource is GET-only.
             self._handle_scan(parsed)
         else:
             super().do_GET()
@@ -287,22 +249,13 @@ class DashboardHandler(http.server.SimpleHTTPRequestHandler):
         server = self.server
         state = server.state
 
-        # Parsing happens up front so a bad query string can never abort the
-        # connection without an SSE `error` frame -- it degrades to safe
-        # defaults instead. mode is only consulted when THIS request is the
-        # one that starts a new scan; an attach to an already-running scan
-        # ignores it entirely.
+        # Parse up front so a bad query degrades to defaults instead of dropping the SSE stream.
         qs = urllib.parse.parse_qs(parsed.query)
         mode = qs.get("mode", ["resume"])[0]
         if mode not in ("fresh", "resume"):
             mode = "resume"
 
-        # Atomic check-and-set: two concurrent /api/scan requests on the
-        # ThreadingHTTPServer must not both observe running==False before either
-        # sets it. Hold server.scan_lock for the whole check-and-set. Whichever
-        # request wins starts the background worker and resets the event log;
-        # every other request (this one included, if it loses) just attaches
-        # below as a follower of whatever is currently running.
+        # Atomic check-and-set: concurrent requests must not both see running==False.
         with server.scan_lock:
             if not state["running"]:
                 with server.events_lock:
@@ -318,12 +271,7 @@ class DashboardHandler(http.server.SimpleHTTPRequestHandler):
         self.send_header("Cache-Control", "no-cache")
         self.end_headers()
 
-        # Follow: replay everything buffered so far from the start, then keep
-        # polling for new events, writing each as SSE to THIS response. This
-        # runs identically whether this request just started the scan above or
-        # is attaching to one already in flight -- every viewer gets the full
-        # replay + live tail. Returns on a terminal event or a dead connection;
-        # the scan thread is entirely independent and keeps running either way.
+        # Every viewer gets full replay + live tail; the scan keeps running if this one drops.
         idx = 0
         while True:
             with server.events_lock:
@@ -335,7 +283,7 @@ class DashboardHandler(http.server.SimpleHTTPRequestHandler):
                         f"event: {event}\ndata: {json.dumps(data)}\n\n".encode())
                     self.wfile.flush()
                 except (BrokenPipeError, ConnectionResetError, OSError):
-                    return  # client disconnected; the scan thread keeps running
+                    return
                 if event in ("done", "error"):
                     return
             time.sleep(0.2)
@@ -358,13 +306,12 @@ class DashboardHandler(http.server.SimpleHTTPRequestHandler):
         self.wfile.write(body)
 
     def log_message(self, fmt, *args):
-        pass  # keep test/CLI output quiet; stdlib default logs to stderr per request
+        pass  # silence per-request stderr logging
 
 def make_server(book_dir, datadir, epochs_path, floor=0, tip=0, port=0):
     def handler_factory(*args, **kwargs):
         return DashboardHandler(*args, directory=book_dir, **kwargs)
-    # ThreadingHTTPServer: /api/scan streams for the duration of a scan, so /api/stop
-    # (and /api/status) must be servable concurrently on another thread.
+    # Threading: /api/scan streams for the whole scan, so /api/stop must run concurrently.
     server = http.server.ThreadingHTTPServer(("127.0.0.1", port), handler_factory)
     server.daemon_threads = True
     server.datadir = datadir
@@ -372,10 +319,7 @@ def make_server(book_dir, datadir, epochs_path, floor=0, tip=0, port=0):
     server.floor = floor
     server.tip = tip
     server.state = {"running": False, "proc": None, "stopped": False, "events": []}
-    # scan_lock guards the atomic start check-and-set; events_lock guards
-    # server.state's mutable fields (the append-only "events" log plus
-    # running/proc/stopped) against the worker thread and any number of
-    # concurrent follower requests.
+    # scan_lock: start check-and-set; events_lock: state shared by worker and followers.
     server.scan_lock = threading.Lock()
     server.events_lock = threading.Lock()
     server.emit_target = os.path.join(book_dir, "explorer-data.json")
@@ -404,10 +348,7 @@ def main():
 
     survey_bin = os.environ.get("LUMEN_BIN", "./target/release/lumen")
 
-    # Serve immediately with an unknown tip; query the live tip in the background so the
-    # page and the Run button appear instantly instead of blocking on a header sync
-    # (which can take minutes on a fresh datadir). floor/tip fill in when the query
-    # returns; progress shows height/epoch meanwhile and gains a % once the tip is known.
+    # Query the tip in the background: header sync can take minutes on a fresh datadir.
     server = make_server(args.book, args.datadir, args.epochs, None, None, args.port)
     server.emit_target = args.emit
     server.emit_upstream = args.emit_upstream

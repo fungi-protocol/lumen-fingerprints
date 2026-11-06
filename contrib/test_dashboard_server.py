@@ -28,9 +28,9 @@ class Helpers(unittest.TestCase):
         self.assertTrue(0 < pr["pct"] < 100)
 
     def test_throttle(self):
-        self.assertTrue(dss.should_reaggregate(100.0, 80.0, 0))   # 20s >= T
-        self.assertTrue(dss.should_reaggregate(100.0, 99.0, 5))   # K epochs
-        self.assertFalse(dss.should_reaggregate(100.0, 99.0, 1))  # neither
+        self.assertTrue(dss.should_reaggregate(100.0, 80.0, 0))
+        self.assertTrue(dss.should_reaggregate(100.0, 99.0, 5))
+        self.assertFalse(dss.should_reaggregate(100.0, 99.0, 1))
 
 class ServerStatus(unittest.TestCase):
     def test_status_and_static(self):
@@ -57,15 +57,14 @@ class ScanSSE(unittest.TestCase):
         env = dict(os.environ,
                    LUMEN_BIN=f"{sys.executable} {os.path.dirname(__file__)}/fake_survey.py",
                    DASHBOARD_EMIT=f"{os.path.dirname(__file__)}/dashboard-data.py")
-        # The server runs in-process (via a thread below), not as a subprocess, so it
-        # reads os.environ directly -- update the live environment, not just a local dict.
+        # In-process server reads os.environ directly, so mutate the live environment.
         os.environ.update(env)
-        srv = dss.make_server(book, work, epochs, 939969, 940257)  # datadir=work for the fake
+        srv = dss.make_server(book, work, epochs, 939969, 940257)
         srv.emit_target = os.path.join(work, "explorer-data.json")
         threading.Thread(target=srv.serve_forever, daemon=True).start()
         port = srv.server_address[1]
         req = urllib.request.Request(
-            f"http://127.0.0.1:{port}/api/scan?mode=fresh")  # GET: the dashboard's EventSource client is GET-only
+            f"http://127.0.0.1:{port}/api/scan?mode=fresh")  # EventSource is GET-only
         kinds = []
         with urllib.request.urlopen(req) as r:
             for raw in r:
@@ -103,8 +102,6 @@ class ScanSSE(unittest.TestCase):
                 if "done" in kinds:
                     break
         srv.shutdown()
-        # The final reaggregate must have mirrored the live emit into the upstream
-        # (committed docs/src) path, byte-for-byte.
         self.assertTrue(os.path.exists(upstream),
                         "emit_upstream file must exist after a completed scan")
         with open(emit_target) as a, open(upstream) as b:
@@ -140,7 +137,6 @@ class ScanSSE(unittest.TestCase):
             self.assertTrue(f.readline().startswith("start_height,end_height,wallet_era,axis,value"))
 
     def test_no_emit_upstream_leaves_no_extra_file(self):
-        # Without emit_upstream set (the default), a scan writes only emit_target.
         import threading, urllib.request
         book = tempfile.mkdtemp(); work = tempfile.mkdtemp()
         epochs = os.path.join(work, "epochs.jsonl")
@@ -177,11 +173,8 @@ class ScanSSE(unittest.TestCase):
         srv.emit_target = os.path.join(work, "explorer-data.json")
         threading.Thread(target=srv.serve_forever, daemon=True).start()
         port = srv.server_address[1]
-        # mode=bogus is not "fresh" or "resume" and must never crash the handler
-        # thread or abort the connection before SSE headers -- it should degrade
-        # to the "resume" default and stream a normal SSE session.
         req = urllib.request.Request(
-            f"http://127.0.0.1:{port}/api/scan?mode=bogus")  # GET: the dashboard's EventSource client is GET-only
+            f"http://127.0.0.1:{port}/api/scan?mode=bogus")
         kinds = []
         with urllib.request.urlopen(req) as r:
             self.assertEqual(r.status, 200)
@@ -192,19 +185,12 @@ class ScanSSE(unittest.TestCase):
                     kinds.append(line.split(":", 1)[1].strip())
                 if "done" in kinds or "error" in kinds:
                     break
-        # a clean SSE stream: either it started a normal scan (phase -> ... -> done)
-        # or it rejected cleanly with a single "error" event -- never a dropped
-        # connection / raised exception with no frames at all.
         self.assertTrue(kinds)
         self.assertIn(kinds[0], ("phase", "error"))
         srv.shutdown()
 
 class ConcurrencyAndStop(unittest.TestCase):
     def test_second_concurrent_scan_attaches(self):
-        # A second /api/scan while one is already running must ATTACH -- it
-        # replays the buffered event log and rides it through to the same
-        # terminal event -- not get rejected with an "error". The scan itself
-        # is a background thread now; both requests are just followers of it.
         import threading, urllib.request, time
         book = tempfile.mkdtemp(); work = tempfile.mkdtemp()
         epochs = os.path.join(work, "epochs.jsonl")
@@ -231,8 +217,6 @@ class ConcurrencyAndStop(unittest.TestCase):
         t1 = threading.Thread(target=run_first)
         t1.start()
 
-        # Wait for the background worker to actually be running before the
-        # second request attaches -- that's the scenario under test.
         for _ in range(100):
             if srv.state["running"]:
                 break
@@ -241,7 +225,7 @@ class ConcurrencyAndStop(unittest.TestCase):
 
         second_kinds = []
         req2 = urllib.request.Request(
-            base + "/api/scan?mode=fresh")  # mode is ignored: a scan is already running
+            base + "/api/scan?mode=fresh")
         with urllib.request.urlopen(req2) as r:
             for raw in r:
                 line = raw.decode().strip()
@@ -257,10 +241,6 @@ class ConcurrencyAndStop(unittest.TestCase):
         srv.shutdown()
 
     def test_reattach_after_disconnect_replays_buffered_events(self):
-        # A viewer that disconnects mid-scan (e.g. navigates away) and a
-        # second/returning viewer that opens /api/scan again must see the full
-        # replay from the start of the event log, then ride it to `done` --
-        # the scan itself never stopped running in the background.
         import threading, urllib.request, time
         book = tempfile.mkdtemp(); work = tempfile.mkdtemp()
         epochs = os.path.join(work, "epochs.jsonl")
@@ -283,7 +263,7 @@ class ConcurrencyAndStop(unittest.TestCase):
                 got.append(line.split(":", 1)[1].strip())
             if len(got) >= 2:
                 break
-        r1.close()  # simulate the viewer navigating away mid-scan
+        r1.close()
 
         self.assertTrue(srv.state["running"])
         self.assertGreaterEqual(len(srv.state["events"]), 2)
@@ -298,7 +278,7 @@ class ConcurrencyAndStop(unittest.TestCase):
                 if "done" in second_kinds:
                     break
 
-        self.assertEqual(second_kinds[0], "phase")  # replay starts from index 0
+        self.assertEqual(second_kinds[0], "phase")
         self.assertIn("done", second_kinds)
         srv.shutdown()
 
@@ -334,15 +314,13 @@ class MainCLI(unittest.TestCase):
         def fake_make_server(*args, **kwargs):
             srv = orig_make_server(*args, **kwargs)
             captured["srv"] = srv
-            srv.serve_forever = lambda: None  # never actually block the test
+            srv.serve_forever = lambda: None
             return srv
 
         with mock.patch.object(sys, "argv", argv), \
              mock.patch.object(dss, "make_server", fake_make_server):
             dss.main()
 
-        # main() serves immediately and queries the tip on a background thread; wait for it
-        # to land, then check floor/tip came from fake_survey.py's `tip` subcommand output.
         srv = captured["srv"]
         for _ in range(60):
             if srv.floor is not None:

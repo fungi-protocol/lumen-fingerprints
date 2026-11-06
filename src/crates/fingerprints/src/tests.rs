@@ -55,8 +55,6 @@ fn dummy_txin() -> TxIn {
     }
 }
 
-// --- classify tests ---
-
 #[test]
 fn test_classify_p2pkh() {
     let addr = bitcoin::Address::from_str("1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa")
@@ -72,7 +70,7 @@ fn test_classify_p2pkh() {
 
 #[test]
 fn test_classify_p2tr() {
-    // A valid P2TR scriptPubKey: OP_1 <32-byte-key>
+    // OP_1 <32-byte key>
     let spk = hex::decode("5120a60869f0dbcf1dc659c9cecbee8b89892408b072aba4c3bc5d42dba934a82e03")
         .unwrap();
     assert_eq!(crate::classify_script_pubkey(&spk), OutputType::P2tr);
@@ -84,10 +82,6 @@ fn test_classify_op_return() {
     let spk = hex::decode("6a0461746f6d").unwrap();
     assert_eq!(crate::classify_script_pubkey(&spk), OutputType::OpReturn);
 }
-
-// Regression guard: existing types must classify exactly as before now that P2PK
-// detection has been inserted into `classify_script_pubkey`. A misordered check here
-// would silently reclassify a common type.
 
 #[test]
 fn test_classify_p2sh_unaffected() {
@@ -130,8 +124,6 @@ fn test_classify_p2wsh_unaffected() {
     );
 }
 
-// --- P2PK classification ---
-
 #[test]
 fn test_classify_p2pk_compressed() {
     let spk = create_p2pk_script(true);
@@ -157,8 +149,6 @@ fn test_p2pk_is_spendable() {
 
 #[test]
 fn test_classify_p2pk_near_miss_stays_nonstandard() {
-    // A pubkey push followed by OP_CHECKSIG *and then something else* is not bare P2PK:
-    // it merely starts with a pubkey push. Must not be misclassified as P2pk.
     let secp = bitcoin::secp256k1::Secp256k1::new();
     let mut rng = rand::thread_rng();
     let (secret_key, _) = secp.generate_keypair(&mut rng);
@@ -179,8 +169,7 @@ fn test_classify_p2pk_near_miss_stays_nonstandard() {
 
 #[test]
 fn test_output_type_discriminants_unchanged() {
-    // These values are persisted via `as_u32()` by consumers (e.g. decluster). A future
-    // reordering of the enum must not silently reinterpret already-persisted data.
+    // Persisted via `as_u32()`: reordering would reinterpret stored data.
     assert_eq!(OutputType::P2pkh.as_u32(), 0);
     assert_eq!(OutputType::P2sh.as_u32(), 1);
     assert_eq!(OutputType::P2wpkh.as_u32(), 2);
@@ -190,8 +179,6 @@ fn test_output_type_discriminants_unchanged() {
     assert_eq!(OutputType::NonStandard.as_u32(), 6);
     assert_eq!(OutputType::P2pk.as_u32(), 7);
 }
-
-// --- input fingerprint tests ---
 
 #[test]
 fn test_input_signals_rbf() {
@@ -209,8 +196,6 @@ fn test_low_r_grinding() {
     assert!(low_r_grinding(&tx.input[0]));
     assert!(!low_r_grinding(&tx.input[1]));
 }
-
-// --- input-with-prevout tests ---
 
 #[test]
 fn test_uncompressed_pubkey_p2pk_compressed() {
@@ -274,8 +259,6 @@ fn test_input_type_classification() {
     assert_eq!(input_type(&prevout), OutputType::P2pkh);
 }
 
-// --- output tests ---
-
 #[test]
 fn test_output_type() {
     let addr = bitcoin::Address::from_str("1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa")
@@ -286,17 +269,13 @@ fn test_output_type() {
     assert_eq!(output_type(&txout), OutputType::P2pkh);
 }
 
-// --- transaction-level tests ---
-
 #[test]
 fn test_tx_signals_rbf() {
     let mut txin1 = dummy_txin();
     let txin2 = dummy_txin();
 
-    // No RBF
     assert!(!tx_signals_rbf(&[txin1.clone(), txin2.clone()]));
 
-    // One input signals RBF
     txin1.sequence = bitcoin::Sequence::ENABLE_RBF_NO_LOCKTIME;
     assert!(tx_signals_rbf(&[txin1, txin2]));
 }
@@ -322,10 +301,8 @@ fn test_address_reuse() {
     let output1 = make_txout(addr1.script_pubkey());
     let output2 = make_txout(addr2.script_pubkey());
 
-    // Reuse detected
     assert!(address_reuse(&[output1], std::slice::from_ref(&prevout1)));
 
-    // No reuse
     assert!(!address_reuse(&[output2], &[prevout1]));
 }
 
@@ -339,18 +316,14 @@ fn test_mixed_input_types() {
     let prevout1 = make_txout(p2pkh_addr.script_pubkey());
     let prevout2 = make_txout(p2pkh_addr.script_pubkey());
 
-    // Same types
     assert!(!mixed_input_types(&[prevout1.clone(), prevout2]));
 
-    // Mixed: P2PKH + P2TR
     let p2tr_spk =
         hex::decode("5120a60869f0dbcf1dc659c9cecbee8b89892408b072aba4c3bc5d42dba934a82e03")
             .unwrap();
     let prevout3 = make_txout(ScriptBuf::from_bytes(p2tr_spk));
     assert!(mixed_input_types(&[prevout1, prevout3]));
 }
-
-// --- input_order tests ---
 
 fn make_txin_with_outpoint(txid_hex: &str, vout: u32) -> TxIn {
     TxIn {
@@ -380,7 +353,6 @@ fn test_input_order_single() {
 
 #[test]
 fn test_input_order_ascending_values() {
-    // Two inputs with ascending prevout values
     let inputs = [
         make_txin_with_outpoint(
             "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
@@ -415,7 +387,6 @@ fn test_input_order_descending_values() {
 
 #[test]
 fn test_input_order_equal_values_skips_asc_desc() {
-    // Equal values should not report ascending or descending
     let inputs = [
         make_txin_with_outpoint(
             "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
@@ -430,16 +401,11 @@ fn test_input_order_equal_values_skips_asc_desc() {
     let result = input_order(&inputs, &prevouts);
     assert!(!result.contains(&InputSortingType::Ascending));
     assert!(!result.contains(&InputSortingType::Descending));
-    // But BIP69 should still be checked — these txids are already in display order
     assert!(result.contains(&InputSortingType::Bip69));
 }
 
 #[test]
 fn test_input_order_bip69() {
-    // BIP69: sort by txid display order (reversed wire bytes), then vout.
-    // Wire bytes for "aa..aa" are [0xaa; 32]. Reversed = [0xaa; 32].
-    // Wire bytes for "bb..bb" are [0xbb; 32]. Reversed = [0xbb; 32].
-    // aa < bb in display order, so aa should come first for BIP69.
     let inputs = [
         make_txin_with_outpoint(
             "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
@@ -457,7 +423,6 @@ fn test_input_order_bip69() {
 
 #[test]
 fn test_input_order_not_bip69() {
-    // Reverse order of txids — not BIP69
     let inputs = [
         make_txin_with_outpoint(
             "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
@@ -471,13 +436,11 @@ fn test_input_order_not_bip69() {
     let prevouts = [make_txout_with_value(100), make_txout_with_value(500)];
     let result = input_order(&inputs, &prevouts);
     assert!(!result.contains(&InputSortingType::Bip69));
-    // Values are ascending though
     assert!(result.contains(&InputSortingType::Ascending));
 }
 
 #[test]
 fn test_input_order_unknown() {
-    // Not ascending, not descending, not BIP69
     let inputs = [
         make_txin_with_outpoint(
             "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
@@ -500,8 +463,6 @@ fn test_input_order_unknown() {
     let result = input_order(&inputs, &prevouts);
     assert_eq!(result, vec![InputSortingType::Unknown]);
 }
-
-// --- output_structure tests ---
 
 #[test]
 fn test_output_structure_single() {
@@ -536,7 +497,6 @@ fn test_output_structure_not_bip69() {
 
 #[test]
 fn test_output_structure_bip69_with_duplicate_amounts() {
-    // Duplicate amounts — BIP69 requires sorting by (value, scriptPubKey)
     let addr1 = bitcoin::Address::from_str("1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa")
         .unwrap()
         .require_network(bitcoin::Network::Bitcoin)
@@ -549,7 +509,6 @@ fn test_output_structure_bip69_with_duplicate_amounts() {
     let spk1 = addr1.script_pubkey();
     let spk2 = addr2.script_pubkey();
 
-    // Ensure we know which scriptPubKey sorts first
     let (first_spk, second_spk) = if spk1.to_bytes() < spk2.to_bytes() {
         (spk1.clone(), spk2.clone())
     } else {
@@ -569,7 +528,6 @@ fn test_output_structure_bip69_with_duplicate_amounts() {
     let result = is_bip69_sorted(&outputs_sorted);
     assert!(result);
 
-    // Reverse order — not BIP69
     let outputs_unsorted = [
         TxOut {
             value: Amount::from_sat(1000),
@@ -584,32 +542,25 @@ fn test_output_structure_bip69_with_duplicate_amounts() {
     assert!(!result);
 }
 
-// --- integration test with real tx ---
-
 #[test]
 fn test_electrum_tx_fingerprints() {
-    // Electrum tx: 5d857401648a667303cde43295bce1326e6329353eac3dddf15b151e701405e7
+    // txid 5d857401648a667303cde43295bce1326e6329353eac3dddf15b151e701405e7
     let tx = get_tx_from_hex(
         "02000000000102ac5718a0e7b3ee13ce2f273aa9c6a04becf8a1696edb75d3217c0d3790a620860000000000fdffffff74e1d8045cfe6b823943db609ceb3aa13216a936a9e18b92e26db770a8e4eae60000000000fdffffff02f6250000000000001600145333aa7bcef7bd632edaf5a326d4c6085417282d133f0000000000001976a914c8f57d6b8bc08fa211c71b8d255e7c4b25bd432288ac02473044022037059673792d5af9ab1cf5fc8ccf3c1c1ad300e9e6c25edda7a172e455d49e07022046d2c2638c129a8c9a54ca5adb5df01bde564066c36edade43c3845b3d25940101210202ca6c82b9cc52f7a8c34de6a6ccd807d8437a8368ddf7638a2b50002e745b360247304402207b3d3c39ee66bdaa509094072ae629794bd7ef0f14694f0e3695d89ed573c57202205cc9b6d059500ccf621621a657115e33c51064efad2dcf352ad32c69b0ae6ab301210202ca6c82b9cc52f7a8c34de6a6ccd807d8437a8368ddf7638a2b50002e745b3670360c00",
     );
 
-    // Both inputs signal RBF (sequence < 0xfffffffe)
     assert!(signals_rbf(&tx.input[0]));
     assert!(signals_rbf(&tx.input[1]));
     assert!(tx_signals_rbf(&tx.input));
 
-    // Anti-fee-sniping: locktime is non-zero
     assert!(anti_fee_snipe(tx.lock_time.to_consensus_u32()));
 
-    // Low-R grinding on both inputs
     assert!(low_r_grinding(&tx.input[0]));
     assert!(low_r_grinding(&tx.input[1]));
 
-    // Output types
     assert_eq!(output_type(&tx.output[0]), OutputType::P2wpkh);
     assert_eq!(output_type(&tx.output[1]), OutputType::P2pkh);
 
-    // Output structure: 2 outputs (Double), values 9718 < 16147 so BIP69
     let structure = output_structure(&tx.output);
     assert_eq!(structure, OutputStructureType::Double);
     assert!(is_bip69_sorted(&tx.output));
@@ -617,17 +568,14 @@ fn test_electrum_tx_fingerprints() {
 
 #[test]
 fn test_round_fee_exact_thousand() {
-    // Fee = 10000 - 9000 = 1000 sats
     let prevouts = [make_txout_with_value(10000)];
     let outputs = [make_txout_with_value(9000)];
     assert_eq!(round_fee(&prevouts, &outputs), Some(true));
 
-    // Fee = 10000 - 9743 = 257 sats
     let prevouts = [make_txout_with_value(10000)];
     let outputs = [make_txout_with_value(9743)];
     assert_eq!(round_fee(&prevouts, &outputs), Some(false));
 
-    // Fee = 0 sats
     let prevouts = [make_txout_with_value(10000)];
     let outputs = [make_txout_with_value(10000)];
     assert_eq!(round_fee(&prevouts, &outputs), Some(false));
@@ -635,7 +583,6 @@ fn test_round_fee_exact_thousand() {
 
 #[test]
 fn test_round_fee_overflow() {
-    // Output > input, invalid, returns None
     let prevouts = [make_txout_with_value(1000)];
     let outputs = [make_txout_with_value(2000)];
     assert_eq!(round_fee(&prevouts, &outputs), None);

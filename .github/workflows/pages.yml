@@ -22,8 +22,7 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
-      # The public site is ONLY the Fingerprint Explorer (self-contained HTML +
-      # its data file). The mdbook study stays local-only (`nix run .#serve`).
+      # The mdbook stays local-only (`nix run .#serve`).
       - name: Assemble site (explorer only)
         run: |
           mkdir -p site

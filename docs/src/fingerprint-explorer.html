@@ -35,7 +35,6 @@
   }
   .wrap { max-width: 1120px; margin: 0 auto; padding: 0 clamp(16px, 4vw, 40px); }
 
-  /* header */
   header.top {
     border-bottom: 1px solid var(--line);
     background: color-mix(in srgb, var(--ground) 82%, transparent);
@@ -47,7 +46,6 @@
   .top h1 { font-size: 15px; margin: 0; font-weight: 600; letter-spacing: -.01em; }
   .top .sub { color: var(--muted); font-size: 13px; margin-left: auto; font-family: var(--mono); }
 
-  /* hero band */
   .hero { padding: clamp(34px, 6vw, 60px) 0 26px; border-bottom: 1px solid var(--line); }
   .hero h2 { font-size: clamp(22px, 3.2vw, 30px); line-height: 1.12; margin: 0 0 14px; letter-spacing: -.02em; text-wrap: balance; max-width: 20ch; }
   .hero p { color: var(--muted); max-width: 66ch; margin: 0 0 26px; font-size: 15.5px; }
@@ -56,7 +54,6 @@
   .count .n { font-family: var(--mono); font-size: 26px; font-weight: 600; font-variant-numeric: tabular-nums; letter-spacing: -.02em; }
   .count .l { color: var(--muted); font-size: 12px; margin-top: 3px; letter-spacing: .02em; }
 
-  /* nav rail */
   .layout { display: grid; grid-template-columns: 1fr; gap: 0; }
   @media (min-width: 900px) { .layout { grid-template-columns: 210px 1fr; gap: 44px; align-items: start; } }
   nav.rail { position: sticky; top: 62px; padding: 30px 0; display: none; }
@@ -128,7 +125,6 @@
   a { color: var(--accent); }
   :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 3px; }
 
-  /* --- expand-on-click per-field analysis (live data wiring) --- */
   .rowsum { font-family: var(--mono); font-size: 11.5px; color: var(--ink); margin-left: 8px; white-space: nowrap; }
   .rowsum .n { font-weight: 600; }
   .xpd {
@@ -153,7 +149,6 @@
   .pstats { font-family: var(--mono); font-size: 11px; color: var(--muted); margin-top: 8px; }
   .pempty { color: var(--faint); font-size: 12px; font-style: italic; }
 
-  /* --- section 12 (sparseness axes) picker, ported --- */
   .picker { display: flex; flex-wrap: wrap; gap: 7px; margin-bottom: 10px; }
   .picker-hint { font-size: 13px; color: var(--muted); margin: 0 0 7px; max-width: 70ch; }
   .picker-hint b { color: var(--ink); font-weight: 650; }
@@ -173,7 +168,6 @@
   .colhead { display: grid; grid-template-columns: minmax(120px, 1.25fr) 1.1fr 1.3fr; gap: 16px; padding: 0 18px 9px; font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--faint); font-family: var(--mono); }
   @media (max-width: 680px) { .colhead { display: none; } }
 
-  /* --- tabs --- */
   .tabbar { border-bottom: 1px solid var(--line); background: var(--panel); }
   .tabbar .wrap { display: flex; gap: 28px; }
   .tab {
@@ -185,14 +179,11 @@
   .tab[aria-selected="true"] { color: var(--accent); border-bottom-color: var(--accent); }
   .tabpanel[hidden] { display: none; }
 
-  /* --- source link (the public site has no mdbook chrome, so the repo link lives here);
-     a plain flex item after .sub so it never overlaps the live window text --- */
+  /* the public site has no mdbook chrome, so the repo link lives here */
   .src-link { font: 12px var(--mono); color: var(--muted); text-decoration: none; border: 1px solid var(--line); border-radius: 6px; padding: 4px 9px; white-space: nowrap; }
   .src-link:hover { color: var(--accent); border-color: var(--accent); }
 
-  /* --- wallet eras (small multiples) --- */
-  /* page is fixed dark theme (no prefers-color-scheme handling anywhere), so only the dark-mode
-     era pair is wired: current solid, earlier dashed lighter */
+  /* page is fixed dark theme, so only the dark-mode era pair is defined */
   #wallets-eras { --era-current: #3987e5; --era-old: #6da7ec; }
   .era-legend { display: flex; gap: 18px; margin: 0 0 12px; font-size: 12.5px; color: var(--muted); }
   .era-key { display: inline-flex; align-items: center; gap: 6px; }
@@ -213,12 +204,9 @@
   .era-table td, .era-table th { padding: 3px 10px; text-align: right; font-variant-numeric: tabular-nums; }
   .era-table th:first-child, .era-table td:first-child { text-align: left; }
 
-  /* --- data-series palette (validated: ΔE ok on --panel, ≥3:1 contrast) ---
-     --series-green / --series-blue are DATA colors; --accent stays UI-only.
-     --rare is reserved for "identifying" status, always with a label. */
+  /* --accent stays UI-only; --rare is only for "identifying" status, always labelled */
   :root { --series-green: #2ea043; --series-blue: #3987e5; }
 
-  /* --- overview --- */
   #tab-overview .hero h2 { max-width: 26ch; }
   .ov-note { color: var(--faint); font-size: 12px; margin: 6px 0 0; }
   .chart-card { padding: 18px 18px 12px; }
@@ -238,7 +226,6 @@
   .count .n .u { font-size: 15px; color: var(--muted); font-weight: 500; }
   .tile-trend { font-size: 11px; color: var(--faint); margin-top: 2px; font-family: var(--mono); }
 
-  /* range interval drawn over a share bar (min–max across epochs) */
   .track { position: relative; }
   .range-band { position: absolute; top: 3px; bottom: 3px; border-radius: 3px; background: color-mix(in srgb, var(--ink) 26%, transparent); pointer-events: none; }
 
@@ -247,7 +234,6 @@
   @media (min-width: 860px) { .grid2 { grid-template-columns: 1fr 1fr; align-items: start; } }
   .chart-sub { font-family: var(--mono); font-size: 11px; letter-spacing: .05em; text-transform: uppercase; color: var(--faint); margin: 0 0 10px; }
 
-  /* ranked "habits that pin you down" rows */
   .rank-row { display: grid; grid-template-columns: minmax(200px, 1.15fr) 2fr 76px; gap: 14px; align-items: center; padding: 11px 18px; border-top: 1px solid var(--line); }
   .rank-row:first-child { border-top: none; }
   @media (max-width: 680px) { .rank-row { grid-template-columns: 1fr; gap: 5px; } }
@@ -772,7 +758,6 @@
 <script>
 "use strict";
 
-/* ---------- one-hot group registry: prefix -> ordered member suffixes ---------- */
 const GROUPS = {
   "version_": ["1", "2", "3", "other"],
   "nsequence_": ["cake_group_c", "lone_0x01", "rbf", "final", "max", "mixed_other"],
@@ -785,7 +770,6 @@ const GROUPS = {
   "change_position_": ["first", "last", "middle", "indeterminate"],
 };
 
-/* ---------- ordinal label registry: column -> { rawValue: label } ---------- */
 const TYPE_INDEX_LABELS = {
   "-1": "absent", "0": "p2pkh", "1": "p2sh", "2": "p2wpkh", "3": "p2wsh",
   "4": "p2tr", "5": "op_return", "6": "nonstandard", "7": "p2pk",
@@ -814,7 +798,6 @@ for (let i = 0; i < 10; i++) {
   ORDINAL_LABELS["output_type_at_pos_" + i] = TYPE_INDEX_LABELS;
 }
 
-/* ---------- numeric units (only where "obvious") ---------- */
 const UNITS = {
   fee_sat: "sat", vsize: "vB", weight: "wu",
   feerate_sat_per_vb: "sat/vB", feerate_sat_per_kwu: "sat/kwu",
@@ -823,8 +806,8 @@ const UNITS = {
   taproot_max_merkle_depth: "depth", taproot_script_path_input_count: "inputs",
 };
 
-const RARE_SHARE = 0.005; // fold below this into "other"
-const HIGHLIGHT_RARE = 0.01; // color a bar as --rare below this
+const RARE_SHARE = 0.005;
+const HIGHLIGHT_RARE = 0.01;
 
 const fmtInt = n => Number(n).toLocaleString("en-US");
 const pct = x => x == null ? "—" : x >= 0.1 ? (x * 100).toFixed(1) + "%" : x >= 0.001 ? (x * 100).toFixed(2) + "%" : x > 0 ? (x * 100).toFixed(3) + "%" : "0%";
@@ -840,7 +823,6 @@ function valueMap(col) {
   return m;
 }
 
-/* ---- generic bar list renderer: items = [{label, count, share, rare}] ---- */
 function barsHTML(items) {
   if (!items.length) return '<div class="pempty">no data</div>';
   const maxShare = Math.max(...items.map(i => i.share), 1e-9);
@@ -855,7 +837,6 @@ function barsHTML(items) {
   }).join("");
 }
 
-/* fold a list of {label,count,share} sorted desc, folding <RARE_SHARE share into "other" */
 function foldOther(items) {
   items = items.slice().sort((a, b) => b.share - a.share);
   const kept = [];
@@ -865,8 +846,7 @@ function foldOther(items) {
     else kept.push({ ...it, rare: it.share < HIGHLIGHT_RARE });
   }
   if (otherCount > 0 || otherShare > 0) {
-    // A group can already carry its own real "other" catch-all value (e.g. version_other) —
-    // merge folded-rare mass into that bar rather than showing two confusingly identical labels.
+    // merge folded mass into an existing real "other" value so two identical labels never show
     const existing = kept.find(k => k.label === "other");
     if (existing) { existing.count += otherCount; existing.share += otherShare; existing.rare = existing.share < HIGHLIGHT_RARE; }
     else kept.push({ label: "other", count: otherCount, share: otherShare, rare: false });
@@ -974,7 +954,6 @@ function numericSummary(col) {
   return `median <span class="n">${fmtInt(Math.round(f.stats.median))}${unit}</span>`;
 }
 
-/* ---------- wire one catalog row ---------- */
 function wireRow(row) {
   const render = row.dataset.render;
   if (!render) return;
@@ -1040,7 +1019,7 @@ function wireRow(row) {
     }
   }
 
-  if (summaryHTML == null || panelHTML == null) return; // no live data for this row — leave it static
+  if (summaryHTML == null || panelHTML == null) return;
 
   const desc = row.querySelector(".desc");
   if (!desc) return;
@@ -1073,7 +1052,6 @@ function wireAllRows() {
   document.querySelectorAll(".row[data-render]").forEach(wireRow);
 }
 
-/* ---------- section 12: sparseness axes (ported from the prior Explorer) ---------- */
 let COND = {}, AX = {}, TOTALS = {}, current = "sighash";
 
 function idColor(s) {
@@ -1091,8 +1069,7 @@ function renderAxis() {
   document.getElementById("values").innerHTML = vals.map(v => {
     const lo = v.min_epoch_share ?? v.share, hi = v.max_epoch_share ?? v.share;
     const rare = v.share < 0.01, vrare = v.share < 0.001;
-    // zero draws nothing; a tiny nonzero share still gets a visible sliver.
-    // the faint band overlays the min–max share across epochs on the same scale.
+    // a tiny nonzero share still gets a visible sliver
     const bw = v.share > 0 ? Math.max(0.8, v.share / maxShare * 100) : 0;
     const bandLo = (lo / maxShare * 100), bandW = Math.max(0.5, (hi - lo) / maxShare * 100);
     const band = hi > lo ? `<span class="range-band" style="left:${bandLo.toFixed(2)}%;width:${Math.min(bandW, 100 - bandLo).toFixed(2)}%"></span>` : "";
@@ -1131,12 +1108,11 @@ function bootAxes() {
     current = b.dataset.a;
     [...picker.querySelectorAll(".chip")].forEach(c => c.setAttribute("aria-pressed", c.dataset.a === current));
     renderAxis();
-    history.replaceState(null, "", "#/axis/" + encodeURIComponent(current)); // deep-linkable, no hashchange
+    history.replaceState(null, "", "#/axis/" + encodeURIComponent(current)); // replaceState avoids firing hashchange
   });
   renderAxis();
 }
 
-/* ---------- wallet eras (small multiples) ---------- */
 function parseEraLabel(label) {
   const m = label.match(/^(.*) \(([^()]*)\)$/);
   if (!m) return { wallet: label, range: "", old: false };       // bare name: single open era
@@ -1149,16 +1125,11 @@ function fmtShare(s) {
   if (s >= 0.01) return (s * 100).toFixed(1) + "%";
   return (s * 100).toPrecision(2) + "%";
 }
-/* Wallet-eras state. The section is driven by its own axis selector (`eraAxis`),
-   independent of the sparseness-axes picker above: "__all__" is the full-template
-   consistency view (the section's original behaviour); any other value narrows every
-   facet to a single fingerprint axis, plotting the marginal of the value each wallet
-   pins on it over the scan window. ERA holds the three data blocks the two views read. */
+/* "__all__" is the full-template view; any other value narrows every facet to that axis */
 const ERA_ALL = "__all__";
 let eraAxis = ERA_ALL;
 let ERA = { TS: {}, AVS: {}, TA: {} };
 
-// era label -> [{wallet, range, old}] grouped by wallet, in a stable order.
 function walletsFromLabels(labels) {
   const wallets = new Map();
   for (const label of labels) {
@@ -1169,8 +1140,6 @@ function walletsFromLabels(labels) {
   return wallets;
 }
 
-// Full-template view: one series per era, share = fraction of txs consistent with the
-// whole template (carries `matches`, so the hover readout can show tx counts).
 function eraFacetsAll() {
   const wallets = walletsFromLabels(Object.keys(ERA.TS));
   return [...wallets.entries()].map(([wallet, eras]) => ({
@@ -1180,28 +1149,20 @@ function eraFacetsAll() {
   }));
 }
 
-// Per-axis view: one series per era that *constrains* the axis, share = that epoch's
-// marginal of the value the era pins (`axis_value_series[axis][value]`). Eras that leave
-// the axis a wildcard are collected into `omitted` and named below the grid, not plotted.
-// Identifiability of one axis value, from `conditional_anonymity` (COND). Only CORE axes
-// carry it, so a value on a non-CORE axis (or one never seen conditioned) reports null —
-// the same "no CORE anonymity set" state the per-value table shows.
+// only CORE axes carry conditional anonymity; anything else reports null
 function axisValueId(axis, value) {
   const c = COND[axis] && COND[axis][value];
   return c ? { lt10: c.share_lt10, lt100: c.share_lt100 } : null;
 }
 
-// Whole-scan aggregate share of a value on an axis — total txs carrying it over the entire
-// window / total txs, read straight from axis_summaries (the same number the value table
-// shows as "mean"), NOT a single day. Falls back to 0 for a constrained value never seen.
+// whole-window aggregate (the table's "mean"), not a single day
 function axisWholeShare(axis, value) {
   const vs = AX[axis] && AX[axis].values;
   const hit = vs && vs.find(x => x.value === value);
   return hit ? hit.share : 0;
 }
 
-// An era pins each axis to a SET of accepted values (a one-element set in the common
-// case). Return that set as an array, tolerating a legacy scalar for old data.
+// tolerates a legacy scalar in old data files
 function eraAxisValues(label, axis) {
   const raw = ERA.TA[label] && ERA.TA[label][axis];
   return Array.isArray(raw) ? raw : (raw == null ? [] : [raw]);
@@ -1211,8 +1172,6 @@ function eraFacetsAxis(axis) {
   const wallets = walletsFromLabels(Object.keys(ERA.TS));
   const facets = [], omitted = [];
   for (const [wallet, eras] of wallets) {
-    // One plottable line per (era, value): a set-valued axis fans out into a line per
-    // accepted value, each with its own share series and identifiability.
     const lines = [];
     for (const e of eras) {
       for (const v of eraAxisValues(e.label, axis)) {
@@ -1226,8 +1185,6 @@ function eraFacetsAxis(axis) {
     });
     facets.push({
       wallet,
-      // Per-line subtitle carries the pinned value AND its identifiability, so each wallet
-      // version reads its own "how much this axis pins me down" straight off the facet.
       sub: lines.map(({ e, v }, i) => {
         const id = series[i].id;
         const idTxt = id ? ` · in set <100: ${pct(id.lt100)}` : " · no CORE anon set";
@@ -1244,8 +1201,6 @@ function renderWalletEras(D) {
   if (!Object.keys(ERA.TS).length) return;
   document.getElementById("wallets-eras").hidden = false;
 
-  // Selector: "All axes" plus every axis some template constrains, in the CORE→EXT→HEUR
-  // order the sparseness picker uses, skipping axes no template pins.
   const ORDER = ["version", "nsequence", "nlocktime", "input_order", "output_order", "output_structure",
     "input_types", "output_types", "low_r", "sighash", "uncompressed_pubkey", "op_return",
     "input_subtype", "low_s", "ecdsa_sigs", "input_age", "feerate_bucket", "round_feerate",
@@ -1276,11 +1231,10 @@ function drawEraFacets() {
     ({ facets, omitted } = eraFacetsAxis(eraAxis));
     note.textContent = `Share of the value each wallet fixes on ${eraAxis}. Same value → same line.`;
   }
-  // facet order: by max observed share, descending — fixed, not filter-dependent
   for (const f of facets) f.peak = Math.max(...f.series.flatMap(s => s.pts.map(pt => pt.share)));
   facets.sort((a, b) => b.peak - a.peak);
 
-  const W = 240, H = 130, ML = 34, MR = 6, MT = 6, MB = 18;   // includes the x-axis band
+  const W = 240, H = 130, ML = 34, MR = 6, MT = 6, MB = 18;
   const grid = document.getElementById("era-grid");
   const readout = document.getElementById("era-readout");
   grid.textContent = "";
@@ -1305,7 +1259,6 @@ function drawEraFacets() {
     svg.setAttribute("aria-label",
       `${f.wallet}: consistent-transaction share, heights ${x0} to ${x1}`);
 
-    // solid hairline gridlines at 0 and yMax, y tick labels
     for (const [s, anchor] of [[0, "baseline"], [yMax, "hanging"]]) {
       const ln = document.createElementNS(NS, "line");
       ln.setAttribute("x1", ML); ln.setAttribute("x2", W - MR);
@@ -1319,7 +1272,6 @@ function drawEraFacets() {
       t.textContent = fmtShare(s);
       svg.appendChild(t);
     }
-    // x tick labels: first and last height, in the axis band
     for (const [h, anchor] of [[x0, "start"], [x1, "end"]]) {
       const t = document.createElementNS(NS, "text");
       t.setAttribute("x", X(h)); t.setAttribute("y", H - 4);
@@ -1327,9 +1279,7 @@ function drawEraFacets() {
       t.textContent = "h" + Math.round(h / 1000) + "k";
       svg.appendChild(t);
     }
-    // series lines: earlier era first (under), current on top.
-    // main line is the 7-epoch rolling median (single-day spikes otherwise bury the
-    // trend); the raw series stays visible as a ghost at low opacity.
+    // rolling median: single-day spikes otherwise bury the trend
     const seriesInfo = [];
     for (const s of [...f.series].sort((a, b) => (b.old ? 1 : 0) - (a.old ? 1 : 0))) {
       const med = rollMedian(s.pts.map(pt => pt.share), 7);
@@ -1345,13 +1295,11 @@ function drawEraFacets() {
       path.setAttribute("fill", "none");
       path.setAttribute("class", s.old ? "era-line-old" : "era-line-current");
       svg.appendChild(path);
-      // collect series endpoint info for collision resolution
       const last = s.pts[s.pts.length - 1];
       const naturalY = Math.max(MT + 8, Y(last.share) - 3);
       seriesInfo.push({s, last, first: s.pts[0], naturalY});
     }
-    // second pass: resolve collisions by nudging lower-share label downward
-    const labelYs = []; // [{y, share}]
+    const labelYs = [];
     for (const info of seriesInfo) {
       let ly = info.naturalY;
       let collidedIdx = -1;
@@ -1363,11 +1311,9 @@ function drawEraFacets() {
       }
       if (collidedIdx >= 0) {
         if (info.last.share < labelYs[collidedIdx].share) {
-          // this series has lower share, nudge it down
           ly = Y(info.last.share) + 11;
           while (labelYs.some(prev => Math.abs(prev.y - ly) < 10)) ly += 11;
         } else {
-          // previous series has lower share, nudge it instead
           let nudgeY = Y(labelYs[collidedIdx].share) + 11;
           while (labelYs.some((prev, idx) => idx !== collidedIdx && Math.abs(prev.y - nudgeY) < 10)) nudgeY += 11;
           labelYs[collidedIdx].y = nudgeY;
@@ -1375,8 +1321,6 @@ function drawEraFacets() {
       }
       labelYs.push({y: ly, share: info.last.share});
     }
-    // third pass: create text elements with resolved ys; the current series also
-    // gets its starting value so the facet reads "start → end" at a glance
     for (let i = 0; i < seriesInfo.length; i++) {
       const info = seriesInfo[i];
       const t = document.createElementNS(NS, "text");
@@ -1392,7 +1336,6 @@ function drawEraFacets() {
         svg.appendChild(t0);
       }
     }
-    // hover: full-plot hit rect + vertical cursor + shared readout (enhances, never gates)
     const cursor = document.createElementNS(NS, "line");
     cursor.setAttribute("class", "era-cursor");
     cursor.setAttribute("y1", MT); cursor.setAttribute("y2", H - MB);
@@ -1426,8 +1369,7 @@ function drawEraFacets() {
     grid.appendChild(div);
   }
 
-  // Wallets that don't fingerprint on the selected axis are named, not silently dropped —
-  // a wildcard on this axis is itself information ("this wallet makes no claim here").
+  // a wildcard is itself information, so name these wallets rather than drop them
   let omitNote = document.getElementById("era-omitted");
   if (!omitNote) {
     omitNote = document.createElement("p");
@@ -1440,9 +1382,7 @@ function drawEraFacets() {
     ? `No value fixed on ${eraAxis}: ${omitted.join(", ")}.`
     : "";
 
-  // table view twin: one row per era series (cells set via textContent — labels are
-  // build-time data from wallets.toml, but never trust it as markup). In the per-axis
-  // view there is no template match count, so the count column becomes the pinned value.
+  // textContent: labels come from wallets.toml, never trust them as markup
   const perAxis = eraAxis !== ERA_ALL;
   const table = document.getElementById("era-table-body");
   table.textContent = "";
@@ -1456,15 +1396,9 @@ function drawEraFacets() {
     headRow.appendChild(th);
   }
   if (perAxis) {
-    // Complete roster: EVERY catalogued era appears on every axis. An era that pins the
-    // axis carries its value + share + identifiability; one that leaves it a wildcard is
-    // shown explicitly as "—", so the table is a full wallet×axis comparison rather than
-    // only the wallets that happen to fingerprint on the selected axis (those are the ones
-    // the chart above can plot — a wildcard has no value to draw a line for).
+    // every era appears, wildcards as "—", so the table is a full wallet×axis comparison
     for (const [wallet, eras] of walletsFromLabels(Object.keys(ERA.TS))) {
       for (const e of eras) {
-        // A set-valued axis lists one row per accepted value; an era that leaves the axis
-        // a wildcard (or pins only never-observed values) shows a single "—" row.
         const plottable = eraAxisValues(e.label, eraAxis)
           .filter(v => ERA.AVS[eraAxis] && ERA.AVS[eraAxis][v]);
         const rows = plottable.length
@@ -1491,7 +1425,6 @@ function drawEraFacets() {
   }
 }
 
-/* ---------- shared chart helpers ---------- */
 function rollMedian(arr, k) {
   const half = Math.floor(k / 2), out = new Array(arr.length);
   for (let i = 0; i < arr.length; i++) {
@@ -1513,12 +1446,10 @@ function svgEl(tag, attrs) {
   return el;
 }
 
-/* Trend chart: rolling-median main line per series, raw series ghosted, direct end
-   labels, hairline grid, crosshair + shared readout. One y-axis, zero-based. */
 function drawTrend(mount, readout, seriesList, opts = {}) {
   mount.textContent = "";
   if (!seriesList.length || !seriesList[0].pts.length) return;
-  const many = seriesList.length > 3; // many series: labels move to a right margin, ghosts drop
+  const many = seriesList.length > 3;
   const W = opts.W || 920, H = opts.H || 280, ML = 46, MR = many ? 190 : 8, MT = 12, MB = 22;
   const xs = seriesList[0].pts.map(p => p.h);
   const x0 = xs[0], x1 = xs[xs.length - 1];
@@ -1541,7 +1472,6 @@ function drawTrend(mount, readout, seriesList, opts = {}) {
     svg.appendChild(t);
   }
 
-  // background (context) series first, highlighted on top
   const drawOrder = [...seriesList].sort((a, b) => (a.bg ? 0 : 1) - (b.bg ? 0 : 1));
   for (const s of drawOrder) {
     const med = rollMedian(s.pts.map(p => p.share), 7);
@@ -1552,10 +1482,7 @@ function drawTrend(mount, readout, seriesList, opts = {}) {
     if (s.bg) main.setAttribute("opacity", "0.75");
     svg.appendChild(main);
   }
-  // direct end labels, nudged apart both ways so they stay inside the plot. A series
-  // may carry `avgShare` (whole-window mean) to label with instead of its last-epoch
-  // value; the wallet chart uses it so the headline number is the aggregate the title
-  // promises, not just the final day. Other charts omit it and keep the last value.
+  // avgShare labels with the whole-window mean so the headline matches the title
   const labelShareOf = s => s.avgShare != null ? s.avgShare : s.pts[s.pts.length - 1].share;
   const ends = seriesList.map(s => ({ s, y: Y(labelShareOf(s)) })).sort((a, b) => a.y - b.y);
   for (let i = 1; i < ends.length; i++) if (ends[i].y - ends[i - 1].y < 13) ends[i].y = ends[i - 1].y + 13;
@@ -1572,7 +1499,6 @@ function drawTrend(mount, readout, seriesList, opts = {}) {
     t.textContent = (seriesList.length > 1 ? e.s.name + " " : "") + fmtShare(labelShareOf(e.s));
     svg.appendChild(t);
   }
-  // start label for single-series charts: "start → " at the left edge
   if (seriesList.length === 1) {
     const first = seriesList[0].pts[0];
     const t = svgEl("text", { x: ML + 4, y: Math.max(MT + 4, Y(first.share) - 8), class: "pt-label" });
@@ -1598,10 +1524,6 @@ function drawTrend(mount, readout, seriesList, opts = {}) {
   mount.appendChild(svg);
 }
 
-/* Identifiability scatter: one dot per CORE (axis, value). x = whole-scan chain share
-   (log), y = share of that value's tx landing in a CORE anonymity set < 100.
-   Dot area tracks log(n); values with n < 100 draw hollow. Labels only on the
-   hand-picked story points — everything else speaks through the hover readout. */
 const SCATTER_LABELS = {
   "op_return|true": "carries OP_RETURN",
   "output_types|[P2wpkh, OpReturn]": "the [P2WPKH + OP_RETURN] shape",
@@ -1630,15 +1552,11 @@ function collectCondPoints() {
   return pts;
 }
 
-/* Ranked lollipop: the most identifying high-volume habits on a shared axis.
-   Stem length = % in a set < 100; dot area = tx count; the biggest crowd is
-   appended in green as contrast. */
 function drawRanked(mount) {
   mount.textContent = "";
   const all = collectCondPoints();
   if (!all.length) return;
-  // only named habits rank here — raw axis=value combos read as jargon; the full
-  // uncurated set lives on the axes page and in the map below
+  // raw axis=value combos read as jargon, so only named habits rank
   const rows = all.filter(p => SCATTER_LABELS[p.axis + "|" + p.value] && p.n >= 1000)
     .sort((a, b) => b.y - a.y).slice(0, 8);
   const crowd = all.slice().sort((a, b) => b.n - a.n)[0];
@@ -1676,8 +1594,7 @@ function drawRanked(mount) {
   mount.appendChild(svg);
 }
 
-/* Absolute-scale bar list: width IS the share of all tx (0–100%), so bars across
-   different charts compare truthfully. Zero share draws nothing. */
+/* absolute 0–100% scale so bars compare across charts */
 function ovBarsAbs(items) {
   return items.map(i => `<div class="pbar-row">
     <span class="plab">${esc(i.label)}</span>
@@ -1720,9 +1637,7 @@ function drawFeerate(mount) {
   mount.innerHTML = html;
 }
 
-/* Chain-wide anonymity-set size distribution: every tx has exactly one value on
-   any single CORE axis, so summing that axis's cond buckets counts each tx once
-   (verified: totals match). Sets under 100 draw in the reserved status color. */
+/* one value per tx on a single CORE axis, so summing its buckets counts each tx once */
 function drawSets(mount) {
   const axis = COND.version ? "version" : Object.keys(COND)[0];
   if (!axis) return;
@@ -1746,8 +1661,6 @@ function drawSets(mount) {
   }).join("") + `<div class="pstats">a crowd under 100 (orange) is small enough to start pinning a wallet down</div>`;
 }
 
-/* Habit-drift small multiples from axis_value_series: fixed picks with a story,
-   each drawn with the shared trend component (median line, ghost, start/end labels). */
 function drawDrift(mount) {
   const PICKS = [
     ["output_order", "Bip69", "BIP-69 output order"],
@@ -1792,9 +1705,6 @@ function drawVersion(mount) {
   mount.innerHTML = ovBarsAbs(items);
 }
 
-/* Change detection, the Möser-style tells measured chain-wide: where the
-   script-type heuristic places the change (Indeterminate = it abstains), and
-   how often an output's script type matches the inputs' (the address-type tell). */
 function drawChangePos(mount) {
   const vs = AX.change_position && AX.change_position.values;
   if (!vs) return;
@@ -1814,10 +1724,6 @@ function drawTypeMatch(mount) {
     `<div class="pstats">an output matching the inputs' script type is the classic change candidate</div>`;
 }
 
-/* The clustering ladder from the literature, measured chain-wide: same-tx address
-   reuse (near-certain evidence), the common-input heuristic (needs 2+ inputs to
-   apply at all), and change identification (the script-type heuristic found a
-   candidate rather than abstaining). */
 function drawLadder(mount) {
   const reuse = boolShare("address_reuse");
   const change = boolShare("change_type_present");
@@ -1838,7 +1744,7 @@ function countItems(col, unit) {
   for (const b of f.hist) {
     if (!(b.share > 0)) continue;
     const lo = b.lo ?? 0, hi = b.hi;
-    if (lo >= 5) { // fold the tail
+    if (lo >= 5) {
       const last = merged[merged.length - 1];
       if (last && last.tail) { last.share += b.share; continue; }
       merged.push({ label: "5 or more", share: b.share, tail: true });
@@ -1854,9 +1760,7 @@ function drawCounts(mount, col, unit) {
   if (items) mount.innerHTML = ovBarsAbs(items);
 }
 
-/* Output address-encoding families. Shares overlap (one tx can pay several
-   families), so this is "% of tx with at least one output of family X", not a
-   partition — labelled as such and left unsorted-to-100. */
+/* shares overlap (one tx can pay several families), so this is not a partition */
 function drawEncoding(mount) {
   const e = DATA.encoding_families;
   if (!e || !e.families) return;
@@ -1875,8 +1779,6 @@ function drawVsize(mount) {
   mount.innerHTML = html;
 }
 
-/* Privacy-relevant boolean habits, absolute shares of all tx. Each is a direct
-   chain observation or a stated heuristic; labels say what is observed, only. */
 function drawHabits(mount) {
   const HABITS = [
     ["bip125_rbf", "signals RBF"],
@@ -1895,11 +1797,7 @@ function drawHabits(mount) {
   if (items.length) mount.innerHTML = ovBarsAbs(items);
 }
 
-/* What the OP_RETURN wave actually is: protocol envelopes vs the base signal. */
-/* Two distinct data-carrying surfaces, not one breakdown. A runestone IS an
-   OP_RETURN (subset), so OP_RETURN splits into runes + everything else. An
-   inscription lives in the taproot witness, not an OP_RETURN output at all —
-   shown separately so the two are never conflated. */
+/* a runestone is an OP_RETURN subset; an inscription lives in the witness, so it stays separate */
 function drawProtocols(mount) {
   const op = boolShare("op_return"), rune = boolShare("has_runestone"), insc = boolShare("has_inscription_envelope");
   if (!op) return;
@@ -1946,7 +1844,6 @@ function drawScatter(mount, readout) {
   ycap.textContent = "↑ how identifying: % of its transactions in an anonymity set under 100";
   svg.appendChild(ycap);
 
-  // in-plot zone captions carry the reading, so the lede can stay short
   const zoneA = svgEl("text", { x: W - MR - 6, y: H - MB - 46, "text-anchor": "end" });
   zoneA.textContent = "the crowd hides here ↘";
   svg.appendChild(zoneA);
@@ -1965,9 +1862,7 @@ function drawScatter(mount, readout) {
     });
     svg.appendChild(p.el);
   }
-  // labels: greedy vertical collision pass stacking UPWARD from the lowest dot
-  // (most labeled points crowd the bottom band, and the space above them is empty);
-  // a leader line ties any label that had to move away from its dot
+  // stack labels upward: most points crowd the bottom band
   const labeled = pts
     .filter(p => SCATTER_LABELS[p.axis + "|" + p.value])
     .map(p => ({ p, lab: SCATTER_LABELS[p.axis + "|" + p.value], px: X(p.x), py: Y(p.y) }))
@@ -1991,7 +1886,6 @@ function drawScatter(mount, readout) {
     svg.appendChild(t);
   }
 
-  // hover: floating tooltip at the cursor + the hovered dot lights up
   const tip = document.getElementById("ov-scatter-tip");
   let hot = null;
   const cool = () => { if (hot) { hot.el.setAttribute("fill-opacity", hot.named ? "0.95" : "0.3"); hot = null; } };
@@ -2029,7 +1923,6 @@ function drawScatter(mount, readout) {
   mount.appendChild(svg);
 }
 
-/* ---------- overview ---------- */
 function axisTopValue(axis) {
   const vs = AX[axis] && AX[axis].values;
   if (!vs || !vs.length) return null;
@@ -2081,26 +1974,19 @@ function renderOverview(D) {
       { label: "Share of transactions carrying an OP_RETURN, per epoch", H: 260 });
   }
 
-  // all catalogued templates: the two largest current-version series carry color,
-  // the rest are context lines in gray; earlier versions dash. Every series is
-  // end-labeled, so nothing is silently dropped.
   const TS = D.template_series || {};
   const eras = Object.keys(TS).map(k => {
     const p = parseEraLabel(k);
     return { key: k, wallet: p.wallet, old: p.old, pts: TS[k].map(pt => ({ h: pt.start_height, share: pt.share })) };
   });
   if (eras.length) {
-    // one color per wallet (validated 9-hue palette; direct end labels carry
-    // identity as the secondary encoding), assigned by final share so the order
-    // is deterministic across rescans. Earlier versions dash in the same hue.
+    // hue by final share so the order is deterministic across rescans
     const PAL = ["#3987e5", "#bf8700", "#1fa8b5", "#2ea043", "#a371f7", "#cf6a2a", "#db61a2", "#8c9c34", "#b13a44"];
     const byWallet = new Map();
     for (const s of eras) byWallet.set(s.wallet, Math.max(byWallet.get(s.wallet) ?? 0, s.pts[s.pts.length - 1].share));
     const wallets = [...byWallet.keys()].sort((a, b) => byWallet.get(b) - byWallet.get(a));
     const colorOf = new Map(wallets.map((w, i) => [w, PAL[i % PAL.length]]));
-    // Label each line with its whole-window share (sum of per-epoch matches over all
-    // txs), not its last-epoch value: the daily share swings wildly, so the final day
-    // is a misleading headline. The line still shows the day-by-day trend.
+    // whole-window share: the daily share swings too much to headline
     const total = (D.totals && D.totals.txs) || 0;
     const race = eras.map(s => ({
       name: s.wallet + (s.old ? " (earlier)" : ""),
@@ -2115,7 +2001,6 @@ function renderOverview(D) {
   }
 }
 
-/* ---------- boot ---------- */
 async function boot() {
   let D;
   try {
@@ -2148,8 +2033,6 @@ async function boot() {
 
 boot();
 
-/* ---------- views: hash-routed (#/ overview · #/axes · #/axis/<name> · #/wallets ·
-   #/catalog; a bare #section-id anchor means a catalog section) ---------- */
 const VIEWS = ["overview", "axes", "wallets", "catalog"];
 function activateView(name) {
   for (const n of VIEWS) {

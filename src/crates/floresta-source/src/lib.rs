@@ -59,9 +59,7 @@ impl std::fmt::Display for FlorestaSourceError {
 
 impl std::error::Error for FlorestaSourceError {}
 
-/// Streams mainnet blocks with utreexo-resolved prevouts.
-///
-/// Owns a tokio runtime running the Floresta node; dropping it stops the node.
+/// Dropping it stops the node.
 pub struct FlorestaSource {
     receiver: Receiver<SourcedBlock>,
     stop_height: Option<u32>,
@@ -75,10 +73,7 @@ impl FlorestaSource {
         let runtime =
             tokio::runtime::Runtime::new().map_err(|e| FlorestaSourceError::Node(e.to_string()))?;
 
-        // `FlatChainStoreConfig::new` is generic over `impl AsRef<Path>`; passing the
-        // `&str` directly (rather than `.into()`) avoids an ambiguous-type-inference
-        // compile error (confirmed in the Task 1 spike, see
-        // docs/floresta-spike-results.md, correction #2).
+        // Pass `&str`, not `.into()`: `new` takes `impl AsRef<Path>` and `.into()` is ambiguous.
         let store_config = FlatChainStoreConfig::new(
             config
                 .datadir
@@ -87,8 +82,6 @@ impl FlorestaSource {
         );
         let store = FlatChainStore::new(store_config)
             .map_err(|e| FlorestaSourceError::Chain(format!("{e:?}")))?;
-        // `Network` here is `bitcoin::Network`, not a `floresta_chain` type (Task 1
-        // spike correction #1: `floresta_chain::Network` does not exist).
         let chain = Arc::new(
             ChainState::open(store, Network::Bitcoin, AssumeValidArg::Hardcoded)
                 .map_err(|e| FlorestaSourceError::Chain(format!("{e:?}")))?,
@@ -104,10 +97,7 @@ impl FlorestaSource {
         let node_config = UtreexoNodeConfig {
             network: Network::Bitcoin,
             assume_utreexo: Some(ChainParams::get_assume_utreexo(Network::Bitcoin)),
-            // `false`, not `true`: florestad's own reference config always disables
-            // PoW fraud proofs when `assume_utreexo` is set, treating assume-utreexo
-            // as the sole fast-IBD mechanism (Task 1 spike correction #3). The brief's
-            // sample code had `true`; that combination is untested upstream.
+            // florestad disables these with `assume_utreexo`; the combination is untested upstream.
             pow_fraud_proofs: false,
             backfill: false,
             fixed_peers: config.fixed_peers.clone(),
@@ -139,21 +129,13 @@ impl FlorestaSource {
     }
 }
 
-/// The chain tip and assume-utreexo floor of a Floresta `FlatChainStore`, as reported by
-/// `sync_tip`. `tip` is the best block height once headers are synced; `floor` is the
-/// assume-utreexo height, the lowest block Floresta can serve. Neither is a hardcoded
-/// constant: `tip` is read from the store, `floor` from the network's chain params.
+/// `floor` is the assume-utreexo height, the lowest block Floresta can serve.
 pub struct TipInfo {
     pub tip: u32,
     pub floor: u32,
     pub in_ibd: bool,
 }
 
-/// Start a Floresta node against `datadir`, sync the header chain from the network, and
-/// report the live tip once the header height stabilizes (no growth for a settling window)
-/// or a timeout elapses. This reflects the *current* network tip, not whatever a store
-/// happens to already hold. Needs peers and can take a few minutes on a fresh datadir.
-/// The node is stopped before returning. Progress is logged to stderr.
 pub fn sync_tip(
     datadir: &std::path::Path,
     fixed_peers: Vec<String>,
@@ -197,9 +179,7 @@ pub fn sync_tip(
     runtime.spawn(node.run(stop_tx));
 
     let floor = ChainParams::get_assume_utreexo(Network::Bitcoin).height;
-    // Poll the header tip: `get_best_block` tracks the best header (climbs during header
-    // download), while validation lags (`is_in_ibd` stays true), so "height stopped
-    // growing" — not `is_in_ibd` — is the header-sync-complete signal.
+    // `is_in_ibd` stays true while validation lags, so a stalled header height signals sync.
     let settle = Duration::from_secs(20);
     let timeout = Duration::from_secs(600);
     let mut last = 0u32;
@@ -249,13 +229,7 @@ impl BlockSource for FlorestaSource {
 
 impl Drop for FlorestaSource {
     fn drop(&mut self) {
-        // Best-effort node shutdown; the runtime is dropped right after.
-        //
-        // Deliberately `self._runtime.handle()`, not `tokio::runtime::Handle::try_current()`:
-        // `start` is called from, and this `Drop` runs on, an ordinary synchronous caller
-        // thread that is never itself inside the owned runtime, so `try_current()` would
-        // fail here and the kill flag would silently never be set. `Runtime::handle()`
-        // reaches the owned runtime directly regardless of the calling thread's context.
+        // Not `Handle::try_current()`: `Drop` runs outside the runtime, where it fails.
         let kill = self.kill.clone();
         self._runtime
             .handle()

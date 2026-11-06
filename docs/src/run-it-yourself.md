@@ -36,26 +36,20 @@ Already have the data? Run `nix run .#serve` to open the Explorer without scanni
       $("scanbar").style.width = (p.pct!=null?p.pct:0)+"%"; });
     es.addEventListener("done", function(){ if(es){es.close();es=null;} ui(false);
       $("scanstat").textContent = stopped ? "Scan stopped." : "Scan complete."; $("scandone").hidden=false; });
-    // A transient drop (tab backgrounded, brief network hiccup) is NOT completion --
-    // only the `done` event ends a scan. EventSource reconnects on its own, and
-    // /api/scan re-attaches and replays the buffered log on reconnect, so there is
-    // nothing to finalize here.
+    // Only `done` ends a scan; EventSource reconnects and /api/scan replays the log.
     es.onerror = function(){ $("scanstat").textContent = "Reconnecting…"; };
   }
   fetch("api/status",{cache:"no-store"}).then(function(r){return r.json();}).then(function(st){
     if(st && st.backend){
-      $("runcard").hidden = false;   // local backend -> show the button
+      $("runcard").hidden = false;
       $("termcmd").textContent = st.repo_name ? ("cd "+st.repo_name+" && nix run .#scan") : "nix run .#scan";
       if(st.running){
-        // A scan is already running -- started before this page load, or from
-        // another tab/window -- so re-attach immediately instead of showing the
-        // idle Run button. This is what lets returning to the page resume
-        // showing live logs/progress instead of losing them.
+        // Re-attach to a scan started before this page load or in another tab.
         stopped = false; $("scanlog").textContent = ""; ui(true);
         attach("resume");
       }
     } else {
-      $("nobackend").hidden = false;  // hosted, no backend -> show the how-to
+      $("nobackend").hidden = false;
     }
   }).catch(function(){ $("nobackend").hidden = false; });
   $("run").onclick = async function(){

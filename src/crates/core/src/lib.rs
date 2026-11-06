@@ -1,9 +1,4 @@
-// `warn`, not `deny`: these should surface in normal builds so new code doesn't
-// silently regress, but should never fail CI outright over a pre-existing gap in an
-// unrelated corner of the crate. `missing_docs` is deliberately left out — this crate
-// has plenty of existing `pub` items (e.g. most `ScanConfig`/`Report` fields) with no
-// doc comment, and turning it on here would produce a wall of unrelated warnings
-// rather than surfacing anything about this change.
+// `warn`, not `deny`: surface regressions without failing CI on pre-existing gaps.
 #![warn(missing_debug_implementations, rust_2018_idioms)]
 
 pub mod aux;

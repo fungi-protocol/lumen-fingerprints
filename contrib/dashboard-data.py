@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-"""report.json -> explorer-data.json : the compact JSON the Fingerprint Explorer reads.
-Usage: dashboard-data.py <report.json> <explorer-data.json>"""
+"""report.json -> explorer-data.json. Usage: dashboard-data.py <report.json> <explorer-data.json>"""
 import json, sys
 d = json.load(open(sys.argv[1]))
 out = {

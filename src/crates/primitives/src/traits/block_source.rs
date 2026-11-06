@@ -2,22 +2,14 @@ use std::collections::HashMap;
 
 use bitcoin::{Block, OutPoint, TxOut};
 
-/// An output being spent, with the height of the block that created it.
-///
-/// `creation_height` is what makes input age observable: coin age ordering, and
-/// whether a transaction spends a very recently confirmed (or same-block) output.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SpentOutput {
     pub txout: TxOut,
     pub creation_height: u32,
 }
 
-/// One block together with the resolved previous output of every input it spends.
-///
-/// `prevouts` is keyed by outpoint and, for utreexo-sourced blocks, also contains
-/// outputs created earlier *within the same block* (a block-internal spend resolves
-/// there). Always look up by `txin.previous_output`; never treat the map as "the
-/// set of coins this block spent".
+/// Utreexo `prevouts` also hold outputs created earlier in the same block: look up by
+/// `txin.previous_output`, never treat the map as the block's spent set.
 #[derive(Debug, Clone)]
 pub struct SourcedBlock {
     pub height: u32,
@@ -26,29 +18,16 @@ pub struct SourcedBlock {
 }
 
 impl SourcedBlock {
-    /// The spent output with its creation height, if the source resolved it.
     pub fn spent(&self, outpoint: &OutPoint) -> Option<&SpentOutput> {
         self.prevouts.get(outpoint)
     }
 
-    /// The output an input spends, if the source resolved it.
     pub fn prevout(&self, outpoint: &OutPoint) -> Option<&TxOut> {
         self.prevouts.get(outpoint).map(|s| &s.txout)
     }
 
-    /// Confirmations the spent coin had when this block was mined.
-    ///
-    /// Returns `Some(0)` only when the coin was created in this same block (a
-    /// same-block parent spend), which is a meaningful signal used to measure transaction
-    /// fingerprints.
-    ///
-    /// # Precondition
-    ///
-    /// A conformant `BlockSource` implementation must never yield a prevout with
-    /// `creation_height > height` — all coins spent in a block must have been created
-    /// in or before that block. This method uses `saturating_sub` to remain safe even
-    /// if a buggy implementation violates this precondition, but a debug build will
-    /// assert the invariant to catch implementation bugs early.
+    /// `Some(0)` is a same-block parent spend. Sources must never yield
+    /// `creation_height > height`.
     pub fn confirmations(&self, outpoint: &OutPoint) -> Option<u32> {
         self.prevouts.get(outpoint).map(|s| {
             debug_assert!(
@@ -62,14 +41,10 @@ impl SourcedBlock {
     }
 }
 
-/// A forward-only stream of blocks with resolved prevouts, in ascending height order.
-///
-/// Implementors: `FlorestaSource` (utreexo leaf data over p2p) and, if the Floresta
-/// throughput gate fails, `CoreDatadirSource` (blk*.dat + rev*.dat undo files).
+/// Yields blocks in ascending height order.
 pub trait BlockSource {
     type Error: std::error::Error + Send + Sync + 'static;
 
-    /// The next block, or `None` when the requested window is exhausted.
     /// Blocking: may wait on network I/O.
     fn next_block(&mut self) -> Result<Option<SourcedBlock>, Self::Error>;
 }
@@ -80,9 +55,6 @@ mod tests {
     use bitcoin::consensus::deserialize;
     use bitcoin::{Amount, ScriptBuf, TxOut};
 
-    /// A source that yields a fixed list of blocks then None. Proves the trait is
-    /// implementable by something other than Floresta (this is what keeps the
-    /// Core-datadir fallback cheap).
     struct VecSource(std::vec::IntoIter<SourcedBlock>);
 
     #[derive(Debug)]
@@ -102,7 +74,6 @@ mod tests {
     }
 
     fn dummy_block() -> bitcoin::Block {
-        // Mainnet genesis block, the one block whose bytes are stable and well known.
         let raw = hex::decode(
             "0100000000000000000000000000000000000000000000000000000000000000000000003ba3edfd\
              7a7b12b27ac72c3e67768f617fc81bc3888a51323a9fb8aa4b1e5e4a29ab5f49ffff001d1dac2b7c01\
@@ -175,7 +146,6 @@ mod tests {
 
         assert_eq!(block.confirmations(&outpoint), Some(2));
 
-        // Created in this very block: a same-block parent spend, 0 confirmations.
         let mut same = block.clone();
         same.prevouts.get_mut(&outpoint).unwrap().creation_height = 42;
         assert_eq!(same.confirmations(&outpoint), Some(0));
@@ -183,10 +153,6 @@ mod tests {
 
     #[test]
     fn confirmations_same_block_parent_spend_boundary() {
-        // Explicitly test the boundary case: creation_height == height yields Some(0).
-        // This is a meaningful signal — a same-block parent spend is a transaction
-        // fingerprint axis, and this test ensures the zero is not confused with
-        // a clamped result from a malformed block source.
         let outpoint = OutPoint::null();
         let mut prevouts = HashMap::new();
         prevouts.insert(

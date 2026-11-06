@@ -19,8 +19,7 @@ use lumen_primitives::traits::SourcedBlock;
 use lumen_primitives::traits::block_source::SpentOutput;
 use serde::{Deserialize, Serialize};
 
-/// A three-valued axis. `Indeterminate` means the transaction carries no signal on this
-/// axis, and therefore matches every wallet template (Ishaana's "consistent-with").
+/// `Indeterminate` carries no signal, so it matches every template.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum Tri {
     Yes,
@@ -28,22 +27,18 @@ pub enum Tri {
     Indeterminate,
 }
 
-/// Ordering signal of an input or output vector. `Other` means ordered by none of the
-/// recognised rules — which is what a shuffling wallet looks like.
+/// `Other` is what a shuffling wallet looks like.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum OrderClass {
     Bip69,
     ValueAscending,
     ValueDescending,
-    /// Oldest coin first — Ishaana's "oldest-first" sub-case, measurable only
-    /// because `SpentOutput` carries `creation_height`.
     AgeAscending,
     Other,
-    /// Fewer than two elements: trivially sorted, so no signal.
+    /// Fewer than two elements: no signal.
     Indeterminate,
 }
 
-/// The script types of the outputs a transaction spends.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum InputTypeClass {
     Uniform(OutputType),
@@ -51,8 +46,7 @@ pub enum InputTypeClass {
     Unknown,
 }
 
-/// What a P2SH/P2WSH/P2TR input actually resolves to — Ishaana separates
-/// "P2SH (multisig)" from "P2SH-P2WPKH", which the outer script type cannot tell apart.
+/// The outer script type cannot tell, e.g., P2SH multisig from P2SH-P2WPKH.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum InputSubtype {
     P2shP2wpkh,
@@ -62,16 +56,14 @@ pub enum InputSubtype {
     P2wshOther,
     TaprootKeyPath,
     TaprootScriptPath,
-    /// Plain P2PK/P2PKH/P2WPKH: no wrapping to resolve.
+    /// P2PK/P2PKH/P2WPKH: nothing to resolve.
     Bare,
     Mixed,
     Indeterminate,
 }
 
-/// Age of the youngest coin a transaction spends.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum AgeClass {
-    /// Spends an output created in this same block — the strongest temporal tell.
     SameBlock,
     Within6,
     Within144,
@@ -79,34 +71,20 @@ pub enum AgeClass {
     Indeterminate,
 }
 
-/// How many ECDSA signatures a transaction carries, bucketed so the axis stays
-/// low-cardinality. Exists so `low_r` can be read in context: low-R grinding is
-/// probabilistic — an un-grinding wallet still produces a low-R signature about half
-/// the time — so `low_r=Yes` is close to a coin flip on a `One`-signature transaction
-/// and near-proof of grinding on a `Many`-signature one. Deliberately a separate axis
-/// rather than folding the count into `low_r` itself: that would overload a boolean-ish
-/// axis with a cardinality it was never meant to carry, where a reader can instead
-/// cross-reference two low-cardinality axes.
+/// Low-R grinding is probabilistic (non-grinders hit low-R about half the time), so
+/// `low_r=Yes` is a coin flip on `One` and near-proof of grinding on `Many`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum EcdsaSigCount {
-    /// No ECDSA signature at all: a pure taproot key-path spend, or nothing
-    /// parseable as an ECDSA signature.
+    /// Pure taproot key path, or nothing parseable as ECDSA.
     None,
     One,
-    /// 2 to 4 signatures.
+    /// 2-4.
     Few,
-    /// 5 or more signatures.
+    /// 5+.
     Many,
 }
 
-/// Where, among a transaction's outputs, the change-identification heuristic placed the
-/// change output. Answers the checklist's "random / first / last index is change" rows
-/// at once, instead of three separate boolean axes.
-///
-/// `Indeterminate` covers two distinct situations that both mean "no position to
-/// report": fewer than 2 outputs (there is no change to place at all), and the
-/// change-identification heuristic itself being inconclusive (see
-/// `crate::change::change_index_by_script_type`).
+/// `Indeterminate` also covers fewer than 2 outputs.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum ChangePosition {
     First,
@@ -115,25 +93,19 @@ pub enum ChangePosition {
     Indeterminate,
 }
 
-/// One transaction's observable construction fingerprint.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct FingerprintVector {
     pub version: i32,
     pub nsequence: NSequenceType,
     pub nlocktime: NLockTimeType,
-    /// `block_height - locktime`, bucketed; `NotApplicable` unless `nlocktime` is
-    /// `AntiFeeSnipe`. See `LocktimeOffsetType`'s doc comment: this is what actually
-    /// distinguishes Core's exact-tip anti-fee-sniping from its backdating tail, since
-    /// `nlocktime` cannot make that distinction per transaction. Varies with
-    /// confirmation timing rather than wallet policy, which is why it lives in
-    /// `EXTENDED_AXES` rather than `CORE_AXES`.
+    /// Separates exact tip from backdating, which `nlocktime` cannot; varies with
+    /// confirmation timing, hence `EXTENDED_AXES`.
     pub locktime_offset: LocktimeOffsetType,
     pub input_order: OrderClass,
     pub output_order: OrderClass,
     pub output_structure: OutputStructureType,
     pub input_types: InputTypeClass,
-    /// Sorted, deduplicated output script types — covers "sending to base58 / bech32 /
-    /// bech32m" without needing an address encoder.
+    /// Sorted and deduplicated: stands in for base58/bech32/bech32m without an encoder.
     pub output_types: Vec<OutputType>,
     pub low_r: Tri,
     pub sighash: SighashType,
@@ -141,33 +113,17 @@ pub struct FingerprintVector {
     pub op_return: bool,
     pub input_subtype: InputSubtype,
     pub low_s: Tri,
-    /// How many ECDSA signatures this transaction carries, bucketed. Read together
-    /// with `low_r` (see `EcdsaSigCount`'s doc comment) — on its own it describes the
-    /// coins being spent, not a wallet policy choice, which is why it lives in
-    /// `EXTENDED_AXES` rather than `CORE_AXES`.
+    /// Describes the coins spent, not wallet policy, hence `EXTENDED_AXES`.
     pub ecdsa_sigs: EcdsaSigCount,
     pub input_age: AgeClass,
-    /// Feerate in sat/vB, bucketed: floor for <10, then 10s up to 100, then "100+".
+    /// sat/vB: floor below 10, then 10s up to 100, then "100+".
     pub feerate_bucket: String,
     pub round_feerate: bool,
-    /// Position, among this transaction's outputs, of the output that
-    /// `change_index_by_script_type` identifies as change. Answers the "random / first
-    /// / last index is change" checklist rows at once.
-    ///
-    /// HEURISTIC-derived (see `HEURISTIC_AXES`), unlike every other field in this
-    /// struct: read via `axis_value` and counted as a marginal, but never part of
-    /// either joint-vector key (see `epoch.rs::ingest`).
     pub change_position: ChangePosition,
-    /// The script type of the identified change output, or `None` when change
-    /// identification was inconclusive (rendered as the axis value `Indeterminate`).
-    /// Reading the `P2wpkh`/`P2wsh` share of this axis directly answers "is change
-    /// always bech32."
-    ///
-    /// HEURISTIC-derived (see `HEURISTIC_AXES`); same caveat as `change_position` above.
     pub change_type: Option<OutputType>,
 }
 
-/// Wallet-policy axes: the construction choices a wallet makes the same way every time.
+/// Wallet policy: chosen the same way on every transaction.
 pub const CORE_AXES: &[&str] = &[
     "version",
     "nsequence",
@@ -183,13 +139,7 @@ pub const CORE_AXES: &[&str] = &[
     "op_return",
 ];
 
-/// Axes that vary with the coins at hand rather than with wallet policy.
-///
-/// `change_position` and `change_type` used to live here but were moved out to
-/// `HEURISTIC_AXES` (see its doc comment): both are derived from a fallible
-/// heuristic rather than read directly off a transaction field, and letting a
-/// heuristic's own abstentions inflate the joint-vector sparsity count would count
-/// the tool's uncertainty as chain diversity.
+/// Vary with the coins at hand rather than wallet policy.
 pub const EXTENDED_AXES: &[&str] = &[
     "input_subtype",
     "low_s",
@@ -200,23 +150,11 @@ pub const EXTENDED_AXES: &[&str] = &[
     "locktime_offset",
 ];
 
-/// Axes derived from the change-identification heuristic
-/// (`crate::change::change_index_by_script_type`) rather than read directly off a
-/// transaction field, unlike every axis in `CORE_AXES`/`EXTENDED_AXES`. They are
-/// still computed on every classified transaction, still reachable through
-/// `axis_value`, and still counted as per-axis marginals in `EpochRow::axis_counts`
-/// (see `epoch.rs`'s `all_axes`) — but they must NEVER enter `vectors` or
-/// `vectors_extended`: the heuristic's own abstention rate (`Indeterminate`, 34.4% of
-/// transactions on the production dataset) is a property of the method, not of the
-/// transactions it's measuring, and folding it into the joint key would corrupt the
-/// sparsity number these keys exist to answer. See
-/// `docs/superpowers/specs/2026-07-29-remove-heuristic-axes-from-sparsity-design.md`.
+/// Never in joint keys: the heuristic's abstention rate is a property of the method,
+/// not the chain, and would distort the measured sparsity.
 pub const HEURISTIC_AXES: &[&str] = &["change_position", "change_type"];
 
-/// The axis set emitted, in order, by `lumen scan --vectors`. Every name is a valid
-/// argument to `FingerprintVector::axis_value`; the export is the categorical
-/// (pre-collapse) representation decluster's value-keyed scorer consumes. The order is
-/// stable — it defines the CSV column order.
+/// Order is stable: it defines the `--vectors` CSV column order.
 pub const VECTOR_AXES: &[&str] = &[
     "version",
     "nsequence",
@@ -242,22 +180,6 @@ pub const VECTOR_AXES: &[&str] = &[
 ];
 
 impl FingerprintVector {
-    /// The single place that maps an axis name to its observed value. The joint key,
-    /// template matching, and the epoch counters all go through here, so a new axis is
-    /// added once and cannot disagree between them.
-    ///
-    /// Returns `Cow` rather than an owned `String` because 16 of the 21 axes are
-    /// fieldless enums whose text is a compile-time constant: for those, `Cow::Borrowed`
-    /// hands back a `&'static str` with no allocation at all, which matters because this
-    /// is called on the order of 1.8 billion times over a full scan. `feerate_bucket` is
-    /// already an owned `String` field, so it borrows from `&self` instead of cloning.
-    /// Only `version`, `input_types`, `output_types`, `op_return`, and `round_feerate`
-    /// still need to build a fresh string (a number, a `Vec` rendering, or a bool).
-    ///
-    /// The fieldless-enum arms are hand-written matches to `&'static str`, not derived
-    /// `Debug` output, so that this function is unambiguously the one contract for these
-    /// strings — the `parse_key` round-trip test (`parse_key_round_trips_against_a_real_key_for_output`)
-    /// holds the two to the same values.
     pub fn axis_value(&self, axis: &str) -> Option<Cow<'_, str>> {
         Some(match axis {
             "version" => Cow::Owned(self.version.to_string()),
@@ -288,10 +210,7 @@ impl FingerprintVector {
         })
     }
 
-    /// Canonical key over an explicit axis set, so sparsity can be reported as a
-    /// function of which axes are measured. Writes directly into one `String` rather
-    /// than collecting a `Vec<String>` and joining it, since the joined form is all
-    /// this ever produces.
+    /// Explicit axis set so sparsity can be reported per set of measured axes.
     pub fn key_for(&self, axes: &[&str]) -> String {
         let mut out = String::new();
         for (i, axis) in axes.iter().enumerate() {
@@ -308,12 +227,10 @@ impl FingerprintVector {
         out
     }
 
-    /// The default joint key: core axes only.
     pub fn key(&self) -> String {
         self.key_for(CORE_AXES)
     }
 
-    /// CSV header for `--vectors`: `txid` then `VECTOR_AXES`.
     pub fn vector_csv_header() -> String {
         let mut s = String::from("txid");
         for axis in VECTOR_AXES {
@@ -323,11 +240,7 @@ impl FingerprintVector {
         s
     }
 
-    /// One CSV line: `txid` then each `VECTOR_AXES` value in order. Fields are
-    /// RFC-4180-escaped: any field containing comma, quote, newline, or carriage return
-    /// is wrapped in double quotes with embedded quotes doubled. This ensures
-    /// Vec-valued axes like `output_types` (`[P2wpkh, P2tr]`) stay a single CSV column,
-    /// preserving the fixed arity. An unknown axis renders empty.
+    /// RFC-4180-escaped so Vec-valued axes like `output_types` stay one column.
     pub fn to_vector_csv_line(&self, txid: &str) -> String {
         let mut s = csv_escape(txid);
         for axis in VECTOR_AXES {
@@ -339,12 +252,7 @@ impl FingerprintVector {
     }
 }
 
-/// Hand-written, exhaustive mappings from each fieldless axis enum to its `&'static str`
-/// spelling. These deliberately duplicate what `#[derive(Debug)]` would already produce,
-/// rather than calling `format!("{:?}", ...)`, so that `axis_value` never allocates for
-/// these 15 axes — and because each match is exhaustive (no wildcard arm), adding a new
-/// variant to any of these enums without updating its string here is a compile error,
-/// not a silent behavior change.
+/// No wildcard arms, so a new variant without a spelling here fails to compile.
 fn tri_str(v: Tri) -> &'static str {
     match v {
         Tri::Yes => "Yes",
@@ -481,18 +389,14 @@ fn output_type_str(v: OutputType) -> &'static str {
     }
 }
 
-/// RFC-4180 CSV field escaping: wraps the field in double quotes if it contains
-/// comma, double-quote, newline, or carriage return, and doubles any embedded quotes.
 fn csv_escape(field: &str) -> String {
     if !field.contains(',')
         && !field.contains('"')
         && !field.contains('\n')
         && !field.contains('\r')
     {
-        // No special characters: return as-is
         field.to_string()
     } else {
-        // Needs escaping: wrap in quotes and double any embedded quotes
         let mut escaped = String::from("\"");
         for ch in field.chars() {
             if ch == '"' {
@@ -506,15 +410,7 @@ fn csv_escape(field: &str) -> String {
     }
 }
 
-/// Parse a joint-vector key produced by `key_for`/`key` back into an axis -> value map.
-/// This is what makes report-time template matching possible: `EpochRow::vectors_extended`
-/// only survives on disk as these strings, never as a `FingerprintVector`.
-///
-/// Splits into `axis=value` segments on `|`, then splits each segment on the FIRST `=`
-/// only. Axis names never contain `=`, but axis values legitimately contain
-/// `=`-free-but-structured text such as `[P2wpkh, P2tr]`, `Uniform(P2wpkh)`, `10-19`, or
-/// `100+` — splitting on the first `=` is the simplest rule that is guaranteed correct
-/// for those shapes, since it never looks past the axis-name/value boundary.
+/// Splits on the first `=` only; axis names never contain `=`.
 pub fn parse_key(key: &str) -> BTreeMap<String, String> {
     key.split('|')
         .filter_map(|segment| segment.split_once('='))
@@ -522,33 +418,8 @@ pub fn parse_key(key: &str) -> BTreeMap<String, String> {
         .collect()
 }
 
-/// Compatibility shim for a joint-vector key stored on disk under a DIFFERENT axis set
-/// than the one currently defined in this file. `out/survey/epochs-v2.jsonl` was
-/// written while the two now-deleted circular axes (`change_type_matches_inputs` /
-/// `change_type_matches_outputs`) and the two axes since moved to `HEURISTIC_AXES`
-/// (`change_position` / `change_type`) were still inside `EXTENDED_AXES`, so every
-/// `vectors_extended` key on disk carries all four as extra `axis=value` segments.
-/// Re-scanning the whole dataset over an axis-set change alone would cost hours; this
-/// filter costs nothing extra at report time.
-///
-/// Strips any `axis=value` segment whose axis is not currently in
-/// `CORE_AXES ∪ EXTENDED_AXES`. This is exact, not heuristic: the key format is
-/// `axis=value` segments joined by `|`, with axis names that never contain `=`, so
-/// membership-testing the axis name on each segment cannot misfire. The same filter
-/// makes the report forward-compatible with any FUTURE axis-set change too — an axis
-/// added, removed, or moved into `HEURISTIC_AXES` later needs no re-scan, only this
-/// function staying in sync with the current `CORE_AXES`/`EXTENDED_AXES` definitions.
-///
-/// Deliberately excludes `HEURISTIC_AXES` from the surviving set: those axes must
-/// never enter a joint key under the current scheme either, so a stored key's
-/// `change_position=...`/`change_type=...` segments are stripped right along with the
-/// two fully-deleted axes.
-///
-/// This can — and on the production dataset does — merge previously-distinct keys:
-/// two stored keys differing only in a stripped axis collapse into the same key once
-/// filtered. That is the point, not a defect: it is what makes `distinct_vectors_extended`
-/// reflect the CURRENT axis set rather than whichever one happened to be in force when
-/// the data was scanned (507,966 → ~452,754 distinct on `epochs-v2.jsonl`).
+/// Lets keys written under an older axis set report against the current one; keys
+/// differing only in a stripped axis collapse into one.
 pub fn strip_retired_axes(key: &str) -> String {
     key.split('|')
         .filter(|segment| {
@@ -561,9 +432,6 @@ pub fn strip_retired_axes(key: &str) -> String {
         .join("|")
 }
 
-/// Input ordering, delegating to the pre-existing `fingerprints::input_order` (which
-/// already covers BIP-69 / ascending / descending) and adding the age case that only
-/// becomes measurable now that prevouts carry `creation_height`.
 fn input_order_class(tx: &Transaction, block: &SourcedBlock) -> OrderClass {
     if tx.input.len() < 2 {
         return OrderClass::Indeterminate;
@@ -581,8 +449,7 @@ fn input_order_class(tx: &Transaction, block: &SourcedBlock) -> OrderClass {
     let values: Vec<bitcoin::TxOut> = spent.iter().map(|s| s.txout.clone()).collect();
     let sorts = input_order(&tx.input, &values);
 
-    // Age first: an age-ordered vector is the more specific claim, and Core/BDK-style
-    // shuffles will not satisfy it by accident on more than a couple of inputs.
+    // Age first: the more specific claim, and shuffles rarely satisfy it by accident.
     let heights: Vec<u32> = spent.iter().map(|s| s.creation_height).collect();
     let ages_distinct = heights.windows(2).any(|w| w[0] != w[1]);
     if ages_distinct && heights.windows(2).all(|w| w[0] <= w[1]) {
@@ -600,8 +467,7 @@ fn input_order_class(tx: &Transaction, block: &SourcedBlock) -> OrderClass {
     }
 }
 
-/// Output ordering. BIP-69 first, then plain value ordering — "change last" shows up
-/// as `Other`, and is only decisive over many transactions (see #1597 comment 03).
+/// "Change last" shows up as `Other`; it is only decisive over many transactions.
 fn output_order_class(tx: &Transaction) -> OrderClass {
     if tx.output.len() < 2 {
         return OrderClass::Indeterminate;
@@ -620,7 +486,6 @@ fn output_order_class(tx: &Transaction) -> OrderClass {
     }
 }
 
-/// Resolve what a wrapped input actually is, by looking past the outer script type.
 fn input_subtype_class(tx: &Transaction, block: &SourcedBlock) -> InputSubtype {
     let mut seen: Option<InputSubtype> = None;
 
@@ -654,11 +519,8 @@ fn input_subtype_class(tx: &Transaction, block: &SourcedBlock) -> InputSubtype {
                 _ => InputSubtype::P2wshOther,
             }
         } else if spk.is_p2tr() {
-            // Key-path spends carry exactly one witness item (the signature), ignoring
-            // an optional annex. An empty witness is unreachable on consensus-valid
-            // data (a P2TR input must carry at least a signature or script-path
-            // witness), but it carries no signal either way, so it must not default
-            // to `TaprootScriptPath`.
+            // Key path is one item plus an optional annex; an empty witness carries no
+            // signal, so it must not default to `TaprootScriptPath`.
             let items = txin.witness.len();
             let has_annex = txin
                 .witness
@@ -685,9 +547,6 @@ fn input_subtype_class(tx: &Transaction, block: &SourcedBlock) -> InputSubtype {
     seen.unwrap_or(InputSubtype::Indeterminate)
 }
 
-/// Age of the youngest coin spent. `SameBlock` is the temporal tell from #1597
-/// comment 10 (spending unconfirmed outputs), visible on-chain as a parent→child
-/// spend inside one block.
 fn input_age_class(tx: &Transaction, block: &SourcedBlock) -> AgeClass {
     let youngest = tx
         .input
@@ -703,11 +562,7 @@ fn input_age_class(tx: &Transaction, block: &SourcedBlock) -> AgeClass {
     }
 }
 
-/// Candidate ECDSA signature byte strings for one input, drawn from both places a
-/// signature can live: the scriptSig (legacy P2PKH / bare P2PK / P2SH-multisig) and
-/// the witness (segwit). Delegates to `lumen_fingerprints_lib::classify`'s
-/// extractors — the same ones `fingerprints::input::low_r_grinding` uses — so this
-/// crate does not grow a second, subtly different copy of signature extraction.
+/// Same extractors as `fingerprints::input::low_r_grinding`.
 fn candidate_signatures(txin: &bitcoin::TxIn) -> Vec<Vec<u8>> {
     let mut sigs = extract_signatures_from_script_sig(txin.script_sig.as_bytes());
     let witness_items: Vec<Vec<u8>> = txin.witness.iter().map(|item| item.to_vec()).collect();
@@ -715,22 +570,7 @@ fn candidate_signatures(txin: &bitcoin::TxIn) -> Vec<Vec<u8>> {
     sigs
 }
 
-/// BIP-146 low-S, low-R grinding (every ECDSA signature has its R below 2^255, i.e. a
-/// 71-byte DER encoding), and the bucketed ECDSA signature count (`ecdsa_sigs`),
-/// computed together in one pass.
-///
-/// `low_r_class` and `low_s_class` used to be separate functions, each independently
-/// calling `candidate_signatures` (which extracts from both scriptSig and witness) and
-/// DER-parsing every signature it found — meaning every signature in a transaction was
-/// extracted and parsed twice. All three values are derived from the exact same set of
-/// parsed ECDSA signatures, so this computes that set once and derives all three from
-/// it — `ecdsa_sigs` is a counter over the same loop, not a second traversal.
-///
-/// Scans both scriptSig and witness (via `candidate_signatures`): a legacy input's
-/// signature lives in scriptSig with an empty witness, so witness-only scanning
-/// silently returned `Indeterminate` for every non-segwit input on both `Tri` axes. A
-/// transaction with no ECDSA signatures (pure taproot key-path) is indeterminate on
-/// both `low_r`/`low_s` and `EcdsaSigCount::None` on `ecdsa_sigs`.
+/// Low-R: every ECDSA signature's R is below 2^255, i.e. 71-byte DER.
 fn low_r_and_low_s_class(tx: &Transaction) -> (Tri, Tri, EcdsaSigCount) {
     let mut sig_count: u32 = 0;
     let mut all_low_r = true;
@@ -742,9 +582,7 @@ fn low_r_and_low_s_class(tx: &Transaction) -> (Tri, Tri, EcdsaSigCount) {
                 if !has_low_r_signature(&sig) {
                     all_low_r = false;
                 }
-                // serialize_compact is (r || s); S is high when its top bit is set and
-                // it exceeds half the curve order. libsecp256k1 normalises, so the
-                // top-bit test is the practical discriminator.
+                // libsecp256k1 normalises S, so the top bit of s is the practical high-S test.
                 if sig.signature.serialize_compact()[32] >= 0x80 {
                     all_low_s = false;
                 }
@@ -766,10 +604,7 @@ fn low_r_and_low_s_class(tx: &Transaction) -> (Tri, Tri, EcdsaSigCount) {
     }
 }
 
-/// Fee (sat), vsize (vB), and weight (wu) for a transaction, or `None` when the fee is
-/// not computable — a coinbase (its null-prevout input is absent from `block`, so
-/// `input_sum < output_sum`) or a zero-vsize tx. The shared primitive behind `feerate`
-/// and the survey's block-minimum feerate.
+/// `None` for coinbase: its null-prevout input is absent from `block`, so inputs < outputs.
 pub(crate) fn tx_fee_vsize_weight(
     tx: &Transaction,
     block: &SourcedBlock,
@@ -789,9 +624,6 @@ pub(crate) fn tx_fee_vsize_weight(
     Some((fee, vsize, tx.weight().to_wu()))
 }
 
-/// Feerate in sat/vB, bucketed, plus whether it is a round number — the chain-visible
-/// half of the "feerate source" and "manual feerate" axes (#1597 comments 12 and 21).
-/// The *source* of the feerate is not chain-observable; only the value is.
 fn feerate(tx: &Transaction, block: &SourcedBlock) -> (String, bool) {
     let Some((fee, vsize, _weight)) = tx_fee_vsize_weight(tx, block) else {
         return ("Unknown".to_string(), false);
@@ -810,33 +642,13 @@ fn feerate(tx: &Transaction, block: &SourcedBlock) -> (String, bool) {
         "100+".to_string()
     };
 
-    // A user typing "5" or "20" sat/vB lands within a hair of an integer; a fee
-    // estimator's output essentially never does.
+    // Typed feerates land within a hair of an integer; estimator output essentially never does.
     let round = (rate - rate.round()).abs() < 0.01 && rate >= 1.0;
     (bucket, round)
 }
 
-/// Change-identification-derived axes: which output (if any) the shared
-/// `change_index_by_script_type` heuristic identifies as change, and what that implies
-/// about its position and script type.
-///
-/// This used to also compute `change_type_matches_inputs` / `change_type_matches_outputs`,
-/// two axes deleted entirely (see `docs/superpowers/specs/2026-07-29-remove-heuristic-axes-from-sparsity-design.md`):
-/// `change_index_by_script_type` identifies change output BY its type equalling the
-/// unanimous input type, so `change_type_matches_inputs` was provably `Yes` (or
-/// `Indeterminate`) by construction and `change_type_matches_outputs` provably never
-/// `Yes` when there was exactly one matching output — both measured the heuristic's own
-/// definition, not a fact about the chain.
-///
-/// The heuristic returns `None` both when it is confident an output is not change and
-/// when it simply cannot tell (mixed input types, no unique matching output); this
-/// function must not conflate the two. `None` here always means "inconclusive," and
-/// both returned axes are `Indeterminate` in that case — never a guessed value.
-/// Publishing `NotChange` as if it were a measurement would misrepresent an abstention
-/// as a result.
-///
-/// Callers must have already required every input's prevout to resolve (as
-/// `classify_tx` does before calling this), so `input_types` is never partial here.
+/// The heuristic's `None` means inconclusive, never "not change". Callers must have
+/// resolved every input's prevout.
 fn change_axes(
     tx: &Transaction,
     input_types: &[OutputType],
@@ -846,8 +658,7 @@ fn change_axes(
         return (ChangePosition::Indeterminate, None);
     };
 
-    // Fewer than 2 outputs: there is no change to place, regardless of what the
-    // heuristic's index computation returned.
+    // One output has no change to place, whatever index the heuristic returned.
     let position = if tx.output.len() < 2 {
         ChangePosition::Indeterminate
     } else if change_index == 0 {
@@ -880,16 +691,6 @@ fn input_type_class(tx: &Transaction, block: &SourcedBlock) -> InputTypeClass {
         .unwrap_or(InputTypeClass::Unknown)
 }
 
-/// Candidate public-key pushes for one input, from both scriptSig (P2PKH/P2PK's
-/// pubkey push, or a multisig redeem script's embedded pubkeys) and witness
-/// (P2WPKH/P2WSH). There is no shared pubkey-extraction helper in
-/// `lumen_fingerprints_lib` to delegate to (only signature extraction exists there),
-/// so this scans pushes directly rather than duplicating signature-extraction logic.
-///
-/// Borrows every push and witness item rather than copying it into a fresh `Vec<u8>`:
-/// the caller only ever reads a length and a first byte, so there is nothing for an
-/// owned copy to buy here, and this runs on the order of 1.8 billion times over a
-/// full scan.
 fn candidate_pubkey_bytes(txin: &bitcoin::TxIn) -> impl Iterator<Item = &[u8]> + '_ {
     let script_sig_pushes = txin
         .script_sig
@@ -901,12 +702,7 @@ fn candidate_pubkey_bytes(txin: &bitcoin::TxIn) -> impl Iterator<Item = &[u8]> +
     script_sig_pushes.chain(txin.witness.iter())
 }
 
-/// Uncompressed pubkeys are 65 bytes starting with 0x04. Indeterminate when the
-/// transaction exposes no pubkey at all (e.g. taproot key-path).
-///
-/// Scans both scriptSig and witness pushes (via `candidate_pubkey_bytes`): uncompressed
-/// keys are specifically a legacy-era phenomenon, so witness-only scanning missed
-/// exactly the transactions this axis exists to measure.
+/// Scans scriptSig too: uncompressed keys are a legacy-era phenomenon.
 fn uncompressed_pubkey_class(tx: &Transaction) -> Tri {
     let mut saw_pubkey = false;
     let mut saw_uncompressed = false;
@@ -930,8 +726,6 @@ fn uncompressed_pubkey_class(tx: &Transaction) -> Tri {
     }
 }
 
-/// Classify one transaction. Returns `None` for coinbase transactions and for any
-/// transaction whose prevouts the source could not resolve.
 pub fn classify_tx(tx: &Transaction, block: &SourcedBlock) -> Option<FingerprintVector> {
     if tx.is_coinbase() {
         return None;
@@ -946,9 +740,7 @@ pub fn classify_tx(tx: &Transaction, block: &SourcedBlock) -> Option<Fingerprint
 
     let (feerate_bucket, round_feerate) = feerate(tx, block);
 
-    // Raw, positional output types (NOT the sorted/deduped `output_types` field below):
-    // `change_axes` needs to know which specific output index matches, which the
-    // deduped set cannot answer.
+    // Positional, not the deduped `output_types`: `change_axes` needs the matching index.
     let output_types_ordered: Vec<OutputType> = tx
         .output
         .iter()
@@ -959,8 +751,6 @@ pub fn classify_tx(tx: &Transaction, block: &SourcedBlock) -> Option<Fingerprint
     output_types.sort_by_key(|t| t.as_u32());
     output_types.dedup();
 
-    // Every input's prevout is resolved by this point (checked above), so this is
-    // never partial.
     let input_types_ordered: Vec<OutputType> = tx
         .input
         .iter()
@@ -1002,8 +792,6 @@ pub fn classify_tx(tx: &Transaction, block: &SourcedBlock) -> Option<Fingerprint
     })
 }
 
-/// Shared test fixtures. Defined here (not inside `mod tests`) because Tasks 6, 7 and 8
-/// build their tests on the same Cake-shaped block.
 #[cfg(test)]
 pub(crate) mod tests_support {
     use bitcoin::{Amount, OutPoint, ScriptBuf, Sequence, Transaction, TxIn, TxOut, Witness};
@@ -1017,28 +805,15 @@ pub(crate) mod tests_support {
         ScriptBuf::from_hex("0014000102030405060708090a0b0c0d0e0f10111213").unwrap()
     }
 
-    /// A P2TR scriptPubKey (`OP_1 <32-byte-program>`) — used as a script type distinct
-    /// from `p2wpkh_spk()` so change-identification fixtures can have a payment output
-    /// that is unambiguously NOT the same type as change.
     pub(crate) fn p2tr_spk() -> ScriptBuf {
         ScriptBuf::from_hex("5120000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f")
             .unwrap()
     }
 
-    /// A correctly-shaped P2WPKH scriptPubKey (`OP_0 <20-byte-program>`, 22 bytes
-    /// total) that really does classify as `OutputType::P2wpkh`. `p2wpkh_spk()` above
-    /// is one byte too long (a pre-existing fixture quirk that classifies as
-    /// `NonStandard`); every current test built on it only checks "uniform"/"same
-    /// script", never the specific `OutputType`, so it is left as-is. The
-    /// change-identification tests below assert the exact identified type, so they use
-    /// this one instead.
     pub(crate) fn real_p2wpkh_spk() -> ScriptBuf {
         ScriptBuf::from_hex("0014000102030405060708090a0b0c0d0e0f10111213").unwrap()
     }
 
-    /// Like `block_with`, but the prevout scriptPubKey for every input is the
-    /// caller-supplied `prevout_spk` rather than the hardcoded `p2wpkh_spk()` — needed
-    /// by tests that must control the exact `OutputType` the inputs classify as.
     pub(crate) fn block_with_prevout_script(
         tx: Transaction,
         height: u32,
@@ -1066,8 +841,6 @@ pub(crate) mod tests_support {
         }
     }
 
-    /// Two inputs whose sequences are the Cake group-C bug, locktime 0, two p2wpkh
-    /// outputs — the shape of the chain-proven Cake prior 9ecd77ab from payjoin#1597.
     pub(crate) fn cake_like_tx() -> Transaction {
         let input = |vout: u32, seq: u32| TxIn {
             previous_output: OutPoint::new(
@@ -1095,17 +868,7 @@ pub(crate) mod tests_support {
         }
     }
 
-    /// One legacy (P2PKH-shaped) input: `script_sig` carries a real DER-encoded ECDSA
-    /// signature push (parseable by `bitcoin::ecdsa::Signature::from_slice`, which is
-    /// what the low_r/low_s/sighash extractors use) followed by a pubkey push, and the
-    /// witness is empty. This is the fixture the pre-existing `cake_like_tx` fixture
-    /// could not provide: every prior fixture was segwit-only, which is exactly why
-    /// the witness-only scanning defect in `low_r_class`, `low_s_class`,
-    /// `uncompressed_pubkey_class`, and `sighash_class` went uncaught.
-    ///
-    /// `pubkey_bytes` is the caller-supplied pubkey push — its *shape* (33 bytes
-    /// starting 0x02/0x03 vs. 65 bytes starting 0x04) is all `uncompressed_pubkey_class`
-    /// inspects, so it need not be a genuine point on the curve.
+    /// Only the pubkey's shape matters, so it need not be a point on the curve.
     pub(crate) fn legacy_p2pkh_tx(pubkey_bytes: Vec<u8>) -> Transaction {
         use bitcoin::script::{Builder, PushBytesBuf};
         use bitcoin::secp256k1::{Message, Secp256k1, SecretKey};
@@ -1142,14 +905,6 @@ pub(crate) mod tests_support {
         }
     }
 
-    /// One input whose `script_sig` carries `n` real, independently-generated
-    /// DER-encoded ECDSA signature pushes back-to-back (multisig-scriptSig-shaped,
-    /// though there is no redeem script — nothing here inspects one). Built for the
-    /// `ecdsa_sigs` axis: `low_r_and_low_s_class`'s `candidate_signatures` extraction
-    /// finds every push of at least 9 bytes starting `0x30` in the scriptSig, and each
-    /// signature here is genuinely `bitcoin::ecdsa::Signature::from_slice`-parseable,
-    /// so this produces exactly `n` counted signatures regardless of how the bucketing
-    /// in `EcdsaSigCount` groups them.
     pub(crate) fn tx_with_n_ecdsa_sigs(n: u8) -> Transaction {
         use bitcoin::script::{Builder, PushBytesBuf};
         use bitcoin::secp256k1::{Message, Secp256k1, SecretKey};
@@ -1186,10 +941,6 @@ pub(crate) mod tests_support {
         }
     }
 
-    /// A pure taproot key-path spend: one input whose prevout is P2TR and whose
-    /// witness carries a single 64-byte Schnorr-shaped item (not ECDSA-DER-parseable,
-    /// so `candidate_signatures`/`from_slice` finds nothing). Used to exercise
-    /// `ecdsa_sigs`'s `None` bucket on a transaction with no ECDSA signature at all.
     pub(crate) fn taproot_key_path_tx() -> Transaction {
         let input = TxIn {
             previous_output: OutPoint::new(
@@ -1221,7 +972,7 @@ pub(crate) mod tests_support {
                         value: Amount::from_sat(440_337),
                         script_pubkey: p2wpkh_spk(),
                     },
-                    // 10 blocks back: old enough that input_age is not SameBlock.
+                    // Old enough that input_age is not SameBlock.
                     creation_height: height - 10,
                 },
             );
@@ -1235,26 +986,16 @@ pub(crate) mod tests_support {
         }
     }
 
-    /// One block containing exactly one classifiable Cake-shaped transaction.
     pub(crate) fn cake_like_block(height: u32) -> SourcedBlock {
         block_with(cake_like_tx(), height)
     }
 
-    /// A fully-populated, classifiable `FingerprintVector` for tests in other modules
-    /// (e.g. `features.rs`) that just need *some* valid vector to exercise, without
-    /// caring about its specific axis values.
     pub(crate) fn classifiable_vector() -> super::FingerprintVector {
         let tx = cake_like_tx();
         let block = block_with(tx.clone(), EPOCH_TEST_HEIGHT);
         super::classify_tx(&tx, &block).expect("cake_like tx classifies")
     }
 
-    /// Like `block_with`, but for several non-coinbase transactions at once. Needed by
-    /// tests that must exercise more than one distinct fingerprint shape in a single
-    /// epoch row — `block_with` only ever carries one transaction, so every key it can
-    /// produce is trivially "all 1 of 1" or "none of 1". Every input's prevout resolves
-    /// the same way `block_with` resolves it (a uniform p2wpkh coin, 10 blocks old), so
-    /// callers only need to vary the transactions themselves to get different shapes.
     pub(crate) fn block_with_many(txs: Vec<Transaction>, height: u32) -> SourcedBlock {
         let mut prevouts = HashMap::new();
         for tx in &txs {
@@ -1297,8 +1038,6 @@ mod tests {
         assert_eq!(v.version, 2);
         assert_eq!(v.nsequence, NSequenceType::CakeGroupC);
         assert_eq!(v.nlocktime, NLockTimeType::Zero);
-        // Assert uniformity, not the variant spelling: `OutputType`'s p2wpkh variant name
-        // is defined in lumen-primitives and must not be guessed here.
         assert!(matches!(v.input_types, InputTypeClass::Uniform(_)));
         assert!(!v.op_return);
     }
@@ -1334,15 +1073,12 @@ mod tests {
 
     #[test]
     fn parse_key_round_trips_against_a_real_key_for_output() {
-        // Deliberately built against `key_for`'s real output, not a hand-written
-        // string, so the parser cannot silently drift from the formatter it inverts.
+        // Built from `key_for`'s output so the parser cannot drift from the formatter.
         let tx = cake_like_tx();
         let block = block_with(tx.clone(), EPOCH_TEST_HEIGHT);
         let v = classify_tx(&tx, &block).unwrap();
 
-        // Includes HEURISTIC_AXES too: `change_position`/`change_type` still need to
-        // round-trip through `axis_value`/`parse_key` even though they no longer enter
-        // either joint-vector key (see `HEURISTIC_AXES`'s doc comment).
+        // Heuristic axes are not in either joint key but must still round-trip.
         let all_axes: Vec<&str> = CORE_AXES
             .iter()
             .chain(EXTENDED_AXES.iter())
@@ -1376,12 +1112,6 @@ mod tests {
         let other = classify_tx(&other_tx, &other_block).unwrap();
         assert_ne!(v.key(), other.key(), "differing locktime class must differ");
     }
-
-    // Regression coverage for the "witness-only scanning" defect: `low_r_class`,
-    // `low_s_class`, `uncompressed_pubkey_class`, and `sighash_class` used to look
-    // only at `txin.witness`, so a legacy (empty-witness, signature-in-script_sig)
-    // input silently reported `Indeterminate` / `Na` on every one of these axes —
-    // exactly the transactions `uncompressed_pubkey` and `low_r` exist to measure.
 
     #[test]
     fn legacy_input_low_r_is_not_indeterminate() {
@@ -1445,10 +1175,6 @@ mod tests {
         );
     }
 
-    // ------------------------------------------------------------------------------
-    // ecdsa_sigs: bucketed ECDSA signature count, computed alongside low_r/low_s.
-    // ------------------------------------------------------------------------------
-
     #[test]
     fn ecdsa_sigs_is_one_for_a_single_signature() {
         let tx = tx_with_n_ecdsa_sigs(1);
@@ -1479,8 +1205,6 @@ mod tests {
         let block = block_with_prevout_script(tx.clone(), EPOCH_TEST_HEIGHT, p2tr_spk());
         let v = classify_tx(&tx, &block).expect("classifiable");
         assert_eq!(v.ecdsa_sigs, EcdsaSigCount::None);
-        // No ECDSA signature also means both Tri axes stay Indeterminate, not just
-        // ecdsa_sigs — this must not alter low_r/low_s's existing semantics.
         assert_eq!(v.low_r, Tri::Indeterminate);
         assert_eq!(v.low_s, Tri::Indeterminate);
     }
@@ -1499,16 +1223,9 @@ mod tests {
         assert_eq!(v.axis_value("ecdsa_sigs").as_deref(), Some("One"));
     }
 
-    // ------------------------------------------------------------------------------
-    // locktime_offset: the observable half of exact-tip-vs-backdating that `nlocktime`
-    // cannot capture per transaction (see `NLockTimeType`'s doc comment in
-    // `lumen_fingerprints_lib::types`).
-    // ------------------------------------------------------------------------------
-
     #[test]
     fn locktime_offset_appears_in_axis_value_and_extended_axes() {
         let mut tx = cake_like_tx();
-        // locktime == block_height: offset 0, the exact-tip case.
         tx.lock_time = bitcoin::absolute::LockTime::from_height(EPOCH_TEST_HEIGHT).unwrap();
         let block = block_with(tx.clone(), EPOCH_TEST_HEIGHT);
         let v = classify_tx(&tx, &block).expect("classifiable");
@@ -1522,7 +1239,6 @@ mod tests {
         assert_eq!(v.locktime_offset, LocktimeOffsetType::Zero);
         assert_eq!(v.axis_value("locktime_offset").as_deref(), Some("0"));
 
-        // Round-trips through the joint-key parser too.
         let all_axes: Vec<&str> = CORE_AXES
             .iter()
             .chain(EXTENDED_AXES.iter())
@@ -1547,24 +1263,8 @@ mod tests {
         );
     }
 
-    // ------------------------------------------------------------------------------
-    // Change-identification-derived axes: change_position / change_type. Both are
-    // driven by this crate's own `crate::change::change_index_by_script_type`, so
-    // these tests exercise the axis-mapping in `change_axes`/`classify_tx`, not the
-    // heuristic itself (that lives in `change.rs`'s own tests).
-    //
-    // `change_type_matches_inputs` / `change_type_matches_outputs` used to be tested
-    // here too, but both axes were deleted entirely (see
-    // `docs/superpowers/specs/2026-07-29-remove-heuristic-axes-from-sparsity-design.md`):
-    // they measured the change heuristic's own definition, not a fact about the chain.
-    // ------------------------------------------------------------------------------
-
     #[test]
     fn change_axes_are_computed_when_change_is_identifiable() {
-        // Two real-p2wpkh inputs, one p2tr payment output followed by one real-p2wpkh
-        // change output: input types are unanimous P2wpkh, and exactly one output
-        // (index 1) matches — an unambiguous, identifiable case, with change in the
-        // LAST position.
         let mut tx = cake_like_tx();
         tx.output = vec![
             TxOut {
@@ -1628,10 +1328,7 @@ mod tests {
 
     #[test]
     fn change_axes_are_indeterminate_when_change_identification_is_inconclusive() {
-        // cake_like_tx: two p2wpkh inputs, two p2wpkh outputs — both outputs match the
-        // unanimous input type, so the heuristic cannot uniquely identify change. This
-        // must NOT surface as `NotChange`-flavoured false values on either axis; both
-        // must be `Indeterminate`.
+        // Both outputs match the unanimous input type, so change is not identifiable.
         let tx = cake_like_tx();
         let block = block_with(tx.clone(), EPOCH_TEST_HEIGHT);
         let v = classify_tx(&tx, &block).expect("classifiable");
@@ -1639,8 +1336,6 @@ mod tests {
         assert_eq!(v.change_position, ChangePosition::Indeterminate);
         assert_eq!(v.change_type, None);
 
-        // And the axis_value/key machinery must render that as the literal string
-        // "Indeterminate", not silently drop the axis or print "None".
         assert_eq!(
             v.axis_value("change_position").as_deref(),
             Some("Indeterminate")
@@ -1671,10 +1366,6 @@ mod tests {
         );
     }
 
-    // ------------------------------------------------------------------------------
-    // `strip_retired_axes`: the `epochs-v2.jsonl` compatibility shim.
-    // ------------------------------------------------------------------------------
-
     #[test]
     fn strip_retired_axes_removes_a_deleted_circular_axis_segment() {
         let with_retired = "nsequence=Rbf|change_type_matches_inputs=Yes|low_s=Yes";
@@ -1685,9 +1376,6 @@ mod tests {
 
     #[test]
     fn strip_retired_axes_removes_axes_moved_to_heuristic_axes() {
-        // change_position/change_type are still valid axes (HEURISTIC_AXES), but a
-        // stored key containing them must still be stripped down to the current
-        // joint-key axis set, since HEURISTIC_AXES never belongs in a joint key.
         let with_heuristic = "nsequence=Rbf|change_position=Last|change_type=P2wpkh|low_s=Yes";
         let without_heuristic = "nsequence=Rbf|low_s=Yes";
 
@@ -1702,23 +1390,14 @@ mod tests {
 
     #[test]
     fn strip_retired_axes_merges_previously_distinct_keys() {
-        // The whole point: two stored keys that differ only in a retired axis must
-        // collapse to the identical stripped string, so aggregating by the stripped
-        // key merges their counts.
         let a = "nsequence=Rbf|change_type_matches_inputs=Yes";
         let b = "nsequence=Rbf|change_type_matches_inputs=Indeterminate";
 
         assert_eq!(strip_retired_axes(a), strip_retired_axes(b));
     }
 
-    // ------------------------------------------------------------------------------
-    // `tx_fee_vsize_weight`: the shared fee/size primitive behind `feerate` and the
-    // survey's block-minimum feerate.
-    // ------------------------------------------------------------------------------
-
     #[test]
     fn fee_vsize_weight_and_coinbase() {
-        // Reuse an existing fixture that has resolvable prevouts and a positive fee.
         let tx = cake_like_tx();
         let block = cake_like_block(800_000);
         let got = super::tx_fee_vsize_weight(&tx, &block);
@@ -1726,11 +1405,7 @@ mod tests {
         let (fee, vsize, weight) = got.unwrap();
         assert!(fee > 0 && vsize > 0 && weight > 0);
 
-        // A coinbase-like tx (null prevout, no resolvable input) yields None. Build a
-        // minimal coinbase: one input spending OutPoint::null(). `block_with` would
-        // still insert that null outpoint into the prevouts map, so clear the map to
-        // genuinely exercise the unresolved-input path: input absent ⇒ input_sum <
-        // output_sum ⇒ checked_sub None ⇒ None.
+        // Prevouts cleared so the null-outpoint input is unresolved and the fee underflows.
         let mut cb = tx.clone();
         cb.input.truncate(1);
         cb.input[0].previous_output = bitcoin::OutPoint::null();
@@ -1741,7 +1416,6 @@ mod tests {
 
     #[test]
     fn vector_csv_line_is_txid_then_every_axis_value_in_order() {
-        // classify a known fixture tx (reuse existing tests_support helpers)
         let mut pubkey = vec![0xab; 33];
         pubkey[0] = 0x02;
         let tx = legacy_p2pkh_tx(pubkey);
@@ -1750,13 +1424,10 @@ mod tests {
         let header = FingerprintVector::vector_csv_header();
         let line = v.to_vector_csv_line("deadbeef");
 
-        // header: "txid" + VECTOR_AXES
         assert!(header.starts_with("txid,"));
         assert_eq!(header.split(',').count(), 1 + VECTOR_AXES.len());
-        // line: txid + one value per axis, same arity as header
         assert!(line.starts_with("deadbeef,"));
         assert_eq!(line.split(',').count(), 1 + VECTOR_AXES.len());
-        // each field equals axis_value for that axis
         let fields: Vec<&str> = line.split(',').collect();
         for (i, axis) in VECTOR_AXES.iter().enumerate() {
             let expected = v.axis_value(axis).unwrap();
@@ -1766,10 +1437,6 @@ mod tests {
 
     #[test]
     fn vector_csv_line_rfc4180_escapes_fields_with_commas() {
-        // Construct a tx with multiple distinct output types (P2TR + P2WPKH) so
-        // output_types renders as `[P2tr, P2wpkh]` with an internal comma.
-        // RFC-4180 escaping must wrap that field in double quotes so it stays
-        // a single CSV column, preserving the fixed 1 + VECTOR_AXES.len() arity.
         let mut tx = cake_like_tx();
         tx.output = vec![
             TxOut {
@@ -1786,7 +1453,6 @@ mod tests {
 
         let line = v.to_vector_csv_line("txid");
 
-        // RFC-4180 parse: split on unquoted commas only
         let mut fields = Vec::new();
         let mut current = String::new();
         let mut in_quotes = false;
@@ -1805,14 +1471,12 @@ mod tests {
         }
         fields.push(current);
 
-        // Exact arity: txid + one field per axis
         assert_eq!(
             fields.len(),
             1 + VECTOR_AXES.len(),
             "CSV must have exactly 1 + VECTOR_AXES.len() fields after RFC-4180 parsing"
         );
 
-        // The output_types field must be quoted and contain the comma
         let output_types_index = VECTOR_AXES
             .iter()
             .position(|&a| a == "output_types")

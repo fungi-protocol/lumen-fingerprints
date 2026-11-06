@@ -9,14 +9,6 @@ use lumen_floresta_source::{FlorestaConfig, FlorestaSource, sync_tip};
 
 const ASSUME_UTREEXO_HEIGHT: u32 = 939_969;
 
-/// The templates shipped in the repo, used by `lumen report` when `--templates` is
-/// omitted. Report-time matching (see `lumen_core::report::build_report`) means
-/// a `wallets.toml` correction takes effect the next time `report` runs, so defaulting
-/// to the shipped file — rather than requiring `--templates` on every invocation, or
-/// worse, silently producing a report with no template series at all — is what makes
-/// that "edit the TOML, see the fix" loop actually convenient day to day. An explicit
-/// `--templates` still overrides it, e.g. to try a wallet developer's proposed PR
-/// before merging it.
 fn default_templates_path() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/crates/core/templates/wallets.toml")
 }
@@ -34,21 +26,16 @@ fn usage() -> ! {
 
   --start-height defaults to the last complete epoch in --out, else {ASSUME_UTREEXO_HEIGHT}
   (Floresta's mainnet assume-utreexo checkpoint; blocks below it need the backfill path).
-  --peer may be repeated. With no --peer, scan dials default utreexo peers (Davidson's
-  dlsouza seed, resolved fresh; LUMEN_SCAN_PEERS overrides, --no-default-peers disables) so
-  it never stalls at 0 utreexo peers. --fresh wipes the datadir + epochs output and scans
-  from the floor in one pass — the only faithful way to (re)measure a full window, since
-  utreexo cannot re-serve blocks a resumed datadir already synced past.
-  `scan` takes no --templates: it no longer matches against wallet templates at all —
-  matching happens entirely at report time (see `report`'s --templates below), so a scan
-  is a one-time investment in the raw data, independent of any wallet list.
-  report's --templates defaults to the shipped src/crates/core/templates/wallets.toml;
-  matching is recomputed at report time, so a corrected template takes effect on the next
-  `report` run with no rescan needed.
-  `series` exports one row per (epoch, axis, value) as a compact, committable CSV —
-  see `write_series_csv` in this file. --min-share (default 0.0, i.e. export
-  everything) aggregates any value below the given share into a per-axis `(other)` row
-  instead, to keep the file small enough to commit."
+  --peer may be repeated. With no --peer, scan dials default utreexo peers (the
+  x1000.bitcoin.seed.dlsouza.lol seed, resolved fresh; LUMEN_SCAN_PEERS overrides,
+  --no-default-peers disables). --fresh wipes the datadir and epochs output and scans from
+  the floor in one pass, the only faithful way to measure a full window: utreexo cannot
+  re-serve blocks a resumed datadir already synced past.
+  Wallet templates are matched only by `report`, so a template change needs no rescan.
+  report's --templates defaults to the shipped src/crates/core/templates/wallets.toml.
+  `series` exports one row per (epoch, axis, value) as a compact CSV. --min-share
+  (default 0.0, export everything) folds values below the given share into a per-axis
+  `(other)` row."
     );
     std::process::exit(2);
 }
@@ -64,13 +51,8 @@ fn has_flag(args: &[String], name: &str) -> bool {
     args.iter().any(|a| a == name)
 }
 
-/// The utreexo peers a bare `lumen scan` dials when no `--peer` is given, so it never
-/// stalls at "0 utreexo peers". Discovery over DNS is unreliable (the calvinkim seed is
-/// empty; Davidson's `dlsouza` seed resolves but not always in time), and a wiped datadir
-/// has no `anchors.json` to reconnect through — so we seed the fixed-peer list ourselves:
-/// `LUMEN_SCAN_PEERS` ("host:port host:port …") wins, else we resolve Davidson's utreexo
-/// DNS seed for fresh IPs, else fall back to two nodes confirmed serving `0x1000` + full
-/// NETWORK. `--peer` (which fills `fixed_peers`) or `--no-default-peers` skip this.
+/// DNS discovery is unreliable and a wiped datadir has no `anchors.json`. The two
+/// hardcoded nodes serve utreexo (`0x1000`) and full blocks.
 fn default_utreexo_peers() -> Vec<String> {
     if let Ok(s) = std::env::var("LUMEN_SCAN_PEERS") {
         let v: Vec<String> = s.split_whitespace().map(str::to_string).collect();
@@ -90,9 +72,7 @@ fn default_utreexo_peers() -> Vec<String> {
 }
 
 fn main() {
-    // Surface Floresta's `tracing` logs (peer discovery, utreexo-peer connect/ban, sync)
-    // to stderr so a scan that is quietly hunting for a utreexo peer is diagnosable rather
-    // than looking hung. `RUST_LOG` overrides; unset defaults to node/peer info.
+    // Floresta's logs show a scan hunting for a utreexo peer instead of looking hung.
     let filter = tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| {
         tracing_subscriber::EnvFilter::new("floresta_wire=info,floresta_chain=info")
     });
@@ -122,10 +102,8 @@ fn cmd_scan(args: &[String]) {
     let features_out = arg(args, "--features").map(PathBuf::from);
     let vectors_out = arg(args, "--vectors").map(PathBuf::from);
 
-    // `--fresh`: a faithful full measurement. utreexo keeps no old blocks, so a datadir
-    // already synced past the floor silently skips blocks it can no longer serve. Wipe the
-    // chainstate and the epochs output, then start from the floor (below), so the scan
-    // re-downloads every block in one pass instead of resuming into an under-count.
+    // A datadir synced past the floor silently skips blocks utreexo can't re-serve, so a
+    // faithful full measurement wipes it and scans from the floor in one pass.
     if has_flag(args, "--fresh") {
         let _ = std::fs::remove_dir_all(Path::new(&datadir));
         let _ = std::fs::create_dir_all(Path::new(&datadir));
@@ -238,8 +216,7 @@ fn cmd_series(args: &[String]) {
     println!("wrote {} ({bytes} bytes)", out.display());
 }
 
-/// Escape one CSV field per RFC 4180: wrap in quotes (doubling any embedded quote)
-/// only when the field contains a character that would otherwise be ambiguous.
+/// RFC 4180: quote only when needed.
 fn csv_escape(field: &str) -> std::borrow::Cow<'_, str> {
     if field.contains([',', '"', '\n', '\r']) {
         std::borrow::Cow::Owned(format!("\"{}\"", field.replace('"', "\"\"")))
@@ -248,38 +225,8 @@ fn csv_escape(field: &str) -> std::borrow::Cow<'_, str> {
     }
 }
 
-/// Write one row per (epoch, axis, value) — see the `series` usage text above for the
-/// column layout.
-///
-/// Streams `EpochRow`s straight off disk via `lumen_core::epoch_rows` instead of
-/// reading the whole file into a `Vec<EpochRow>` first: this is a pure per-row
-/// transformation (read one row, write its lines, drop it, move to the next), so
-/// nothing is gained by materializing the dataset up front, and on the full-size
-/// dataset (2.7 GB on disk, several GB once deserialized into `Vec<EpochRow>`) holding
-/// it all was the entire memory cost of this command.
-///
-/// Rows are written in file order with no additional sort. The old implementation
-/// collected into a `Vec` and called `sort_by_key(|r| r.start_height)` before writing,
-/// but that sort was always a no-op in practice: `scan` (`src/crates/core/src/
-/// engine.rs`) only ever appends epoch rows in increasing height order — each row is
-/// written as `acc.flush()` produces it, immediately after the previous one, and
-/// `resume_point` picks up exactly where the file left off — so the file is already in
-/// ascending `start_height` order before this function ever sees it, and `Vec::sort_by
-/// _key` is stable, so sorting an already-sorted sequence changes nothing. Streaming in
-/// file order therefore produces byte-identical output to the old collect-then-sort
-/// version. (Within a row, `axis_counts` is a `BTreeMap<String, BTreeMap<String,
-/// u64>>`, so iterating it is already sorted by axis, then by value — the exact order
-/// the spec asks for — independent of the across-row question above.)
-///
-/// `axis_counts` already includes every axis the scan computed — core, extended, and
-/// heuristic alike (see `EpochAccumulator::ingest` in `src/crates/core/src/epoch.rs`)
-/// — so no axis needs to be singled out here; iterating the whole map is complete by
-/// construction.
-///
-/// `min_share` (0.0 by default, meaning "export everything") aggregates any value whose
-/// share of that epoch's `txs` falls below it into a single per-axis `(other)` row, so
-/// a long tail of rare values does not blow up the file size. A `(other)` row is only
-/// emitted when there is a genuine remainder to report.
+/// File order is already ascending (`scan` only appends). Values below `min_share` of an
+/// epoch's `txs` fold into a per-axis `(other)` row.
 fn write_series_csv(epochs_path: &Path, out: &Path, min_share: f64) -> std::io::Result<()> {
     let mut w = BufWriter::new(std::fs::File::create(out)?);
     writeln!(w, "start_height,end_height,txs,axis,value,count,share")?;
@@ -291,10 +238,6 @@ fn write_series_csv(epochs_path: &Path, out: &Path, min_share: f64) -> std::io::
     w.flush()
 }
 
-/// Writes one `EpochRow`'s worth of series lines. Factored out of `write_series_csv` so
-/// that function's body is just "stream a row in, write it, drop it" — the per-row
-/// logic itself (the `min_share` bucketing in particular) is unchanged from before this
-/// was made to stream.
 fn write_series_row(w: &mut impl Write, row: &EpochRow, min_share: f64) -> std::io::Result<()> {
     for (axis, values) in &row.axis_counts {
         let mut entries: Vec<(&str, u64)> = values.iter().map(|(v, &c)| (v.as_str(), c)).collect();
@@ -338,10 +281,6 @@ fn write_series_row(w: &mut impl Write, row: &EpochRow, min_share: f64) -> std::
     Ok(())
 }
 
-/// Converts a `lumen_core::ReportError` (I/O or JSON-parse failure while
-/// streaming epoch rows) into an `io::Error`, so `write_series_csv` can keep returning
-/// `std::io::Result` — the same error type it already used for its own file I/O —
-/// rather than introducing a second error type into this small binary.
 fn report_error_to_io(e: lumen_core::ReportError) -> std::io::Error {
     std::io::Error::other(e.to_string())
 }
