@@ -25,6 +25,8 @@ pub enum OutputStructureType {
 }
 
 impl OutputStructureType {
+    pub const ALL: [Self; 4] = [Self::Single, Self::Double, Self::Multi, Self::Unknown];
+
     pub fn as_u32(self) -> u32 {
         self as u32
     }
@@ -42,6 +44,15 @@ pub enum NSequenceType {
 }
 
 impl NSequenceType {
+    pub const ALL: [Self; 6] = [
+        Self::CakeGroupC,
+        Self::Lone0x01,
+        Self::Rbf,
+        Self::Final,
+        Self::Max,
+        Self::MixedOther,
+    ];
+
     pub fn as_u32(self) -> u32 {
         self as u32
     }
@@ -63,6 +74,20 @@ pub enum SighashType {
 }
 
 impl SighashType {
+    pub const ALL: [Self; 11] = [
+        Self::TaprootDefault,
+        Self::TaprootExplicit,
+        Self::All,
+        Self::None,
+        Self::Single,
+        Self::AcpAll,
+        Self::AcpNone,
+        Self::AcpSingle,
+        Self::Other,
+        Self::Mixed,
+        Self::Na,
+    ];
+
     pub fn as_u32(self) -> u32 {
         self as u32
     }
@@ -84,6 +109,14 @@ pub enum NLockTimeType {
 }
 
 impl NLockTimeType {
+    pub const ALL: [Self; 5] = [
+        Self::Zero,
+        Self::AntiFeeSnipe,
+        Self::Backdated,
+        Self::Future,
+        Self::Timestamp,
+    ];
+
     pub fn as_u32(self) -> u32 {
         self as u32
     }
@@ -112,6 +145,19 @@ pub enum LocktimeOffsetType {
 }
 
 impl LocktimeOffsetType {
+    pub const ALL: [Self; 10] = [
+        Self::NotApplicable,
+        Self::Zero,
+        Self::One,
+        Self::Two,
+        Self::Three,
+        Self::FourToSix,
+        Self::SevenToTwelve,
+        Self::ThirteenToTwentyFive,
+        Self::TwentySixToFifty,
+        Self::FiftyOneToHundred,
+    ];
+
     pub fn as_u32(self) -> u32 {
         self as u32
     }
