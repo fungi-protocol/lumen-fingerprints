@@ -416,188 +416,6 @@ pub struct FeatureRow {
     pub values: Vec<f64>,
 }
 
-/// Append-only. `feature_row` must push values in this order after the two identity
-/// columns; `row_width_matches_column_count` guards the width.
-pub const COLUMN_NAMES: &[&str] = &[
-    "txid",
-    "block_height",
-    "op_return",
-    "round_feerate",
-    "low_s_yes",
-    "round_fee",
-    "round_payment",
-    "uih1",
-    "uih2",
-    "address_reuse",
-    "same_block_parent",
-    "changeless",
-    "low_r_yes",
-    "low_r_indeterminate",
-    "uncompressed_pubkey_yes",
-    "uncompressed_pubkey_indeterminate",
-    "version_1",
-    "version_2",
-    "version_3",
-    "version_other",
-    "nsequence_cake_group_c",
-    "nsequence_lone_0x01",
-    "nsequence_rbf",
-    "nsequence_final",
-    "nsequence_max",
-    "nsequence_mixed_other",
-    "nlocktime_zero",
-    "nlocktime_anti_fee_snipe",
-    "nlocktime_backdated",
-    "nlocktime_future",
-    "nlocktime_timestamp",
-    "input_order_bip69",
-    "input_order_value_ascending",
-    "input_order_value_descending",
-    "input_order_age_ascending",
-    "input_order_other",
-    "input_order_indeterminate",
-    "output_order_bip69",
-    "output_order_value_ascending",
-    "output_order_value_descending",
-    "output_order_age_ascending",
-    "output_order_other",
-    "output_order_indeterminate",
-    "input_subtype_p2sh_p2wpkh",
-    "input_subtype_p2sh_multisig",
-    "input_subtype_p2sh_other",
-    "input_subtype_p2wsh_multisig",
-    "input_subtype_p2wsh_other",
-    "input_subtype_taproot_key_path",
-    "input_subtype_taproot_script_path",
-    "input_subtype_bare",
-    "input_subtype_mixed",
-    "input_subtype_indeterminate",
-    "sighash_taproot_default",
-    "sighash_taproot_explicit",
-    "sighash_all",
-    "sighash_none",
-    "sighash_single",
-    "sighash_acp_all",
-    "sighash_acp_none",
-    "sighash_acp_single",
-    "sighash_other",
-    "sighash_mixed",
-    "sighash_na",
-    "input_types_uniform_p2pkh",
-    "input_types_uniform_p2sh",
-    "input_types_uniform_p2wpkh",
-    "input_types_uniform_p2wsh",
-    "input_types_uniform_p2tr",
-    "input_types_uniform_op_return",
-    "input_types_uniform_nonstandard",
-    "input_types_uniform_p2pk",
-    "input_types_mixed",
-    "input_types_unknown",
-    // ordinal: larger index = larger bucket
-    "ecdsa_sigs_index",       // None=0, One=1, Few=2, Many=3
-    "input_age_index",        // SameBlock=0, Within6=1, Within144=2, Older=3, Indeterminate=4
-    "output_structure_index", // Single=0, Double=1, Multi=2, Unknown=3
-    "feerate_bucket_index",   // feerate_rank's sparse lower-bound rank
-    "locktime_offset_index",  // NotApplicable→0 with the flag below set
-    "locktime_offset_not_applicable",
-    // heuristic-derived: CSV only, never in the joint key
-    "change_position_first",
-    "change_position_last",
-    "change_position_middle",
-    "change_position_indeterminate",
-    "change_type_present",
-    "bip125_rbf",
-    "all_inputs_final",
-    "bip68_active",
-    "bip68_type_time",
-    "nsequence_reserved_bits_set",
-    "bip68_relative_value_max",
-    "nlocktime_dead",
-    "input_count",
-    "output_count",
-    "input_count_p2pkh",
-    "input_count_p2sh",
-    "input_count_p2wpkh",
-    "input_count_p2wsh",
-    "input_count_p2tr",
-    "input_count_op_return",
-    "input_count_nonstandard",
-    "input_count_p2pk",
-    "output_count_p2pkh",
-    "output_count_p2sh",
-    "output_count_p2wpkh",
-    "output_count_p2wsh",
-    "output_count_p2tr",
-    "output_count_op_return",
-    "output_count_nonstandard",
-    "output_count_p2pk",
-    "first_output_type_index",
-    "last_output_type_index",
-    "first_output_matches_input_type",
-    "last_output_matches_input_type",
-    "outputs_type_grouped",
-    "first_input_type_index",
-    "last_input_type_index",
-    "inputs_type_grouped",
-    "input_type_at_pos_0",
-    "input_type_at_pos_1",
-    "input_type_at_pos_2",
-    "input_type_at_pos_3",
-    "input_type_at_pos_4",
-    "input_type_at_pos_5",
-    "input_type_at_pos_6",
-    "input_type_at_pos_7",
-    "input_type_at_pos_8",
-    "input_type_at_pos_9",
-    "output_type_at_pos_0",
-    "output_type_at_pos_1",
-    "output_type_at_pos_2",
-    "output_type_at_pos_3",
-    "output_type_at_pos_4",
-    "output_type_at_pos_5",
-    "output_type_at_pos_6",
-    "output_type_at_pos_7",
-    "output_type_at_pos_8",
-    "output_type_at_pos_9",
-    "fee_sat",
-    "vsize",
-    "weight",
-    "feerate_sat_per_vb",
-    "feerate_sat_per_kwu",
-    "fee_is_multiple_of_vsize",
-    "feerate_over_block_min",
-    "feerate_over_prev_block_min",
-    "max_output_value_sat",
-    "hamming_decimal",
-    "hamming_base2",
-    "hamming_base3",
-    "decimal_sig_fig_span",
-    "hamming_decimal_min_over_outputs",
-    "taproot_max_merkle_depth",
-    "taproot_script_path_input_count",
-    "is_standard",
-    "nonstd_version",
-    "nonstd_weight",
-    "nonstd_output_type",
-    "nonstd_dust",
-    "nonstd_multi_op_return",
-    "nonstd_bare_multisig",
-    "has_inscription_envelope",
-    "has_runestone",
-    "fee_is_multiple_of_kwu",
-    "fee_is_multiple_of_weight",
-    "multisig_m",
-    "multisig_n",
-    "multisig_mixed",
-    "distinct_output_value_count",
-    "max_equal_value_output_count",
-    "nlocktime_optin_without_use",
-    "taproot_keyspend_non_default_sighash",
-    "sigop_count",
-    "change_detected_by_round_number",
-    "change_heuristics_agree",
-];
-
 /// How a feature column's raw `f64` values fold into a dashboard aggregate.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum ColumnKind {
@@ -652,408 +470,240 @@ const LABELS_TYPE_INDEX: &[&str] = &[
     "p2pk",
 ];
 
-/// `COLUMN_KINDS[i]` describes `COLUMN_NAMES[i + 2]`.
-pub const COLUMN_KINDS: &[ColumnKind] = &[
-    ColumnKind::Bool,                         // op_return
-    ColumnKind::Bool,                         // round_feerate
-    ColumnKind::Bool,                         // low_s_yes
-    ColumnKind::Bool,                         // round_fee
-    ColumnKind::Bool,                         // round_payment
-    ColumnKind::Bool,                         // uih1
-    ColumnKind::Bool,                         // uih2
-    ColumnKind::Bool,                         // address_reuse
-    ColumnKind::Bool,                         // same_block_parent
-    ColumnKind::Bool,                         // changeless
-    ColumnKind::Bool,                         // low_r_yes
-    ColumnKind::Bool,                         // low_r_indeterminate
-    ColumnKind::Bool,                         // uncompressed_pubkey_yes
-    ColumnKind::Bool,                         // uncompressed_pubkey_indeterminate
-    ColumnKind::OneHot { group: "version_" }, // version_1
-    ColumnKind::OneHot { group: "version_" }, // version_2
-    ColumnKind::OneHot { group: "version_" }, // version_3
-    ColumnKind::OneHot { group: "version_" }, // version_other
-    ColumnKind::OneHot {
-        group: "nsequence_",
-    }, // nsequence_cake_group_c
-    ColumnKind::OneHot {
-        group: "nsequence_",
-    }, // nsequence_lone_0x01
-    ColumnKind::OneHot {
-        group: "nsequence_",
-    }, // nsequence_rbf
-    ColumnKind::OneHot {
-        group: "nsequence_",
-    }, // nsequence_final
-    ColumnKind::OneHot {
-        group: "nsequence_",
-    }, // nsequence_max
-    ColumnKind::OneHot {
-        group: "nsequence_",
-    }, // nsequence_mixed_other
-    ColumnKind::OneHot {
-        group: "nlocktime_",
-    }, // nlocktime_zero
-    ColumnKind::OneHot {
-        group: "nlocktime_",
-    }, // nlocktime_anti_fee_snipe
-    ColumnKind::OneHot {
-        group: "nlocktime_",
-    }, // nlocktime_backdated
-    ColumnKind::OneHot {
-        group: "nlocktime_",
-    }, // nlocktime_future
-    ColumnKind::OneHot {
-        group: "nlocktime_",
-    }, // nlocktime_timestamp
-    ColumnKind::OneHot {
-        group: "input_order_",
-    }, // input_order_bip69
-    ColumnKind::OneHot {
-        group: "input_order_",
-    }, // input_order_value_ascending
-    ColumnKind::OneHot {
-        group: "input_order_",
-    }, // input_order_value_descending
-    ColumnKind::OneHot {
-        group: "input_order_",
-    }, // input_order_age_ascending
-    ColumnKind::OneHot {
-        group: "input_order_",
-    }, // input_order_other
-    ColumnKind::OneHot {
-        group: "input_order_",
-    }, // input_order_indeterminate
-    ColumnKind::OneHot {
-        group: "output_order_",
-    }, // output_order_bip69
-    ColumnKind::OneHot {
-        group: "output_order_",
-    }, // output_order_value_ascending
-    ColumnKind::OneHot {
-        group: "output_order_",
-    }, // output_order_value_descending
-    ColumnKind::OneHot {
-        group: "output_order_",
-    }, // output_order_age_ascending
-    ColumnKind::OneHot {
-        group: "output_order_",
-    }, // output_order_other
-    ColumnKind::OneHot {
-        group: "output_order_",
-    }, // output_order_indeterminate
-    ColumnKind::OneHot {
-        group: "input_subtype_",
-    }, // input_subtype_p2sh_p2wpkh
-    ColumnKind::OneHot {
-        group: "input_subtype_",
-    }, // input_subtype_p2sh_multisig
-    ColumnKind::OneHot {
-        group: "input_subtype_",
-    }, // input_subtype_p2sh_other
-    ColumnKind::OneHot {
-        group: "input_subtype_",
-    }, // input_subtype_p2wsh_multisig
-    ColumnKind::OneHot {
-        group: "input_subtype_",
-    }, // input_subtype_p2wsh_other
-    ColumnKind::OneHot {
-        group: "input_subtype_",
-    }, // input_subtype_taproot_key_path
-    ColumnKind::OneHot {
-        group: "input_subtype_",
-    }, // input_subtype_taproot_script_path
-    ColumnKind::OneHot {
-        group: "input_subtype_",
-    }, // input_subtype_bare
-    ColumnKind::OneHot {
-        group: "input_subtype_",
-    }, // input_subtype_mixed
-    ColumnKind::OneHot {
-        group: "input_subtype_",
-    }, // input_subtype_indeterminate
-    ColumnKind::OneHot { group: "sighash_" }, // sighash_taproot_default
-    ColumnKind::OneHot { group: "sighash_" }, // sighash_taproot_explicit
-    ColumnKind::OneHot { group: "sighash_" }, // sighash_all
-    ColumnKind::OneHot { group: "sighash_" }, // sighash_none
-    ColumnKind::OneHot { group: "sighash_" }, // sighash_single
-    ColumnKind::OneHot { group: "sighash_" }, // sighash_acp_all
-    ColumnKind::OneHot { group: "sighash_" }, // sighash_acp_none
-    ColumnKind::OneHot { group: "sighash_" }, // sighash_acp_single
-    ColumnKind::OneHot { group: "sighash_" }, // sighash_other
-    ColumnKind::OneHot { group: "sighash_" }, // sighash_mixed
-    ColumnKind::OneHot { group: "sighash_" }, // sighash_na
-    ColumnKind::OneHot {
-        group: "input_types_",
-    }, // input_types_uniform_p2pkh
-    ColumnKind::OneHot {
-        group: "input_types_",
-    }, // input_types_uniform_p2sh
-    ColumnKind::OneHot {
-        group: "input_types_",
-    }, // input_types_uniform_p2wpkh
-    ColumnKind::OneHot {
-        group: "input_types_",
-    }, // input_types_uniform_p2wsh
-    ColumnKind::OneHot {
-        group: "input_types_",
-    }, // input_types_uniform_p2tr
-    ColumnKind::OneHot {
-        group: "input_types_",
-    }, // input_types_uniform_op_return
-    ColumnKind::OneHot {
-        group: "input_types_",
-    }, // input_types_uniform_nonstandard
-    ColumnKind::OneHot {
-        group: "input_types_",
-    }, // input_types_uniform_p2pk
-    ColumnKind::OneHot {
-        group: "input_types_",
-    }, // input_types_mixed
-    ColumnKind::OneHot {
-        group: "input_types_",
-    }, // input_types_unknown
-    ColumnKind::Ordinal {
-        labels: LABELS_ECDSA_SIGS,
-    }, // ecdsa_sigs_index
-    ColumnKind::Ordinal {
-        labels: LABELS_INPUT_AGE,
-    }, // input_age_index
-    ColumnKind::Ordinal {
-        labels: LABELS_OUTPUT_STRUCTURE,
-    }, // output_structure_index
-    ColumnKind::Ordinal {
-        labels: LABELS_FEERATE_BUCKET,
-    }, // feerate_bucket_index
-    ColumnKind::Ordinal {
-        labels: LABELS_LOCKTIME_OFFSET,
-    }, // locktime_offset_index
-    ColumnKind::Bool,                         // locktime_offset_not_applicable
-    ColumnKind::OneHot {
-        group: "change_position_",
-    }, // change_position_first
-    ColumnKind::OneHot {
-        group: "change_position_",
-    }, // change_position_last
-    ColumnKind::OneHot {
-        group: "change_position_",
-    }, // change_position_middle
-    ColumnKind::OneHot {
-        group: "change_position_",
-    }, // change_position_indeterminate
-    ColumnKind::Bool,                         // change_type_present
-    ColumnKind::Bool,                         // bip125_rbf
-    ColumnKind::Bool,                         // all_inputs_final
-    ColumnKind::Bool,                         // bip68_active
-    ColumnKind::Bool,                         // bip68_type_time
-    ColumnKind::Bool,                         // nsequence_reserved_bits_set
-    ColumnKind::Numeric {
-        edges: EDGES_BIP68_RELATIVE_VALUE,
-    }, // bip68_relative_value_max
-    ColumnKind::Bool,                         // nlocktime_dead
-    ColumnKind::Numeric {
-        edges: EDGES_IO_COUNT,
-    }, // input_count
-    ColumnKind::Numeric {
-        edges: EDGES_IO_COUNT,
-    }, // output_count
-    ColumnKind::Numeric {
-        edges: EDGES_IO_TYPE_COUNT,
-    }, // input_count_p2pkh
-    ColumnKind::Numeric {
-        edges: EDGES_IO_TYPE_COUNT,
-    }, // input_count_p2sh
-    ColumnKind::Numeric {
-        edges: EDGES_IO_TYPE_COUNT,
-    }, // input_count_p2wpkh
-    ColumnKind::Numeric {
-        edges: EDGES_IO_TYPE_COUNT,
-    }, // input_count_p2wsh
-    ColumnKind::Numeric {
-        edges: EDGES_IO_TYPE_COUNT,
-    }, // input_count_p2tr
-    ColumnKind::Numeric {
-        edges: EDGES_IO_TYPE_COUNT,
-    }, // input_count_op_return
-    ColumnKind::Numeric {
-        edges: EDGES_IO_TYPE_COUNT,
-    }, // input_count_nonstandard
-    ColumnKind::Numeric {
-        edges: EDGES_IO_TYPE_COUNT,
-    }, // input_count_p2pk
-    ColumnKind::Numeric {
-        edges: EDGES_IO_TYPE_COUNT,
-    }, // output_count_p2pkh
-    ColumnKind::Numeric {
-        edges: EDGES_IO_TYPE_COUNT,
-    }, // output_count_p2sh
-    ColumnKind::Numeric {
-        edges: EDGES_IO_TYPE_COUNT,
-    }, // output_count_p2wpkh
-    ColumnKind::Numeric {
-        edges: EDGES_IO_TYPE_COUNT,
-    }, // output_count_p2wsh
-    ColumnKind::Numeric {
-        edges: EDGES_IO_TYPE_COUNT,
-    }, // output_count_p2tr
-    ColumnKind::Numeric {
-        edges: EDGES_IO_TYPE_COUNT,
-    }, // output_count_op_return
-    ColumnKind::Numeric {
-        edges: EDGES_IO_TYPE_COUNT,
-    }, // output_count_nonstandard
-    ColumnKind::Numeric {
-        edges: EDGES_IO_TYPE_COUNT,
-    }, // output_count_p2pk
-    ColumnKind::Ordinal {
-        labels: LABELS_TYPE_INDEX,
-    }, // first_output_type_index
-    ColumnKind::Ordinal {
-        labels: LABELS_TYPE_INDEX,
-    }, // last_output_type_index
-    ColumnKind::Bool,                         // first_output_matches_input_type
-    ColumnKind::Bool,                         // last_output_matches_input_type
-    ColumnKind::Bool,                         // outputs_type_grouped
-    ColumnKind::Ordinal {
-        labels: LABELS_TYPE_INDEX,
-    }, // first_input_type_index
-    ColumnKind::Ordinal {
-        labels: LABELS_TYPE_INDEX,
-    }, // last_input_type_index
-    ColumnKind::Bool,                         // inputs_type_grouped
-    ColumnKind::Ordinal {
-        labels: LABELS_TYPE_INDEX,
-    }, // input_type_at_pos_0
-    ColumnKind::Ordinal {
-        labels: LABELS_TYPE_INDEX,
-    }, // input_type_at_pos_1
-    ColumnKind::Ordinal {
-        labels: LABELS_TYPE_INDEX,
-    }, // input_type_at_pos_2
-    ColumnKind::Ordinal {
-        labels: LABELS_TYPE_INDEX,
-    }, // input_type_at_pos_3
-    ColumnKind::Ordinal {
-        labels: LABELS_TYPE_INDEX,
-    }, // input_type_at_pos_4
-    ColumnKind::Ordinal {
-        labels: LABELS_TYPE_INDEX,
-    }, // input_type_at_pos_5
-    ColumnKind::Ordinal {
-        labels: LABELS_TYPE_INDEX,
-    }, // input_type_at_pos_6
-    ColumnKind::Ordinal {
-        labels: LABELS_TYPE_INDEX,
-    }, // input_type_at_pos_7
-    ColumnKind::Ordinal {
-        labels: LABELS_TYPE_INDEX,
-    }, // input_type_at_pos_8
-    ColumnKind::Ordinal {
-        labels: LABELS_TYPE_INDEX,
-    }, // input_type_at_pos_9
-    ColumnKind::Ordinal {
-        labels: LABELS_TYPE_INDEX,
-    }, // output_type_at_pos_0
-    ColumnKind::Ordinal {
-        labels: LABELS_TYPE_INDEX,
-    }, // output_type_at_pos_1
-    ColumnKind::Ordinal {
-        labels: LABELS_TYPE_INDEX,
-    }, // output_type_at_pos_2
-    ColumnKind::Ordinal {
-        labels: LABELS_TYPE_INDEX,
-    }, // output_type_at_pos_3
-    ColumnKind::Ordinal {
-        labels: LABELS_TYPE_INDEX,
-    }, // output_type_at_pos_4
-    ColumnKind::Ordinal {
-        labels: LABELS_TYPE_INDEX,
-    }, // output_type_at_pos_5
-    ColumnKind::Ordinal {
-        labels: LABELS_TYPE_INDEX,
-    }, // output_type_at_pos_6
-    ColumnKind::Ordinal {
-        labels: LABELS_TYPE_INDEX,
-    }, // output_type_at_pos_7
-    ColumnKind::Ordinal {
-        labels: LABELS_TYPE_INDEX,
-    }, // output_type_at_pos_8
-    ColumnKind::Ordinal {
-        labels: LABELS_TYPE_INDEX,
-    }, // output_type_at_pos_9
-    ColumnKind::Numeric {
-        edges: EDGES_FEE_SAT,
-    }, // fee_sat
-    ColumnKind::Numeric { edges: EDGES_VSIZE }, // vsize
-    ColumnKind::Numeric {
-        edges: EDGES_WEIGHT,
-    }, // weight
-    ColumnKind::Numeric {
-        edges: EDGES_FEERATE,
-    }, // feerate_sat_per_vb
-    ColumnKind::Numeric {
-        edges: EDGES_FEERATE,
-    }, // feerate_sat_per_kwu
-    ColumnKind::Bool,                         // fee_is_multiple_of_vsize
-    ColumnKind::Numeric {
-        edges: EDGES_FEERATE_RATIO,
-    }, // feerate_over_block_min
-    ColumnKind::Numeric {
-        edges: EDGES_FEERATE_RATIO,
-    }, // feerate_over_prev_block_min
-    ColumnKind::Numeric {
-        edges: EDGES_AMOUNT,
-    }, // max_output_value_sat
-    ColumnKind::Numeric {
-        edges: EDGES_HAMMING,
-    }, // hamming_decimal
-    ColumnKind::Numeric {
-        edges: EDGES_HAMMING,
-    }, // hamming_base2
-    ColumnKind::Numeric {
-        edges: EDGES_HAMMING,
-    }, // hamming_base3
-    ColumnKind::Numeric {
-        edges: EDGES_HAMMING,
-    }, // decimal_sig_fig_span
-    ColumnKind::Numeric {
-        edges: EDGES_AMOUNT,
-    }, // hamming_decimal_min_over_outputs
-    ColumnKind::Numeric {
-        edges: EDGES_TAPROOT_DEPTH,
-    }, // taproot_max_merkle_depth
-    ColumnKind::Numeric {
-        edges: EDGES_TAPROOT_DEPTH,
-    }, // taproot_script_path_input_count
-    ColumnKind::Bool,                         // is_standard
-    ColumnKind::Bool,                         // nonstd_version
-    ColumnKind::Bool,                         // nonstd_weight
-    ColumnKind::Bool,                         // nonstd_output_type
-    ColumnKind::Bool,                         // nonstd_dust
-    ColumnKind::Bool,                         // nonstd_multi_op_return
-    ColumnKind::Bool,                         // nonstd_bare_multisig
-    ColumnKind::Bool,                         // has_inscription_envelope
-    ColumnKind::Bool,                         // has_runestone
-    ColumnKind::Bool,                         // fee_is_multiple_of_kwu
-    ColumnKind::Bool,                         // fee_is_multiple_of_weight
-    ColumnKind::Numeric {
-        edges: EDGES_MULTISIG,
-    }, // multisig_m
-    ColumnKind::Numeric {
-        edges: EDGES_MULTISIG,
-    }, // multisig_n
-    ColumnKind::Bool,                         // multisig_mixed
-    ColumnKind::Numeric {
-        edges: EDGES_OUTPUT_VALUE_COUNT,
-    }, // distinct_output_value_count
-    ColumnKind::Numeric {
-        edges: EDGES_OUTPUT_VALUE_COUNT,
-    }, // max_equal_value_output_count
-    ColumnKind::Bool,                         // nlocktime_optin_without_use
-    ColumnKind::Bool,                         // taproot_keyspend_non_default_sighash
-    ColumnKind::Numeric { edges: EDGES_SIGOP }, // sigop_count
-    ColumnKind::Bool,                         // change_detected_by_round_number
-    ColumnKind::Bool,                         // change_heuristics_agree
-];
+/// Declares every feature column once, generating the index-aligned `COLUMN_NAMES`
+/// (after the two identity columns), `COLUMN_KINDS` and `COLUMN_SECTIONS`.
+macro_rules! columns {
+    ($($section:literal: [$($name:literal => $kind:expr),* $(,)?]),* $(,)?) => {
+        pub const COLUMN_NAMES: &[&str] = &["txid", "block_height", $($($name),*),*];
+        pub const COLUMN_KINDS: &[ColumnKind] = &[$($({
+            use ColumnKind::*;
+            $kind
+        }),*),*];
+        pub(crate) const COLUMN_SECTIONS: &[&str] = &[$($(second!($name, $section)),*),*];
+    };
+}
+
+// Repeats `$section` once per `$name`: macro_rules can't repeat it at that depth alone.
+macro_rules! second {
+    ($_first:expr, $second:expr) => {
+        $second
+    };
+}
+
+// Append-only: new columns go at the end, under their catalog section.
+columns! {
+    "01": [
+        "op_return" => Bool,
+        "round_feerate" => Bool,
+        "low_s_yes" => Bool,
+        "round_fee" => Bool,
+        "round_payment" => Bool,
+        "uih1" => Bool,
+        "uih2" => Bool,
+        "address_reuse" => Bool,
+        "same_block_parent" => Bool,
+        "changeless" => Bool,
+        "low_r_yes" => Bool,
+        "low_r_indeterminate" => Bool,
+        "uncompressed_pubkey_yes" => Bool,
+        "uncompressed_pubkey_indeterminate" => Bool,
+    ],
+    "02": [
+        "version_1" => OneHot { group: "version_" },
+        "version_2" => OneHot { group: "version_" },
+        "version_3" => OneHot { group: "version_" },
+        "version_other" => OneHot { group: "version_" },
+        "nsequence_cake_group_c" => OneHot { group: "nsequence_" },
+        "nsequence_lone_0x01" => OneHot { group: "nsequence_" },
+        "nsequence_rbf" => OneHot { group: "nsequence_" },
+        "nsequence_final" => OneHot { group: "nsequence_" },
+        "nsequence_max" => OneHot { group: "nsequence_" },
+        "nsequence_mixed_other" => OneHot { group: "nsequence_" },
+        "nlocktime_zero" => OneHot { group: "nlocktime_" },
+        "nlocktime_anti_fee_snipe" => OneHot { group: "nlocktime_" },
+        "nlocktime_backdated" => OneHot { group: "nlocktime_" },
+        "nlocktime_future" => OneHot { group: "nlocktime_" },
+        "nlocktime_timestamp" => OneHot { group: "nlocktime_" },
+        "input_order_bip69" => OneHot { group: "input_order_" },
+        "input_order_value_ascending" => OneHot { group: "input_order_" },
+        "input_order_value_descending" => OneHot { group: "input_order_" },
+        "input_order_age_ascending" => OneHot { group: "input_order_" },
+        "input_order_other" => OneHot { group: "input_order_" },
+        "input_order_indeterminate" => OneHot { group: "input_order_" },
+        "output_order_bip69" => OneHot { group: "output_order_" },
+        "output_order_value_ascending" => OneHot { group: "output_order_" },
+        "output_order_value_descending" => OneHot { group: "output_order_" },
+        "output_order_age_ascending" => OneHot { group: "output_order_" },
+        "output_order_other" => OneHot { group: "output_order_" },
+        "output_order_indeterminate" => OneHot { group: "output_order_" },
+        "input_subtype_p2sh_p2wpkh" => OneHot { group: "input_subtype_" },
+        "input_subtype_p2sh_multisig" => OneHot { group: "input_subtype_" },
+        "input_subtype_p2sh_other" => OneHot { group: "input_subtype_" },
+        "input_subtype_p2wsh_multisig" => OneHot { group: "input_subtype_" },
+        "input_subtype_p2wsh_other" => OneHot { group: "input_subtype_" },
+        "input_subtype_taproot_key_path" => OneHot { group: "input_subtype_" },
+        "input_subtype_taproot_script_path" => OneHot { group: "input_subtype_" },
+        "input_subtype_bare" => OneHot { group: "input_subtype_" },
+        "input_subtype_mixed" => OneHot { group: "input_subtype_" },
+        "input_subtype_indeterminate" => OneHot { group: "input_subtype_" },
+        "sighash_taproot_default" => OneHot { group: "sighash_" },
+        "sighash_taproot_explicit" => OneHot { group: "sighash_" },
+        "sighash_all" => OneHot { group: "sighash_" },
+        "sighash_none" => OneHot { group: "sighash_" },
+        "sighash_single" => OneHot { group: "sighash_" },
+        "sighash_acp_all" => OneHot { group: "sighash_" },
+        "sighash_acp_none" => OneHot { group: "sighash_" },
+        "sighash_acp_single" => OneHot { group: "sighash_" },
+        "sighash_other" => OneHot { group: "sighash_" },
+        "sighash_mixed" => OneHot { group: "sighash_" },
+        "sighash_na" => OneHot { group: "sighash_" },
+        "input_types_uniform_p2pkh" => OneHot { group: "input_types_" },
+        "input_types_uniform_p2sh" => OneHot { group: "input_types_" },
+        "input_types_uniform_p2wpkh" => OneHot { group: "input_types_" },
+        "input_types_uniform_p2wsh" => OneHot { group: "input_types_" },
+        "input_types_uniform_p2tr" => OneHot { group: "input_types_" },
+        "input_types_uniform_op_return" => OneHot { group: "input_types_" },
+        "input_types_uniform_nonstandard" => OneHot { group: "input_types_" },
+        "input_types_uniform_p2pk" => OneHot { group: "input_types_" },
+        "input_types_mixed" => OneHot { group: "input_types_" },
+        "input_types_unknown" => OneHot { group: "input_types_" },
+    ],
+    "03": [
+        // ordinal: larger index = larger bucket
+        "ecdsa_sigs_index" => Ordinal { labels: LABELS_ECDSA_SIGS },
+        "input_age_index" => Ordinal { labels: LABELS_INPUT_AGE },
+        "output_structure_index" => Ordinal { labels: LABELS_OUTPUT_STRUCTURE },
+        "feerate_bucket_index" => Ordinal { labels: LABELS_FEERATE_BUCKET },
+        "locktime_offset_index" => Ordinal { labels: LABELS_LOCKTIME_OFFSET },
+        "locktime_offset_not_applicable" => Bool,
+    ],
+    "04": [
+        // heuristic-derived: CSV only, never in the joint key
+        "change_position_first" => OneHot { group: "change_position_" },
+        "change_position_last" => OneHot { group: "change_position_" },
+        "change_position_middle" => OneHot { group: "change_position_" },
+        "change_position_indeterminate" => OneHot { group: "change_position_" },
+        "change_type_present" => Bool,
+    ],
+    "05": [
+        "bip125_rbf" => Bool,
+        "all_inputs_final" => Bool,
+        "bip68_active" => Bool,
+        "bip68_type_time" => Bool,
+        "nsequence_reserved_bits_set" => Bool,
+        "bip68_relative_value_max" => Numeric { edges: EDGES_BIP68_RELATIVE_VALUE },
+        "nlocktime_dead" => Bool,
+    ],
+    "06": [
+        "input_count" => Numeric { edges: EDGES_IO_COUNT },
+        "output_count" => Numeric { edges: EDGES_IO_COUNT },
+        "input_count_p2pkh" => Numeric { edges: EDGES_IO_TYPE_COUNT },
+        "input_count_p2sh" => Numeric { edges: EDGES_IO_TYPE_COUNT },
+        "input_count_p2wpkh" => Numeric { edges: EDGES_IO_TYPE_COUNT },
+        "input_count_p2wsh" => Numeric { edges: EDGES_IO_TYPE_COUNT },
+        "input_count_p2tr" => Numeric { edges: EDGES_IO_TYPE_COUNT },
+        "input_count_op_return" => Numeric { edges: EDGES_IO_TYPE_COUNT },
+        "input_count_nonstandard" => Numeric { edges: EDGES_IO_TYPE_COUNT },
+        "input_count_p2pk" => Numeric { edges: EDGES_IO_TYPE_COUNT },
+        "output_count_p2pkh" => Numeric { edges: EDGES_IO_TYPE_COUNT },
+        "output_count_p2sh" => Numeric { edges: EDGES_IO_TYPE_COUNT },
+        "output_count_p2wpkh" => Numeric { edges: EDGES_IO_TYPE_COUNT },
+        "output_count_p2wsh" => Numeric { edges: EDGES_IO_TYPE_COUNT },
+        "output_count_p2tr" => Numeric { edges: EDGES_IO_TYPE_COUNT },
+        "output_count_op_return" => Numeric { edges: EDGES_IO_TYPE_COUNT },
+        "output_count_nonstandard" => Numeric { edges: EDGES_IO_TYPE_COUNT },
+        "output_count_p2pk" => Numeric { edges: EDGES_IO_TYPE_COUNT },
+        "first_output_type_index" => Ordinal { labels: LABELS_TYPE_INDEX },
+        "last_output_type_index" => Ordinal { labels: LABELS_TYPE_INDEX },
+        "first_output_matches_input_type" => Bool,
+        "last_output_matches_input_type" => Bool,
+        "outputs_type_grouped" => Bool,
+        "first_input_type_index" => Ordinal { labels: LABELS_TYPE_INDEX },
+        "last_input_type_index" => Ordinal { labels: LABELS_TYPE_INDEX },
+        "inputs_type_grouped" => Bool,
+        "input_type_at_pos_0" => Ordinal { labels: LABELS_TYPE_INDEX },
+        "input_type_at_pos_1" => Ordinal { labels: LABELS_TYPE_INDEX },
+        "input_type_at_pos_2" => Ordinal { labels: LABELS_TYPE_INDEX },
+        "input_type_at_pos_3" => Ordinal { labels: LABELS_TYPE_INDEX },
+        "input_type_at_pos_4" => Ordinal { labels: LABELS_TYPE_INDEX },
+        "input_type_at_pos_5" => Ordinal { labels: LABELS_TYPE_INDEX },
+        "input_type_at_pos_6" => Ordinal { labels: LABELS_TYPE_INDEX },
+        "input_type_at_pos_7" => Ordinal { labels: LABELS_TYPE_INDEX },
+        "input_type_at_pos_8" => Ordinal { labels: LABELS_TYPE_INDEX },
+        "input_type_at_pos_9" => Ordinal { labels: LABELS_TYPE_INDEX },
+        "output_type_at_pos_0" => Ordinal { labels: LABELS_TYPE_INDEX },
+        "output_type_at_pos_1" => Ordinal { labels: LABELS_TYPE_INDEX },
+        "output_type_at_pos_2" => Ordinal { labels: LABELS_TYPE_INDEX },
+        "output_type_at_pos_3" => Ordinal { labels: LABELS_TYPE_INDEX },
+        "output_type_at_pos_4" => Ordinal { labels: LABELS_TYPE_INDEX },
+        "output_type_at_pos_5" => Ordinal { labels: LABELS_TYPE_INDEX },
+        "output_type_at_pos_6" => Ordinal { labels: LABELS_TYPE_INDEX },
+        "output_type_at_pos_7" => Ordinal { labels: LABELS_TYPE_INDEX },
+        "output_type_at_pos_8" => Ordinal { labels: LABELS_TYPE_INDEX },
+        "output_type_at_pos_9" => Ordinal { labels: LABELS_TYPE_INDEX },
+    ],
+    "07": [
+        "fee_sat" => Numeric { edges: EDGES_FEE_SAT },
+        "vsize" => Numeric { edges: EDGES_VSIZE },
+        "weight" => Numeric { edges: EDGES_WEIGHT },
+        "feerate_sat_per_vb" => Numeric { edges: EDGES_FEERATE },
+        "feerate_sat_per_kwu" => Numeric { edges: EDGES_FEERATE },
+        "fee_is_multiple_of_vsize" => Bool,
+        "feerate_over_block_min" => Numeric { edges: EDGES_FEERATE_RATIO },
+        "feerate_over_prev_block_min" => Numeric { edges: EDGES_FEERATE_RATIO },
+    ],
+    "08": [
+        "max_output_value_sat" => Numeric { edges: EDGES_AMOUNT },
+        "hamming_decimal" => Numeric { edges: EDGES_HAMMING },
+        "hamming_base2" => Numeric { edges: EDGES_HAMMING },
+        "hamming_base3" => Numeric { edges: EDGES_HAMMING },
+        "decimal_sig_fig_span" => Numeric { edges: EDGES_HAMMING },
+        "hamming_decimal_min_over_outputs" => Numeric { edges: EDGES_AMOUNT },
+    ],
+    "09": [
+        "taproot_max_merkle_depth" => Numeric { edges: EDGES_TAPROOT_DEPTH },
+        "taproot_script_path_input_count" => Numeric { edges: EDGES_TAPROOT_DEPTH },
+    ],
+    "10": [
+        "is_standard" => Bool,
+        "nonstd_version" => Bool,
+        "nonstd_weight" => Bool,
+        "nonstd_output_type" => Bool,
+        "nonstd_dust" => Bool,
+        "nonstd_multi_op_return" => Bool,
+        "nonstd_bare_multisig" => Bool,
+    ],
+    "11": [
+        "has_inscription_envelope" => Bool,
+        "has_runestone" => Bool,
+    ],
+    "07": [
+        "fee_is_multiple_of_kwu" => Bool,
+        "fee_is_multiple_of_weight" => Bool,
+    ],
+    "06": [
+        "multisig_m" => Numeric { edges: EDGES_MULTISIG },
+        "multisig_n" => Numeric { edges: EDGES_MULTISIG },
+        "multisig_mixed" => Bool,
+    ],
+    "08": [
+        "distinct_output_value_count" => Numeric { edges: EDGES_OUTPUT_VALUE_COUNT },
+        "max_equal_value_output_count" => Numeric { edges: EDGES_OUTPUT_VALUE_COUNT },
+    ],
+    "05": [
+        "nlocktime_optin_without_use" => Bool,
+    ],
+    "09": [
+        "taproot_keyspend_non_default_sighash" => Bool,
+    ],
+    "06": [
+        "sigop_count" => Numeric { edges: EDGES_SIGOP },
+    ],
+    "04": [
+        "change_detected_by_round_number" => Bool,
+        "change_heuristics_agree" => Bool,
+    ],
+}
 
 /// Mergeable across shards and epochs, so `Numeric` keeps sums rather than means.
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -1084,7 +734,7 @@ pub fn new_field_agg(kind: &ColumnKind) -> FieldAgg {
 }
 
 /// Categorical keys are the raw integer, not `labels[value]`: `-1` (absent) and sparse
-/// feerate ranks are mapped to labels only at display time.
+/// feerate ranks don't index `labels`, so the explorer labels them.
 pub fn fold_field(agg: &mut FieldAgg, kind: &ColumnKind, value: f64) {
     match (agg, kind) {
         (FieldAgg::Categorical(m), ColumnKind::Bool | ColumnKind::OneHot { .. }) => {
@@ -1159,20 +809,232 @@ fn bucket_index(edges: &[f64], v: f64) -> usize {
     edges.partition_point(|&e| e <= v)
 }
 
-fn push_bool(out: &mut Vec<f64>, b: bool) {
-    out.push(if b { 1.0 } else { 0.0 });
-}
-
-/// `<axis>_yes` then `<axis>_indeterminate`; both zero means No.
-fn push_tri(out: &mut Vec<f64>, t: Tri) {
-    push_bool(out, t == Tri::Yes);
-    push_bool(out, t == Tri::Indeterminate);
-}
-
-fn push_onehot(out: &mut Vec<f64>, active: usize, count: usize) {
-    for i in 0..count {
-        out.push(if i == active { 1.0 } else { 0.0 });
+const fn name_is(name: &str, prefix: &str, suffix: &str) -> bool {
+    let (n, p, s) = (name.as_bytes(), prefix.as_bytes(), suffix.as_bytes());
+    if n.len() != p.len() + s.len() {
+        return false;
     }
+    let mut i = 0;
+    while i < n.len() {
+        let c = if i < p.len() { p[i] } else { s[i - p.len()] };
+        if n[i] != c {
+            return false;
+        }
+        i += 1;
+    }
+    true
+}
+
+/// Position in a row's values of the column named `prefix` + `suffix`. Called in `const`
+/// blocks, so a misspelled name is a compile error.
+const fn column_index(prefix: &str, suffix: &str) -> usize {
+    let mut i = 2;
+    while i < COLUMN_NAMES.len() {
+        if name_is(COLUMN_NAMES[i], prefix, suffix) {
+            return i - 2;
+        }
+        i += 1;
+    }
+    panic!("no feature column with this name");
+}
+
+const fn is_bool(i: usize) -> bool {
+    matches!(COLUMN_KINDS[i], ColumnKind::Bool)
+}
+
+const fn is_scalar(i: usize) -> bool {
+    matches!(
+        COLUMN_KINDS[i],
+        ColumnKind::Ordinal { .. } | ColumnKind::Numeric { .. }
+    )
+}
+
+const fn in_group(i: usize, group: &str) -> bool {
+    match COLUMN_KINDS[i] {
+        ColumnKind::OneHot { group: g } => name_is(g, group, ""),
+        _ => false,
+    }
+}
+
+const fn group_range(group: &str) -> (usize, usize) {
+    let mut start = 0;
+    while start < COLUMN_KINDS.len() && !in_group(start, group) {
+        start += 1;
+    }
+    assert!(
+        start < COLUMN_KINDS.len(),
+        "no one-hot group with this name"
+    );
+    let mut end = start;
+    while end < COLUMN_KINDS.len() && in_group(end, group) {
+        end += 1;
+    }
+    (start, end)
+}
+
+const fn type_name(t: OutputType) -> &'static str {
+    match t {
+        OutputType::P2pkh => "p2pkh",
+        OutputType::P2sh => "p2sh",
+        OutputType::P2wpkh => "p2wpkh",
+        OutputType::P2wsh => "p2wsh",
+        OutputType::P2tr => "p2tr",
+        OutputType::OpReturn => "op_return",
+        OutputType::NonStandard => "nonstandard",
+        OutputType::P2pk => "p2pk",
+    }
+}
+
+/// A Bool column; only `RowWriter::flag` accepts it.
+#[derive(Clone, Copy)]
+struct FlagCol(usize);
+
+/// An Ordinal or Numeric column; only `RowWriter::num` accepts it.
+#[derive(Clone, Copy)]
+struct ScalarCol(usize);
+
+/// `prefix<type>` columns, indexed by `OutputType as usize`.
+const fn by_type(prefix: &str) -> [ScalarCol; 8] {
+    let mut cols = [ScalarCol(0); 8];
+    let mut k = 0;
+    while k < 8 {
+        let t = OUTPUT_TYPES_IN_ORDER[k];
+        let i = column_index(prefix, type_name(t));
+        assert!(is_scalar(i), "per-type columns must be Ordinal or Numeric");
+        cols[t as usize] = ScalarCol(i);
+        k += 1;
+    }
+    cols
+}
+
+/// `prefix<position>` columns for positions 0 to 9.
+const fn by_position(prefix: &str) -> [ScalarCol; 10] {
+    const DIGITS: [&str; 10] = ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"];
+    let mut cols = [ScalarCol(0); 10];
+    let mut k = 0;
+    while k < 10 {
+        let i = column_index(prefix, DIGITS[k]);
+        assert!(
+            is_scalar(i),
+            "positional columns must be Ordinal or Numeric"
+        );
+        cols[k] = ScalarCol(i);
+        k += 1;
+    }
+    cols
+}
+
+macro_rules! flag_col {
+    ($name:literal) => {
+        const {
+            let i = column_index($name, "");
+            assert!(is_bool(i), concat!($name, " is not a Bool column"));
+            FlagCol(i)
+        }
+    };
+}
+
+macro_rules! num_col {
+    ($name:literal) => {
+        const {
+            let i = column_index($name, "");
+            assert!(
+                is_scalar(i),
+                concat!($name, " is not an Ordinal or Numeric column")
+            );
+            ScalarCol(i)
+        }
+    };
+}
+
+macro_rules! member {
+    ($group:literal, $suffix:literal) => {
+        const {
+            let i = column_index($group, $suffix);
+            assert!(
+                in_group(i, $group),
+                concat!($group, $suffix, " is not in ", $group)
+            );
+            i
+        }
+    };
+}
+
+/// Sets the one column of `$group` whose suffix the matching arm names; the group is
+/// written once, so no arm can reach into another group.
+macro_rules! onehot {
+    ($row:ident, $group:literal, $value:expr, { $($pat:pat => $suffix:literal),* $(,)? }) => {
+        $row.onehot(
+            const { group_range($group) },
+            match $value {
+                $($pat => member!($group, $suffix)),*
+            },
+        )
+    };
+}
+
+/// Each value lands at the position its column name resolves to at compile time, so
+/// write order is irrelevant; debug builds also check every column is written once.
+struct RowWriter {
+    values: Vec<f64>,
+    #[cfg(debug_assertions)]
+    written: Vec<bool>,
+}
+
+impl RowWriter {
+    fn new() -> Self {
+        Self {
+            values: vec![0.0; COLUMN_KINDS.len()],
+            #[cfg(debug_assertions)]
+            written: vec![false; COLUMN_KINDS.len()],
+        }
+    }
+
+    fn mark(&mut self, _i: usize) {
+        #[cfg(debug_assertions)]
+        {
+            assert!(
+                !self.written[_i],
+                "column {} written twice",
+                COLUMN_NAMES[_i + 2]
+            );
+            self.written[_i] = true;
+        }
+    }
+
+    fn set(&mut self, i: usize, v: f64) {
+        self.mark(i);
+        self.values[i] = v;
+    }
+
+    fn num(&mut self, ScalarCol(i): ScalarCol, v: f64) {
+        self.set(i, v);
+    }
+
+    fn flag(&mut self, FlagCol(i): FlagCol, b: bool) {
+        self.set(i, if b { 1.0 } else { 0.0 });
+    }
+
+    fn onehot(&mut self, (start, end): (usize, usize), active: usize) {
+        debug_assert!((start..end).contains(&active));
+        for i in start..end {
+            self.mark(i);
+        }
+        self.values[active] = 1.0;
+    }
+
+    fn finish(self) -> Vec<f64> {
+        #[cfg(debug_assertions)]
+        if let Some(i) = self.written.iter().position(|w| !w) {
+            panic!("column {} never written", COLUMN_NAMES[i + 2]);
+        }
+        self.values
+    }
+}
+
+/// `-1` means no type at that position.
+fn type_index(t: Option<OutputType>) -> f64 {
+    t.map_or(-1.0, |t| t as usize as f64)
 }
 
 pub fn feature_row(
@@ -1181,137 +1043,139 @@ pub fn feature_row(
     txid: String,
     height: u32,
 ) -> FeatureRow {
-    let mut values = Vec::with_capacity(COLUMN_NAMES.len() - 2);
+    let mut row = RowWriter::new();
 
-    push_bool(&mut values, v.op_return);
-    push_bool(&mut values, v.round_feerate);
-    push_bool(&mut values, v.low_s == Tri::Yes);
-    push_bool(&mut values, shape.aux.round_fee);
-    push_bool(&mut values, shape.aux.round_payment);
-    push_bool(&mut values, shape.aux.uih1);
-    push_bool(&mut values, shape.aux.uih2);
-    push_bool(&mut values, shape.aux.address_reuse);
-    push_bool(&mut values, shape.aux.same_block_parent);
-    push_bool(&mut values, shape.aux.changeless);
-    push_tri(&mut values, v.low_r);
-    push_tri(&mut values, v.uncompressed_pubkey);
-
-    let version_active = match v.version {
-        1 => 0,
-        2 => 1,
-        3 => 2,
-        _ => 3,
-    };
-    push_onehot(&mut values, version_active, 4);
-
-    push_onehot(
-        &mut values,
-        match v.nsequence {
-            NSequenceType::CakeGroupC => 0,
-            NSequenceType::Lone0x01 => 1,
-            NSequenceType::Rbf => 2,
-            NSequenceType::Final => 3,
-            NSequenceType::Max => 4,
-            NSequenceType::MixedOther => 5,
-        },
-        6,
+    row.flag(flag_col!("op_return"), v.op_return);
+    row.flag(flag_col!("round_feerate"), v.round_feerate);
+    row.flag(flag_col!("low_s_yes"), v.low_s == Tri::Yes);
+    row.flag(flag_col!("round_fee"), shape.aux.round_fee);
+    row.flag(flag_col!("round_payment"), shape.aux.round_payment);
+    row.flag(flag_col!("uih1"), shape.aux.uih1);
+    row.flag(flag_col!("uih2"), shape.aux.uih2);
+    row.flag(flag_col!("address_reuse"), shape.aux.address_reuse);
+    row.flag(flag_col!("same_block_parent"), shape.aux.same_block_parent);
+    row.flag(flag_col!("changeless"), shape.aux.changeless);
+    // Tri as two flags; both zero means No.
+    row.flag(flag_col!("low_r_yes"), v.low_r == Tri::Yes);
+    row.flag(
+        flag_col!("low_r_indeterminate"),
+        v.low_r == Tri::Indeterminate,
+    );
+    let uncompressed = v.uncompressed_pubkey;
+    row.flag(
+        flag_col!("uncompressed_pubkey_yes"),
+        uncompressed == Tri::Yes,
+    );
+    row.flag(
+        flag_col!("uncompressed_pubkey_indeterminate"),
+        uncompressed == Tri::Indeterminate,
     );
 
-    push_onehot(
-        &mut values,
-        match v.nlocktime {
-            NLockTimeType::Zero => 0,
-            NLockTimeType::AntiFeeSnipe => 1,
-            NLockTimeType::Backdated => 2,
-            NLockTimeType::Future => 3,
-            NLockTimeType::Timestamp => 4,
-        },
-        5,
-    );
-
-    let order_index = |o: OrderClass| match o {
-        OrderClass::Bip69 => 0,
-        OrderClass::ValueAscending => 1,
-        OrderClass::ValueDescending => 2,
-        OrderClass::AgeAscending => 3,
-        OrderClass::Other => 4,
-        OrderClass::Indeterminate => 5,
-    };
-    push_onehot(&mut values, order_index(v.input_order), 6);
-    push_onehot(&mut values, order_index(v.output_order), 6);
-
-    push_onehot(
-        &mut values,
-        match v.input_subtype {
-            InputSubtype::P2shP2wpkh => 0,
-            InputSubtype::P2shMultisig => 1,
-            InputSubtype::P2shOther => 2,
-            InputSubtype::P2wshMultisig => 3,
-            InputSubtype::P2wshOther => 4,
-            InputSubtype::TaprootKeyPath => 5,
-            InputSubtype::TaprootScriptPath => 6,
-            InputSubtype::Bare => 7,
-            InputSubtype::Mixed => 8,
-            InputSubtype::Indeterminate => 9,
-        },
-        10,
-    );
-
-    push_onehot(
-        &mut values,
-        match v.sighash {
-            SighashType::TaprootDefault => 0,
-            SighashType::TaprootExplicit => 1,
-            SighashType::All => 2,
-            SighashType::None => 3,
-            SighashType::Single => 4,
-            SighashType::AcpAll => 5,
-            SighashType::AcpNone => 6,
-            SighashType::AcpSingle => 7,
-            SighashType::Other => 8,
-            SighashType::Mixed => 9,
-            SighashType::Na => 10,
-        },
-        11,
-    );
-
-    let ot_index = |t: OutputType| match t {
-        OutputType::P2pkh => 0,
-        OutputType::P2sh => 1,
-        OutputType::P2wpkh => 2,
-        OutputType::P2wsh => 3,
-        OutputType::P2tr => 4,
-        OutputType::OpReturn => 5,
-        OutputType::NonStandard => 6,
-        OutputType::P2pk => 7,
-    };
-    let input_types_active = match v.input_types {
-        InputTypeClass::Uniform(t) => ot_index(t),
-        InputTypeClass::Mixed => 8,
-        InputTypeClass::Unknown => 9,
-    };
-    push_onehot(&mut values, input_types_active, 10);
-
-    values.push(match v.ecdsa_sigs {
-        EcdsaSigCount::None => 0.0,
-        EcdsaSigCount::One => 1.0,
-        EcdsaSigCount::Few => 2.0,
-        EcdsaSigCount::Many => 3.0,
+    onehot!(row, "version_", v.version, {
+        1 => "1",
+        2 => "2",
+        3 => "3",
+        _ => "other",
     });
-    values.push(match v.input_age {
-        AgeClass::SameBlock => 0.0,
-        AgeClass::Within6 => 1.0,
-        AgeClass::Within144 => 2.0,
-        AgeClass::Older => 3.0,
-        AgeClass::Indeterminate => 4.0,
+    onehot!(row, "nsequence_", v.nsequence, {
+        NSequenceType::CakeGroupC => "cake_group_c",
+        NSequenceType::Lone0x01 => "lone_0x01",
+        NSequenceType::Rbf => "rbf",
+        NSequenceType::Final => "final",
+        NSequenceType::Max => "max",
+        NSequenceType::MixedOther => "mixed_other",
     });
-    values.push(match v.output_structure {
-        OutputStructureType::Single => 0.0,
-        OutputStructureType::Double => 1.0,
-        OutputStructureType::Multi => 2.0,
-        OutputStructureType::Unknown => 3.0,
+    onehot!(row, "nlocktime_", v.nlocktime, {
+        NLockTimeType::Zero => "zero",
+        NLockTimeType::AntiFeeSnipe => "anti_fee_snipe",
+        NLockTimeType::Backdated => "backdated",
+        NLockTimeType::Future => "future",
+        NLockTimeType::Timestamp => "timestamp",
     });
-    values.push(feerate_rank(&v.feerate_bucket));
+    macro_rules! order {
+        ($group:literal, $o:expr) => {
+            onehot!(row, $group, $o, {
+                OrderClass::Bip69 => "bip69",
+                OrderClass::ValueAscending => "value_ascending",
+                OrderClass::ValueDescending => "value_descending",
+                OrderClass::AgeAscending => "age_ascending",
+                OrderClass::Other => "other",
+                OrderClass::Indeterminate => "indeterminate",
+            })
+        };
+    }
+    order!("input_order_", v.input_order);
+    order!("output_order_", v.output_order);
+    onehot!(row, "input_subtype_", v.input_subtype, {
+        InputSubtype::P2shP2wpkh => "p2sh_p2wpkh",
+        InputSubtype::P2shMultisig => "p2sh_multisig",
+        InputSubtype::P2shOther => "p2sh_other",
+        InputSubtype::P2wshMultisig => "p2wsh_multisig",
+        InputSubtype::P2wshOther => "p2wsh_other",
+        InputSubtype::TaprootKeyPath => "taproot_key_path",
+        InputSubtype::TaprootScriptPath => "taproot_script_path",
+        InputSubtype::Bare => "bare",
+        InputSubtype::Mixed => "mixed",
+        InputSubtype::Indeterminate => "indeterminate",
+    });
+    onehot!(row, "sighash_", v.sighash, {
+        SighashType::TaprootDefault => "taproot_default",
+        SighashType::TaprootExplicit => "taproot_explicit",
+        SighashType::All => "all",
+        SighashType::None => "none",
+        SighashType::Single => "single",
+        SighashType::AcpAll => "acp_all",
+        SighashType::AcpNone => "acp_none",
+        SighashType::AcpSingle => "acp_single",
+        SighashType::Other => "other",
+        SighashType::Mixed => "mixed",
+        SighashType::Na => "na",
+    });
+    onehot!(row, "input_types_", v.input_types, {
+        InputTypeClass::Uniform(OutputType::P2pkh) => "uniform_p2pkh",
+        InputTypeClass::Uniform(OutputType::P2sh) => "uniform_p2sh",
+        InputTypeClass::Uniform(OutputType::P2wpkh) => "uniform_p2wpkh",
+        InputTypeClass::Uniform(OutputType::P2wsh) => "uniform_p2wsh",
+        InputTypeClass::Uniform(OutputType::P2tr) => "uniform_p2tr",
+        InputTypeClass::Uniform(OutputType::OpReturn) => "uniform_op_return",
+        InputTypeClass::Uniform(OutputType::NonStandard) => "uniform_nonstandard",
+        InputTypeClass::Uniform(OutputType::P2pk) => "uniform_p2pk",
+        InputTypeClass::Mixed => "mixed",
+        InputTypeClass::Unknown => "unknown",
+    });
+
+    row.num(
+        num_col!("ecdsa_sigs_index"),
+        match v.ecdsa_sigs {
+            EcdsaSigCount::None => 0.0,
+            EcdsaSigCount::One => 1.0,
+            EcdsaSigCount::Few => 2.0,
+            EcdsaSigCount::Many => 3.0,
+        },
+    );
+    row.num(
+        num_col!("input_age_index"),
+        match v.input_age {
+            AgeClass::SameBlock => 0.0,
+            AgeClass::Within6 => 1.0,
+            AgeClass::Within144 => 2.0,
+            AgeClass::Older => 3.0,
+            AgeClass::Indeterminate => 4.0,
+        },
+    );
+    row.num(
+        num_col!("output_structure_index"),
+        match v.output_structure {
+            OutputStructureType::Single => 0.0,
+            OutputStructureType::Double => 1.0,
+            OutputStructureType::Multi => 2.0,
+            OutputStructureType::Unknown => 3.0,
+        },
+    );
+    row.num(
+        num_col!("feerate_bucket_index"),
+        feerate_rank(&v.feerate_bucket),
+    );
     let (lo_index, lo_na) = match v.locktime_offset {
         LocktimeOffsetType::NotApplicable => (0.0, true),
         LocktimeOffsetType::Zero => (0.0, false),
@@ -1324,103 +1188,174 @@ pub fn feature_row(
         LocktimeOffsetType::TwentySixToFifty => (7.0, false),
         LocktimeOffsetType::FiftyOneToHundred => (8.0, false),
     };
-    values.push(lo_index);
-    push_bool(&mut values, lo_na);
+    row.num(num_col!("locktime_offset_index"), lo_index);
+    row.flag(flag_col!("locktime_offset_not_applicable"), lo_na);
 
-    push_onehot(
-        &mut values,
-        match v.change_position {
-            ChangePosition::First => 0,
-            ChangePosition::Last => 1,
-            ChangePosition::Middle => 2,
-            ChangePosition::Indeterminate => 3,
-        },
-        4,
+    onehot!(row, "change_position_", v.change_position, {
+        ChangePosition::First => "first",
+        ChangePosition::Last => "last",
+        ChangePosition::Middle => "middle",
+        ChangePosition::Indeterminate => "indeterminate",
+    });
+    row.flag(flag_col!("change_type_present"), v.change_type.is_some());
+
+    row.flag(flag_col!("bip125_rbf"), shape.bip125_rbf);
+    row.flag(flag_col!("all_inputs_final"), shape.all_inputs_final);
+    row.flag(flag_col!("bip68_active"), shape.bip68_active);
+    row.flag(flag_col!("bip68_type_time"), shape.bip68_type_time);
+    row.flag(
+        flag_col!("nsequence_reserved_bits_set"),
+        shape.nsequence_reserved_bits_set,
     );
-    push_bool(&mut values, v.change_type.is_some());
-
-    push_bool(&mut values, shape.bip125_rbf);
-    push_bool(&mut values, shape.all_inputs_final);
-    push_bool(&mut values, shape.bip68_active);
-    push_bool(&mut values, shape.bip68_type_time);
-    push_bool(&mut values, shape.nsequence_reserved_bits_set);
-    values.push(f64::from(shape.bip68_relative_value_max));
+    row.num(
+        num_col!("bip68_relative_value_max"),
+        f64::from(shape.bip68_relative_value_max),
+    );
     // Consensus ignores nLockTime when every input is final.
     let nlocktime_dead = v.nlocktime != NLockTimeType::Zero && shape.all_inputs_final;
-    push_bool(&mut values, nlocktime_dead);
-    values.push(f64::from(shape.input_count));
-    values.push(f64::from(shape.output_count));
-    for c in shape.input_type_counts {
-        values.push(f64::from(c));
+    row.flag(flag_col!("nlocktime_dead"), nlocktime_dead);
+    row.num(num_col!("input_count"), f64::from(shape.input_count));
+    row.num(num_col!("output_count"), f64::from(shape.output_count));
+    let cols = const { by_type("input_count_") };
+    for (t, c) in shape.input_type_counts.into_iter().enumerate() {
+        row.num(cols[t], f64::from(c));
     }
-    for c in shape.output_type_counts {
-        values.push(f64::from(c));
+    let cols = const { by_type("output_count_") };
+    for (t, c) in shape.output_type_counts.into_iter().enumerate() {
+        row.num(cols[t], f64::from(c));
     }
-    values.push(shape.first_output_type.map_or(-1.0, |t| t as usize as f64));
-    values.push(shape.last_output_type.map_or(-1.0, |t| t as usize as f64));
-    push_bool(&mut values, shape.first_output_matches_input_type);
-    push_bool(&mut values, shape.last_output_matches_input_type);
-    push_bool(&mut values, shape.outputs_type_grouped);
-    values.push(shape.first_input_type.map_or(-1.0, |t| t as usize as f64));
-    values.push(shape.last_input_type.map_or(-1.0, |t| t as usize as f64));
-    push_bool(&mut values, shape.inputs_type_grouped);
-    for t in shape.input_types_positional {
-        values.push(t.map_or(-1.0, |t| t as usize as f64));
+    row.num(
+        num_col!("first_output_type_index"),
+        type_index(shape.first_output_type),
+    );
+    row.num(
+        num_col!("last_output_type_index"),
+        type_index(shape.last_output_type),
+    );
+    row.flag(
+        flag_col!("first_output_matches_input_type"),
+        shape.first_output_matches_input_type,
+    );
+    row.flag(
+        flag_col!("last_output_matches_input_type"),
+        shape.last_output_matches_input_type,
+    );
+    row.flag(
+        flag_col!("outputs_type_grouped"),
+        shape.outputs_type_grouped,
+    );
+    row.num(
+        num_col!("first_input_type_index"),
+        type_index(shape.first_input_type),
+    );
+    row.num(
+        num_col!("last_input_type_index"),
+        type_index(shape.last_input_type),
+    );
+    row.flag(flag_col!("inputs_type_grouped"), shape.inputs_type_grouped);
+    let cols = const { by_position("input_type_at_pos_") };
+    for (k, t) in shape.input_types_positional.into_iter().enumerate() {
+        row.num(cols[k], type_index(t));
     }
-    for t in shape.output_types_positional {
-        values.push(t.map_or(-1.0, |t| t as usize as f64));
+    let cols = const { by_position("output_type_at_pos_") };
+    for (k, t) in shape.output_types_positional.into_iter().enumerate() {
+        row.num(cols[k], type_index(t));
     }
 
-    values.push(shape.fee_sat);
-    values.push(shape.vsize);
-    values.push(shape.weight);
-    values.push(shape.feerate_sat_per_vb);
-    values.push(shape.feerate_sat_per_kwu);
-    push_bool(&mut values, shape.fee_is_multiple_of_vsize);
-    values.push(shape.feerate_over_block_min);
-    values.push(shape.feerate_over_prev_block_min);
-    values.push(shape.max_output_value_sat);
-    values.push(shape.hamming_decimal);
-    values.push(shape.hamming_base2);
-    values.push(shape.hamming_base3);
-    values.push(shape.decimal_sig_fig_span);
-    values.push(shape.hamming_decimal_min_over_outputs);
-    values.push(shape.taproot_max_merkle_depth);
-    values.push(shape.taproot_script_path_input_count);
+    row.num(num_col!("fee_sat"), shape.fee_sat);
+    row.num(num_col!("vsize"), shape.vsize);
+    row.num(num_col!("weight"), shape.weight);
+    row.num(num_col!("feerate_sat_per_vb"), shape.feerate_sat_per_vb);
+    row.num(num_col!("feerate_sat_per_kwu"), shape.feerate_sat_per_kwu);
+    row.flag(
+        flag_col!("fee_is_multiple_of_vsize"),
+        shape.fee_is_multiple_of_vsize,
+    );
+    row.num(
+        num_col!("feerate_over_block_min"),
+        shape.feerate_over_block_min,
+    );
+    row.num(
+        num_col!("feerate_over_prev_block_min"),
+        shape.feerate_over_prev_block_min,
+    );
+    row.num(num_col!("max_output_value_sat"), shape.max_output_value_sat);
+    row.num(num_col!("hamming_decimal"), shape.hamming_decimal);
+    row.num(num_col!("hamming_base2"), shape.hamming_base2);
+    row.num(num_col!("hamming_base3"), shape.hamming_base3);
+    row.num(num_col!("decimal_sig_fig_span"), shape.decimal_sig_fig_span);
+    row.num(
+        num_col!("hamming_decimal_min_over_outputs"),
+        shape.hamming_decimal_min_over_outputs,
+    );
+    row.num(
+        num_col!("taproot_max_merkle_depth"),
+        shape.taproot_max_merkle_depth,
+    );
+    row.num(
+        num_col!("taproot_script_path_input_count"),
+        shape.taproot_script_path_input_count,
+    );
 
-    push_bool(&mut values, shape.is_standard);
-    push_bool(&mut values, shape.nonstd_version);
-    push_bool(&mut values, shape.nonstd_weight);
-    push_bool(&mut values, shape.nonstd_output_type);
-    push_bool(&mut values, shape.nonstd_dust);
-    push_bool(&mut values, shape.nonstd_multi_op_return);
-    push_bool(&mut values, shape.nonstd_bare_multisig);
-
-    push_bool(&mut values, shape.has_inscription_envelope);
-    push_bool(&mut values, shape.has_runestone);
-
-    push_bool(&mut values, shape.fee_is_multiple_of_kwu);
-
-    push_bool(&mut values, shape.fee_is_multiple_of_weight);
-
-    values.push(shape.multisig_m as f64);
-    values.push(shape.multisig_n as f64);
-    push_bool(&mut values, shape.multisig_mixed);
-
-    values.push(shape.distinct_output_value_count as f64);
-    values.push(shape.max_equal_value_output_count as f64);
-
-    push_bool(&mut values, shape.nlocktime_optin_without_use);
-    push_bool(&mut values, shape.taproot_keyspend_non_default_sighash);
-
-    values.push(shape.sigop_count as f64);
-    push_bool(&mut values, shape.change_detected_by_round_number);
-    push_bool(&mut values, shape.change_heuristics_agree);
+    row.flag(flag_col!("is_standard"), shape.is_standard);
+    row.flag(flag_col!("nonstd_version"), shape.nonstd_version);
+    row.flag(flag_col!("nonstd_weight"), shape.nonstd_weight);
+    row.flag(flag_col!("nonstd_output_type"), shape.nonstd_output_type);
+    row.flag(flag_col!("nonstd_dust"), shape.nonstd_dust);
+    row.flag(
+        flag_col!("nonstd_multi_op_return"),
+        shape.nonstd_multi_op_return,
+    );
+    row.flag(
+        flag_col!("nonstd_bare_multisig"),
+        shape.nonstd_bare_multisig,
+    );
+    row.flag(
+        flag_col!("has_inscription_envelope"),
+        shape.has_inscription_envelope,
+    );
+    row.flag(flag_col!("has_runestone"), shape.has_runestone);
+    row.flag(
+        flag_col!("fee_is_multiple_of_kwu"),
+        shape.fee_is_multiple_of_kwu,
+    );
+    row.flag(
+        flag_col!("fee_is_multiple_of_weight"),
+        shape.fee_is_multiple_of_weight,
+    );
+    row.num(num_col!("multisig_m"), shape.multisig_m as f64);
+    row.num(num_col!("multisig_n"), shape.multisig_n as f64);
+    row.flag(flag_col!("multisig_mixed"), shape.multisig_mixed);
+    row.num(
+        num_col!("distinct_output_value_count"),
+        shape.distinct_output_value_count as f64,
+    );
+    row.num(
+        num_col!("max_equal_value_output_count"),
+        shape.max_equal_value_output_count as f64,
+    );
+    row.flag(
+        flag_col!("nlocktime_optin_without_use"),
+        shape.nlocktime_optin_without_use,
+    );
+    row.flag(
+        flag_col!("taproot_keyspend_non_default_sighash"),
+        shape.taproot_keyspend_non_default_sighash,
+    );
+    row.num(num_col!("sigop_count"), shape.sigop_count as f64);
+    row.flag(
+        flag_col!("change_detected_by_round_number"),
+        shape.change_detected_by_round_number,
+    );
+    row.flag(
+        flag_col!("change_heuristics_agree"),
+        shape.change_heuristics_agree,
+    );
 
     FeatureRow {
         txid,
         height,
-        values,
+        values: row.finish(),
     }
 }
 
@@ -1654,6 +1589,71 @@ mod tests {
     use lumen_primitives::traits::SourcedBlock;
     use lumen_primitives::traits::block_source::SpentOutput;
     use std::collections::HashMap;
+
+    /// Every variant of every axis, so each one-hot suffix and ordinal arm is exercised.
+    #[test]
+    fn every_axis_variant_writes_a_checked_row() {
+        use crate::vector::{AgeClass, ChangePosition, EcdsaSigCount, InputSubtype, OrderClass};
+        use lumen_fingerprints_lib::LocktimeOffsetType as L;
+        use lumen_fingerprints_lib::OutputStructureType as O;
+        use lumen_fingerprints_lib::SighashType as H;
+        let base = classifiable_vector();
+        let mut vs = vec![base.clone()];
+        macro_rules! vary {
+            ($f:ident: $($x:expr),*) => {
+                $({
+                    let mut v = base.clone();
+                    v.$f = $x;
+                    vs.push(v);
+                })*
+            };
+        }
+        vary!(version: 1, 2, 3, 7);
+        vary!(nsequence: NSequenceType::CakeGroupC, NSequenceType::Lone0x01, NSequenceType::Rbf,
+            NSequenceType::Final, NSequenceType::Max, NSequenceType::MixedOther);
+        vary!(nlocktime: NLockTimeType::Zero, NLockTimeType::AntiFeeSnipe, NLockTimeType::Backdated,
+            NLockTimeType::Future, NLockTimeType::Timestamp);
+        vary!(locktime_offset: L::NotApplicable, L::Zero, L::One, L::Two, L::Three, L::FourToSix,
+            L::SevenToTwelve, L::ThirteenToTwentyFive, L::TwentySixToFifty, L::FiftyOneToHundred);
+        for o in [
+            OrderClass::Bip69,
+            OrderClass::ValueAscending,
+            OrderClass::ValueDescending,
+            OrderClass::AgeAscending,
+            OrderClass::Other,
+            OrderClass::Indeterminate,
+        ] {
+            vary!(input_order: o);
+            vary!(output_order: o);
+        }
+        vary!(output_structure: O::Single, O::Double, O::Multi, O::Unknown);
+        for t in OUTPUT_TYPES_IN_ORDER {
+            vary!(input_types: InputTypeClass::Uniform(t));
+            vary!(change_type: Some(t));
+        }
+        vary!(input_types: InputTypeClass::Mixed, InputTypeClass::Unknown);
+        for t in [Tri::Yes, Tri::No, Tri::Indeterminate] {
+            vary!(low_r: t);
+            vary!(uncompressed_pubkey: t);
+            vary!(low_s: t);
+        }
+        vary!(sighash: H::TaprootDefault, H::TaprootExplicit, H::All, H::None, H::Single, H::AcpAll,
+            H::AcpNone, H::AcpSingle, H::Other, H::Mixed, H::Na);
+        vary!(input_subtype: InputSubtype::P2shP2wpkh, InputSubtype::P2shMultisig,
+            InputSubtype::P2shOther, InputSubtype::P2wshMultisig, InputSubtype::P2wshOther,
+            InputSubtype::TaprootKeyPath, InputSubtype::TaprootScriptPath, InputSubtype::Bare,
+            InputSubtype::Mixed, InputSubtype::Indeterminate);
+        vary!(ecdsa_sigs: EcdsaSigCount::None, EcdsaSigCount::One, EcdsaSigCount::Few,
+            EcdsaSigCount::Many);
+        vary!(input_age: AgeClass::SameBlock, AgeClass::Within6, AgeClass::Within144,
+            AgeClass::Older, AgeClass::Indeterminate);
+        vary!(change_position: ChangePosition::First, ChangePosition::Last, ChangePosition::Middle,
+            ChangePosition::Indeterminate);
+        for v in &vs {
+            let row = feature_row(v, &default_shape(), String::new(), 0);
+            assert_eq!(row.values.len(), COLUMN_KINDS.len());
+        }
+    }
 
     fn spk_for(t: OutputType) -> ScriptBuf {
         let hex = match t {
@@ -2964,6 +2964,22 @@ mod tests {
             std::collections::BTreeSet::from(["op_return", "round_feerate"]),
             "the only names shared between the feature matrix and the sparsity axes must be the intentional duals; any other overlap breaks the two-objectives separation"
         );
+    }
+
+    /// The published header, so reordering, renaming or removing a column fails here;
+    /// appending one means adding it to the file too, keeping FEATURES.md honest.
+    #[test]
+    fn columns_match_the_published_header() {
+        let published: Vec<&str> = include_str!("../feature_columns.txt").lines().collect();
+        assert_eq!(COLUMN_NAMES, published.as_slice());
+    }
+
+    #[test]
+    fn column_names_are_unique() {
+        let mut seen = std::collections::BTreeSet::new();
+        for name in COLUMN_NAMES {
+            assert!(seen.insert(name), "duplicate column {name}");
+        }
     }
 
     #[test]

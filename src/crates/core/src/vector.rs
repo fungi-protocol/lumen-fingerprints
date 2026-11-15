@@ -27,6 +27,10 @@ pub enum Tri {
     Indeterminate,
 }
 
+impl Tri {
+    pub const ALL: [Self; 3] = [Self::Yes, Self::No, Self::Indeterminate];
+}
+
 /// `Other` is what a shuffling wallet looks like.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum OrderClass {
@@ -37,6 +41,17 @@ pub enum OrderClass {
     Other,
     /// Fewer than two elements: no signal.
     Indeterminate,
+}
+
+impl OrderClass {
+    pub const ALL: [Self; 6] = [
+        Self::Bip69,
+        Self::ValueAscending,
+        Self::ValueDescending,
+        Self::AgeAscending,
+        Self::Other,
+        Self::Indeterminate,
+    ];
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -62,6 +77,21 @@ pub enum InputSubtype {
     Indeterminate,
 }
 
+impl InputSubtype {
+    pub const ALL: [Self; 10] = [
+        Self::P2shP2wpkh,
+        Self::P2shMultisig,
+        Self::P2shOther,
+        Self::P2wshMultisig,
+        Self::P2wshOther,
+        Self::TaprootKeyPath,
+        Self::TaprootScriptPath,
+        Self::Bare,
+        Self::Mixed,
+        Self::Indeterminate,
+    ];
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum AgeClass {
     SameBlock,
@@ -69,6 +99,16 @@ pub enum AgeClass {
     Within144,
     Older,
     Indeterminate,
+}
+
+impl AgeClass {
+    pub const ALL: [Self; 5] = [
+        Self::SameBlock,
+        Self::Within6,
+        Self::Within144,
+        Self::Older,
+        Self::Indeterminate,
+    ];
 }
 
 /// Low-R grinding is probabilistic (non-grinders hit low-R about half the time), so
@@ -82,6 +122,10 @@ pub enum EcdsaSigCount {
     Few,
     /// 5+.
     Many,
+}
+
+impl EcdsaSigCount {
+    pub const ALL: [Self; 4] = [Self::None, Self::One, Self::Few, Self::Many];
 }
 
 /// `Indeterminate` also covers fewer than 2 outputs.
@@ -410,6 +454,124 @@ fn csv_escape(field: &str) -> String {
     }
 }
 
+/// Values that carry no signal: they match every template, so a template cannot pin them.
+pub(crate) const NO_SIGNAL: [&str; 3] = ["Indeterminate", "Unknown", "Na"];
+
+/// The values `axis_value` can produce for one joint-key axis, minus `NO_SIGNAL`.
+#[derive(Debug)]
+pub(crate) enum AxisValues {
+    Closed(Vec<String>),
+    Integer,
+    InputTypes,
+    OutputTypes,
+}
+
+impl AxisValues {
+    pub(crate) fn accepts(&self, value: &str) -> bool {
+        match self {
+            Self::Closed(values) => values.iter().any(|v| v == value),
+            // Canonical form only: "+2" or "02" parse but never equal a key's "2".
+            Self::Integer => value.parse::<i32>().is_ok_and(|n| n.to_string() == value),
+            Self::InputTypes => {
+                value == "Mixed"
+                    || value
+                        .strip_prefix("Uniform(")
+                        .and_then(|t| t.strip_suffix(')'))
+                        .is_some_and(|t| t != "OpReturn" && output_type_rank(t).is_some())
+            }
+            // Sorted and deduplicated, as `classify_tx` builds it.
+            Self::OutputTypes => value
+                .strip_prefix('[')
+                .and_then(|v| v.strip_suffix(']'))
+                .and_then(|v| {
+                    v.split(", ")
+                        .map(output_type_rank)
+                        .collect::<Option<Vec<_>>>()
+                })
+                .is_some_and(|ranks| ranks.windows(2).all(|w| w[0] < w[1])),
+        }
+    }
+}
+
+impl std::fmt::Display for AxisValues {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let types = |skip: Option<OutputType>| {
+            let names = OutputType::ALL.into_iter().filter(|&t| Some(t) != skip);
+            names.map(output_type_str).collect::<Vec<_>>().join(", ")
+        };
+        match self {
+            Self::Closed(values) => {
+                let quoted: Vec<String> = values.iter().map(|v| format!("{v:?}")).collect();
+                write!(f, "one of {}", quoted.join(", "))
+            }
+            Self::Integer => write!(f, "a canonical integer such as 2 or -1"),
+            Self::InputTypes => {
+                let types = types(Some(OutputType::OpReturn));
+                write!(f, "Mixed or Uniform(<type>), type one of {types}")
+            }
+            Self::OutputTypes => {
+                write!(f, "[<types>] without repeats, in the order {}", types(None))
+            }
+        }
+    }
+}
+
+fn output_type_rank(name: &str) -> Option<usize> {
+    OutputType::ALL
+        .iter()
+        .position(|&t| output_type_str(t) == name)
+}
+
+/// `None` for axes outside the joint keys: matching runs on those keys, so a constraint
+/// on any other axis would silently match everything.
+pub(crate) fn axis_values(axis: &str) -> Option<AxisValues> {
+    if !CORE_AXES.contains(&axis) && !EXTENDED_AXES.contains(&axis) {
+        return None;
+    }
+    fn closed<T: Copy>(all: &[T], name: fn(T) -> &'static str) -> AxisValues {
+        AxisValues::Closed(
+            all.iter()
+                .map(|&v| name(v))
+                .filter(|v| !NO_SIGNAL.contains(v))
+                .map(str::to_string)
+                .collect(),
+        )
+    }
+    Some(match axis {
+        "version" => AxisValues::Integer,
+        "nsequence" => closed(&NSequenceType::ALL, nsequence_str),
+        "nlocktime" => closed(&NLockTimeType::ALL, nlocktime_str),
+        "locktime_offset" => closed(&LocktimeOffsetType::ALL, locktime_offset_str),
+        "input_order" => closed(&OrderClass::ALL, order_class_str),
+        // Outputs have no age.
+        "output_order" => closed(
+            &OrderClass::ALL
+                .into_iter()
+                .filter(|&o| o != OrderClass::AgeAscending)
+                .collect::<Vec<_>>(),
+            order_class_str,
+        ),
+        "output_structure" => closed(&OutputStructureType::ALL, output_structure_str),
+        "input_types" => AxisValues::InputTypes,
+        "output_types" => AxisValues::OutputTypes,
+        "low_r" | "uncompressed_pubkey" | "low_s" => closed(&Tri::ALL, tri_str),
+        "sighash" => closed(&SighashType::ALL, sighash_str),
+        "op_return" | "round_feerate" => {
+            closed(&[true, false], |b| if b { "true" } else { "false" })
+        }
+        "input_subtype" => closed(&InputSubtype::ALL, input_subtype_str),
+        "ecdsa_sigs" => closed(&EcdsaSigCount::ALL, ecdsa_sig_count_str),
+        "input_age" => closed(&AgeClass::ALL, age_class_str),
+        "feerate_bucket" => {
+            let mut buckets: Vec<String> =
+                (0..=100).map(|r| feerate_bucket(f64::from(r))).collect();
+            buckets.dedup();
+            AxisValues::Closed(buckets)
+        }
+        _ => return None,
+    })
+}
+
 /// Splits on the first `=` only; axis names never contain `=`.
 pub fn parse_key(key: &str) -> BTreeMap<String, String> {
     key.split('|')
@@ -630,7 +792,13 @@ fn feerate(tx: &Transaction, block: &SourcedBlock) -> (String, bool) {
     };
 
     let rate = fee as f64 / vsize as f64;
-    let bucket = if rate < 10.0 {
+    // Typed feerates land within a hair of an integer; estimator output essentially never does.
+    let round = (rate - rate.round()).abs() < 0.01 && rate >= 1.0;
+    (feerate_bucket(rate), round)
+}
+
+fn feerate_bucket(rate: f64) -> String {
+    if rate < 10.0 {
         format!("{}", rate.floor() as u64)
     } else if rate < 100.0 {
         format!(
@@ -640,11 +808,7 @@ fn feerate(tx: &Transaction, block: &SourcedBlock) -> (String, bool) {
         )
     } else {
         "100+".to_string()
-    };
-
-    // Typed feerates land within a hair of an integer; estimator output essentially never does.
-    let round = (rate - rate.round()).abs() < 0.01 && rate >= 1.0;
-    (bucket, round)
+    }
 }
 
 /// The heuristic's `None` means inconclusive, never "not change". Callers must have
@@ -1028,6 +1192,80 @@ mod tests {
     use super::*;
     use bitcoin::{Amount, TxOut};
     use std::collections::HashMap;
+
+    #[test]
+    fn axis_values_accept_every_value_axis_value_produces() {
+        let base = classifiable_vector();
+        let mut vs = vec![base.clone()];
+        let mut push = |f: &dyn Fn(&mut FingerprintVector)| {
+            let mut v = base.clone();
+            f(&mut v);
+            vs.push(v);
+        };
+        for x in NSequenceType::ALL {
+            push(&|v| v.nsequence = x);
+        }
+        for x in NLockTimeType::ALL {
+            push(&|v| v.nlocktime = x);
+        }
+        for x in LocktimeOffsetType::ALL {
+            push(&|v| v.locktime_offset = x);
+        }
+        for x in OrderClass::ALL {
+            push(&|v| v.input_order = x);
+            if x != OrderClass::AgeAscending {
+                push(&|v| v.output_order = x);
+            }
+        }
+        for x in OutputStructureType::ALL {
+            push(&|v| v.output_structure = x);
+        }
+        for x in Tri::ALL {
+            push(&|v| (v.low_r, v.uncompressed_pubkey, v.low_s) = (x, x, x));
+        }
+        for x in SighashType::ALL {
+            push(&|v| v.sighash = x);
+        }
+        for x in InputSubtype::ALL {
+            push(&|v| v.input_subtype = x);
+        }
+        for x in EcdsaSigCount::ALL {
+            push(&|v| v.ecdsa_sigs = x);
+        }
+        for x in AgeClass::ALL {
+            push(&|v| v.input_age = x);
+        }
+        for t in OutputType::ALL {
+            if t != OutputType::OpReturn {
+                push(&|v| v.input_types = InputTypeClass::Uniform(t));
+            }
+            push(&|v| v.output_types = vec![t]);
+            push(&|v| v.output_types = OutputType::ALL[t as usize..].to_vec());
+        }
+        for (x, rate) in [
+            (InputTypeClass::Mixed, 0.0),
+            (InputTypeClass::Unknown, 250.0),
+        ] {
+            push(&|v| (v.input_types, v.feerate_bucket) = (x, feerate_bucket(rate)));
+        }
+        for tenths in 0..1500 {
+            push(&|v| v.feerate_bucket = feerate_bucket(f64::from(tenths) / 10.0));
+        }
+        for b in [true, false] {
+            push(&|v| (v.op_return, v.round_feerate, v.version) = (b, b, i32::from(b) - 7));
+        }
+
+        for v in &vs {
+            for &axis in CORE_AXES.iter().chain(EXTENDED_AXES) {
+                let value = v.axis_value(axis).unwrap();
+                if NO_SIGNAL.contains(&value.as_ref()) {
+                    continue;
+                }
+                let domain = axis_values(axis).unwrap();
+                assert!(domain.accepts(&value), "{axis} = {value} not in {domain}");
+            }
+        }
+    }
 
     #[test]
     fn classifies_the_cake_group_c_shape() {

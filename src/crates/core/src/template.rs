@@ -4,13 +4,7 @@ use std::path::Path;
 
 use serde::Deserialize;
 
-use crate::vector::{CORE_AXES, EXTENDED_AXES, FingerprintVector, HEURISTIC_AXES};
-
-/// Unknown keys are errors so a typo fails loudly instead of matching everything.
-/// Heuristic axes stay out of joint keys but templates may still constrain them.
-fn is_known_axis(axis: &str) -> bool {
-    CORE_AXES.contains(&axis) || EXTENDED_AXES.contains(&axis) || HEURISTIC_AXES.contains(&axis)
-}
+use crate::vector::{FingerprintVector, NO_SIGNAL, axis_values};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Confidence {
@@ -22,7 +16,16 @@ pub enum Confidence {
 pub enum TemplateError {
     Io(std::io::Error),
     Parse(String),
-    UnknownAxis(String),
+    UnknownAxis {
+        wallet: String,
+        axis: String,
+    },
+    InvalidValue {
+        wallet: String,
+        axis: String,
+        value: String,
+        expected: String,
+    },
 }
 
 impl std::fmt::Display for TemplateError {
@@ -30,7 +33,18 @@ impl std::fmt::Display for TemplateError {
         match self {
             Self::Io(e) => write!(f, "reading templates: {e}"),
             Self::Parse(msg) => write!(f, "parsing templates: {msg}"),
-            Self::UnknownAxis(axis) => write!(f, "unknown axis in template: {axis}"),
+            Self::UnknownAxis { wallet, axis } => {
+                write!(f, "wallet {wallet}: {axis} is not an axis of the joint key")
+            }
+            Self::InvalidValue {
+                wallet,
+                axis,
+                value,
+                expected,
+            } => write!(
+                f,
+                "wallet {wallet}: {axis} = {value:?}, expected {expected}"
+            ),
         }
     }
 }
@@ -107,13 +121,21 @@ pub fn parse_templates(text: &str) -> Result<Vec<WalletTemplate>, TemplateError>
             }
             let mut axes = BTreeMap::new();
             for (axis, value) in entry {
-                if !is_known_axis(&axis) {
-                    return Err(TemplateError::UnknownAxis(axis));
-                }
+                let Some(domain) = axis_values(&axis) else {
+                    return Err(TemplateError::UnknownAxis { wallet: name, axis });
+                };
                 let values = match value {
                     RawValue::One(s) => vec![s],
                     RawValue::Many(v) => v,
                 };
+                if let Some(bad) = values.iter().find(|v| !domain.accepts(v)) {
+                    return Err(TemplateError::InvalidValue {
+                        wallet: name,
+                        axis,
+                        value: bad.clone(),
+                        expected: domain.to_string(),
+                    });
+                }
                 if values.is_empty() {
                     return Err(TemplateError::Parse(format!(
                         "wallet {name}: axis {axis} has an empty value set"
@@ -161,13 +183,11 @@ impl WalletTemplate {
     /// measured here are upper bounds.
     fn matches_by<'a, F: Fn(&str) -> Option<Cow<'a, str>>>(&self, lookup: F) -> bool {
         self.axes.iter().all(|(axis, expected)| {
+            // A key written before this axis existed never observed it: no signal.
             let Some(actual) = lookup(axis) else {
                 return true;
             };
-            if actual.as_ref() == "Indeterminate"
-                || actual.as_ref() == "Unknown"
-                || actual.as_ref() == "Na"
-            {
+            if NO_SIGNAL.contains(&actual.as_ref()) {
                 return true;
             }
             expected.iter().any(|allowed| allowed == actual.as_ref())
@@ -188,6 +208,7 @@ mod tests {
     use super::*;
     use crate::vector::classify_tx;
     use crate::vector::tests_support::{EPOCH_TEST_HEIGHT, cake_like_block};
+    use crate::vector::{CORE_AXES, EXTENDED_AXES};
 
     fn cake_vector() -> FingerprintVector {
         let block = cake_like_block(EPOCH_TEST_HEIGHT);
@@ -335,6 +356,75 @@ mod tests {
     }
 
     #[test]
+    fn heuristic_axis_is_an_error() {
+        for axis in crate::vector::HEURISTIC_AXES {
+            let toml = format!("[[wallet]]\nname = \"h\"\n{axis} = \"Last\"\n");
+            assert!(matches!(
+                parse_templates(&toml),
+                Err(TemplateError::UnknownAxis { axis: a, .. }) if a == *axis
+            ));
+        }
+    }
+
+    fn parse_one(axis: &str, value: &str) -> Result<Vec<WalletTemplate>, TemplateError> {
+        parse_templates(&format!("[[wallet]]\nname = \"w\"\n{axis} = {value:?}\n"))
+    }
+
+    #[track_caller]
+    fn assert_invalid(axis: &str, value: &str) {
+        match parse_one(axis, value) {
+            Err(TemplateError::InvalidValue { .. }) => {}
+            other => panic!("{axis} = {value:?}: expected InvalidValue, got {other:?}"),
+        }
+    }
+
+    #[track_caller]
+    fn assert_valid(axis: &str, value: &str) {
+        if let Err(e) = parse_one(axis, value) {
+            panic!("{axis} = {value:?}: {e}");
+        }
+    }
+
+    #[test]
+    fn invalid_value_error_names_the_accepted_values() {
+        let err = parse_one("nsequence", "RBF").unwrap_err().to_string();
+        assert!(err.contains("\"RBF\"") && err.contains("\"Rbf\""), "{err}");
+    }
+
+    #[test]
+    fn misspelled_value_is_an_error() {
+        assert_invalid("nsequence", "RBF");
+        assert_invalid("input_types", "Uniform(P2WPKH)");
+        assert_invalid("version", "two");
+        assert_invalid("feerate_bucket", "10-20");
+    }
+
+    #[test]
+    fn unreachable_value_is_an_error() {
+        assert_invalid("version", "+2");
+        assert_invalid("version", "02");
+        assert_valid("version", "-1");
+        assert_invalid("output_order", "AgeAscending");
+        assert_valid("input_order", "AgeAscending");
+        assert_invalid("input_types", "Uniform(OpReturn)");
+    }
+
+    #[test]
+    fn no_signal_value_is_an_error() {
+        assert_invalid("low_r", "Indeterminate");
+        assert_invalid("input_types", "Unknown");
+        assert_invalid("sighash", "Na");
+    }
+
+    #[test]
+    fn output_types_must_be_sorted_and_unique() {
+        assert_valid("output_types", "[P2wpkh, P2tr]");
+        assert_invalid("output_types", "[P2tr, P2wpkh]");
+        assert_invalid("output_types", "[P2tr, P2tr]");
+        assert_invalid("output_types", "[]");
+    }
+
+    #[test]
     fn unknown_axis_name_is_an_error() {
         let toml = r#"
             [[wallet]]
@@ -399,12 +489,7 @@ mod tests {
         let templates = load_templates(&path).unwrap();
         let v = cake_vector();
 
-        let all_axes: Vec<&str> = CORE_AXES
-            .iter()
-            .chain(EXTENDED_AXES.iter())
-            .chain(HEURISTIC_AXES.iter())
-            .copied()
-            .collect();
+        let all_axes: Vec<&str> = CORE_AXES.iter().chain(EXTENDED_AXES).copied().collect();
         let axes = crate::vector::parse_key(&v.key_for(&all_axes));
 
         for template in &templates {
@@ -481,7 +566,7 @@ mod tests {
             software = "cake_wallet"
             from_version = "4.28.0"
             confidence = "code-predicted"
-            nsequence = "CakeGroupC"
+            nsequence = "Lone0x01"
         "#;
         let templates = parse_templates(toml).unwrap();
         assert_eq!(templates.len(), 1);
@@ -491,7 +576,7 @@ mod tests {
         assert_eq!(t.until_version, None);
         assert_eq!(
             t.axes.get("nsequence").map(Vec::as_slice),
-            Some(["CakeGroupC".to_string()].as_slice())
+            Some(["Lone0x01".to_string()].as_slice())
         );
     }
 

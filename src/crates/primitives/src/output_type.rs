@@ -16,6 +16,17 @@ pub enum OutputType {
 }
 
 impl OutputType {
+    pub const ALL: [Self; 8] = [
+        Self::P2pkh,
+        Self::P2sh,
+        Self::P2wpkh,
+        Self::P2wsh,
+        Self::P2tr,
+        Self::OpReturn,
+        Self::NonStandard,
+        Self::P2pk,
+    ];
+
     pub fn as_u32(self) -> u32 {
         self as u32
     }
